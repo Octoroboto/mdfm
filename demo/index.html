@@ -3,7 +3,7 @@
 <style>body{background:#15161c;color:#e4e4ec;font:15px system-ui;padding:24px}canvas{width:420px;height:110px;background:#000;display:block;margin:12px 0;border:2px solid #333}button{font:inherit;padding:8px 14px;margin-right:6px}</style></head>
 <body><h1>MDFM 99.9 HD</h1>
 <canvas id="eq"></canvas>
-<button id="go">Play / stop</button><button id="skip">Next song</button><button id="spot">Ad now</button>
+<button id="go">Play / stop</button><button id="skip">Next song</button><button id="spot">Ad now</button><button id="ride">Let it ride</button><button id="uw">Underwater</button>
 <p id="np">Off</p>
 <footer data-mdfm-badges></footer>
 <script src="../dist/skin.js"></script>
@@ -18,4 +18,6 @@ radio.on("spot", s => console.log("spot:", s.text));
 document.getElementById("go").onclick = () => radio.toggle();
 document.getElementById("skip").onclick = () => radio.skip();
 document.getElementById("spot").onclick = () => radio.spotNow();
+document.getElementById("ride").onclick = e => { radio.setLetItRide(!radio.isLetItRide()); e.target.textContent = radio.isLetItRide() ? "Let it ride: on" : "Let it ride"; };
+document.getElementById("uw").onclick = e => { radio.setUnderwater(!radio.isUnderwater()); e.target.textContent = radio.isUnderwater() ? "Underwater: on" : "Underwater"; };
 </script></body></html>

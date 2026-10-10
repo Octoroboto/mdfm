@@ -186,10 +186,10 @@ const STYLES = ["MELODIC DRILL","CHILL TRAP","PLUGGNB","SLOW JAM R&B","AFROSWING
 
 function createMDFM(opts = {}) {
 const listeners={}; const emit=(ev,data)=>(listeners[ev]||[]).forEach(f=>{try{f(data);}catch(e){}});
-let nowPlaying=null, spotsOn=opts.spots!==false;
+let nowPlaying=null, spotsOn=opts.spots!==false, ride=!!opts.letItRide, underwater=!!opts.underwater;
 const R=Math.random, pick=a=>a[Math.floor(R()*a.length)], rr=(a,b)=>a+R()*(b-a), ri=(a,b)=>Math.floor(rr(a,b+1));
 const mtof=m=>440*Math.pow(2,(m-69)/12);
-let ctx=null,pre,master,analyser,freq,vuA=null,vuBuf=null,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808;
+let ctx=null,pre,master,analyser,freq,vuA=null,vuBuf=null,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW;
 let on=false,timer=0,songs=[],lastSpot=-999,spotCount=0,voicePulse=0,speaking=false,bed=null;
 const VOL=.62;
 function shaper(k){const c=new Float32Array(2048);for(let i=0;i<2048;i++){const x=i/1023.5-1;c[i]=Math.tanh(x*k)/Math.tanh(k);}return c;}
@@ -210,7 +210,11 @@ function init(c){
   const comp=ctx.createDynamicsCompressor(); comp.threshold.value=-16; comp.knee.value=6; comp.ratio.value=3.5; comp.attack.value=.008; comp.release.value=.22;
   master=G(0);
   analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=.5; analyser.minDecibels=-86; analyser.maxDecibels=-30;
-  pre.connect(ls).connect(hs).connect(lp).connect(comp).connect(G(1.3)).connect(master).connect(analyser).connect(ctx.destination);
+  /* underwater: a wobbling delay (pitch drift) into a resonant low-pass whose cutoff drifts. Neutral when off. */
+  UW={dl:ctx.createDelay(.05),lp:filt("lowpass",20000,.7),wob:osc("sine",.55),wobG:G(0),drift:osc("sine",.13),driftG:G(0)};
+  UW.dl.delayTime.value=.012; UW.wob.connect(UW.wobG).connect(UW.dl.delayTime); UW.drift.connect(UW.driftG).connect(UW.lp.frequency);
+  UW.wob.start(); UW.drift.start(); applyUnderwater(underwater,true);
+  pre.connect(UW.dl).connect(UW.lp).connect(ls).connect(hs).connect(lp).connect(comp).connect(G(1.3)).connect(master).connect(analyser).connect(ctx.destination);
   freq=new Uint8Array(analyser.frequencyBinCount);
   { const sp=ctx.createChannelSplitter(2); master.connect(sp); vuA=[0,1].map(i=>{ const a=ctx.createAnalyser(); a.fftSize=1024; sp.connect(a,i); return a; }); vuBuf=new Float32Array(1024); }
   noiseBuf=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate);{const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=R()*2-1;}
@@ -221,6 +225,24 @@ function init(c){
   fxRev=ctx.createConvolver(); fxRev.buffer=ir; fxRev.connect(filt("lowpass",4200)).connect(G(.5)).connect(pre);
   fxDelay=G(1); const dl=ctx.createDelay(1); dl.delayTime.value=.24; const fb=G(.38), dlp=filt("lowpass",2600);
   fxDelay.connect(dl); dl.connect(dlp); dlp.connect(fb); fb.connect(dl); dlp.connect(G(.5)).connect(pre);
+}
+function applyUnderwater(v,now){
+  underwater=!!v; if(!ctx||!UW) return;
+  const t=ctx.currentTime,k=now?.001:.35,set=(p,val)=>{ p.cancelScheduledValues(t); if(now) p.setValueAtTime(val,t); else p.setTargetAtTime(val,t,k); };
+  set(UW.lp.frequency,underwater?520:20000); set(UW.lp.Q,underwater?5:.7);
+  set(UW.driftG.gain,underwater?170:0); set(UW.wobG.gain,underwater?.0022:0);
+}
+/* let it ride: stretch a song to about two minutes with a second breakdown; fills every 8 bars already, plus rolls every 16 */
+const RIDE_SEC=120;
+function rideOn(s){
+  if(s.handed||s.ride) return; const barSec=s.sp*16, tgt=Math.max(s.bars,Math.round(RIDE_SEC/barSec/8)*8);
+  if(tgt<=s.bars) return; s.origBars=s.bars; s.bars=tgt; s.ride=true;
+  const b2=Math.floor(tgt*.72/2)*2; s.brk2=(b2>s.brk+8&&b2<tgt-8&&b2>Math.floor(s.step/16)+1)?b2:null;
+}
+function rideOff(s){
+  if(s.handed||!s.ride) return; s.ride=false;
+  const cur=Math.floor(s.step/16); s.bars=Math.max(s.origBars,cur+6);
+  if(s.brk2!=null&&s.brk2<=cur+1){ /* already in or past the second breakdown: keep it */ } else s.brk2=null;
 }
 function makeBus(target,rev){
   const b={bus:G(1),dr:G(1.2),mu:G(1.1),duck:G(1),mlp:filt("lowpass",18000,.6),rv:G(1),rvf:G(1),lastDuck:0};
@@ -418,23 +440,25 @@ function makeSong(force){
 function playStep(s,step,t){
   const st=s.st,bar=Math.floor(step/16),i=step%16,sp=s.sp;
   let tt=t+(i%2?(s.swing-.5)*2*sp:0); if(s.swing>.55) tt+=rr(-.004,.004);
-  const intro=bar<2,brk=bar===s.brk||bar===s.brk+1,full=!intro&&!brk;
+  const B2=s.brk2??-99,late=bar>s.brk+1&&!(B2>0&&bar>B2+1),intro=bar<2,brk=bar===s.brk||bar===s.brk+1||bar===B2||bar===B2+1,full=!intro&&!brk;
   const d=s.prog[Math.floor(bar/s.cpb)%4],notes=s.chord(d);
   if(step===0){ s.mlp.frequency.setValueAtTime(450,t); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*32); }
-  if(bar===s.brk&&i===0){ s.mlp.frequency.setValueAtTime(18000,t); s.mlp.frequency.exponentialRampToValueAtTime(800,t+sp*8); s.mlp.frequency.setValueAtTime(800,t+sp*24); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*32); }
+  if((bar===s.brk||bar===B2)&&i===0){ s.mlp.frequency.setValueAtTime(18000,t); s.mlp.frequency.exponentialRampToValueAtTime(800,t+sp*8); s.mlp.frequency.setValueAtTime(800,t+sp*24); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*32); }
   /* drums */
   if(full){
-    const late=bar>s.brk+1; if((late?s.K2:s.K)[i]==="x") D.kick(s,tt,i===0?1:.88);
+    if((late?s.K2:s.K)[i]==="x") D.kick(s,tt,i===0?1:.88);
     const sp2=s.S[bar%s.S.length];
     if(sp2[i]==="x"){ if(st.snare==="snare"){ D.snare(s,tt,1); if(st.clap) D.clap(s,tt,.65);} else if(st.snare==="snapclap"){ D.snap(s,tt,1.1); D.clap(s,tt,.5,.45);} else { D.clap(s,tt,1); D.snare(s,tt,.3,.1); } }
     const Pp=late?s.P2:s.P; if(Pp&&Pp[i]==="x"){ if(st.perc==="rim") D.rim(s,tt,.9); else if(st.perc==="snap") D.snap(s,tt,.8); else if(st.perc==="conga") D.conga(s,tt,.9,(i>>1)%2===1); else if(st.perc==="ghost") D.snare(s,tt,.2,.05); }
     if(st.shaker) D.shaker(s,tt,i%2?1:.6);
-    if(bar%8===7&&i>=12) D.tom(s,tt,.7,[190,160,130,100][i-12]);
-    if((bar===2||bar===s.brk+2)&&i===0) D.crash(s,tt,1);
+    const roll=s.ride&&bar%16===15&&bar+1!==s.brk&&bar+1!==B2;
+    if(roll&&i>=8) D.snare(s,tt,.35+(i-8)*.08,.12);
+    else if(bar%8===7&&i>=12) D.tom(s,tt,.7,[190,160,130,100][i-12]);
+    if((bar===2||bar===s.brk+2||bar===B2+2||(s.ride&&bar>2&&bar%16===0))&&i===0) D.crash(s,tt,1);
   }
-  if(bar===s.brk+1){ if(i===0) D.riser(s,t,sp*16); if(i>=8) D.snare(s,tt,.25+(i-8)*.09,.15); }
+  if(bar===s.brk+1||bar===B2+1){ if(i===0) D.riser(s,t,sp*16); if(i>=8) D.snare(s,tt,.25+(i-8)*.09,.15); }
   if(!(intro&&bar===0)){
-    const c=(bar>s.brk+1?s.H2:s.H)[i],hv=(i%4===0?1:rr(.55,.75))*(brk?.6:1)*(intro?.5:1);
+    const c=(late?s.H2:s.H)[i],hv=(i%4===0?1:rr(.55,.75))*(brk?.6:1)*(intro?.5:1);
     if(c==="x") D.hat(s,tt,hv);
     else if(c==="r"){ D.hat(s,tt,hv*.8); D.hat(s,tt+sp/2,hv*.6); }
     else if(c==="3"){ for(let k=0;k<3;k++) D.hat(s,tt+k*sp/3,hv*(.85-k*.12)); }
@@ -475,7 +499,7 @@ function setupSong(s,t,fadeBars){
   s.step=0; s.next=t; s.done=false; s.handed=false; return s;
 }
 function startSong(t,fadeBars){
-  const s=setupSong(makeSong(),t,fadeBars); songs.push(s);
+  const s=setupSong(makeSong(),t,fadeBars); songs.push(s); if(ride) rideOn(s);
   nowPlaying={title:s.title,style:s.name,bpm:s.bpm}; emit("nowplaying",nowPlaying);
   return s;
 }
@@ -849,12 +873,12 @@ function getLevels(){
   return lv;
 }
 async function renderOffline(kind,secs,arg){
-  const keep={ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808};
+  const keep={ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW};
   const oc=new OfflineAudioContext(2,Math.floor(44100*secs),44100); init(oc); master.gain.value=VOL;
-  if(kind==="song"){ const s=setupSong(makeSong(arg),.05,0); while(s.next<secs-.1&&s.step<s.bars*16){ playStep(s,s.step,s.next); s.step++; s.next+=s.sp; } }
+  if(kind==="song"){ const s=setupSong(makeSong(arg),.05,0); if(ride) rideOn(s); while(s.next<secs-.1&&s.step<s.bars*16){ playStep(s,s.step,s.next); s.step++; s.next+=s.sp; } }
   else if(kind==="bed"){ const b=startBed(.05); if(arg!=null) b.def=BEDS[arg]; while(b.next<secs-2.5){ playBed(b,b.next); b.step++; b.next+=b.sp; } endBed(b,secs-2.4); }
   else if(kind==="sting"){ STINGS[arg](.1); }
-  const buf=await oc.startRendering(); ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808}=keep);
+  const buf=await oc.startRendering(); ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW}=keep);
   return buf;
 }
 return {
@@ -869,6 +893,12 @@ return {
   stingNow(){ voiceSting(); },
   voices(){ return HAS_TTS?speechSynthesis.getVoices().map(v=>v.name+" ("+v.lang+")"):[]; },
   setSpots(v){ spotsOn=!!v; },
+  /* let it ride: the current song (and each next one while on) runs about two minutes, with a second breakdown and extra fills */
+  setLetItRide(v){ ride=!!v; for(const s of songs) (ride?rideOn:rideOff)(s); },
+  isLetItRide(){ return ride; },
+  /* underwater: muffled, resonant, slowly drifting low-pass with a slight pitch wobble on the music (the voice is the system's speech, so it stays dry) */
+  setUnderwater(v){ applyUnderwater(v); },
+  isUnderwater(){ return underwater; },
   setTypes(t){ for(const k of TYPE_KEYS) if(t&&k in t) TYPES[k]=!!t[k]; },   // {ids, stingers, ads, interviews, callers, weather, sports, plays, arts, news}: false switches a kind off
   getTypes(){ return {...TYPES}; },
   setVolume(v){ opts.volume=v; if(ctx&&on) fadeTo(master.gain,v*VOL,.2,ctx.currentTime); },
