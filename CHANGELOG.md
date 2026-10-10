@@ -2,6 +2,22 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.5.7 (2026-10-10, Rob)
+- Sports are now half mainstream, half obscure, all from ESPN's public scoreboards (live data only in the app):
+  - Mainstream: your local pro teams, plus local college football and basketball (matched by state, so Omaha gets Nebraska), or the day's big game in the major leagues when nothing local is on.
+  - Obscure: a game from a rotating list (Aussie rules, pro and college lacrosse, college volleyball, field hockey and hockey, the Scottish Championship, Indian Super League, A-League, USL, English National League, Eliteserien, J1, Swiss Super League, the CFL, college baseball). Chip has a whole Obscure Sports Desk for these.
+- MDFM Radio app 0.2.4 fetches these. Older apps keep local pro teams only.
+
+## 1.5.6 (2026-10-10, Rob)
+- Much more variety inside each genre. Every song now gets:
+  - its own arrangement from five song forms (intro, verses, build-ups, hooks, breaks, bridges, outro), sized to about 70-110 seconds;
+  - its own instruments: usually the genre's own sound, sometimes a swap from the genre family (piano, bells, Rhodes, stabs, plucked arps, pads, choir, strings; piano, bell, whistle, pluck or synth leads);
+  - separate melodies for hooks and verses (hooks sometimes jump an octave or get doubled), a different chord progression for verses, chord voicings that open up in the hook, and a key change into the last hook about one song in five;
+  - section dynamics: sparse hats in verses, busier hats and a second kick pattern in hooks, build-ups with risers, beat drops before hooks, filter sweeps into breaks, and a different fill into each section (tom run, snare roll, hat stutter or a drop);
+  - its own kit tuning (kick pitch, snare tone, hat length) and wider tempo and swing ranges.
+- The same genre never plays twice within four songs.
+- Callers sound like they're on the phone: high-pass and low-pass filtered, a nasal mid bump and light distortion (MDFM Radio app, where the voices are rendered as audio). Call-ins also drop the "M D F M interview" intro.
+
 ## 1.5.5 (2026-10-10, Rob)
 - LOW / MID / HIGH are now a real 3-band EQ on the final output (low shelf 250 Hz, mid peak 1 kHz, high shelf 4 kHz, ±12 dB), after the compressor so cuts and boosts aren't evened out, with a limiter so boosts can't clip. Measured on identical renders: each knob moves its own band by about 10 dB at the ends (low boost about 7 dB, held back by the limiter).
 - The meters and visualizer read after the EQ, so they show what you hear.

@@ -26,3 +26,15 @@ test("nothing reachable: says so and points to Settings", async () => {
   const live = createLive(() => ({ units: "f" }));
   assert.strictEqual(await live.weather(), null); assert.match(live.status.location, /unknown.*Settings/); assert.match(live.status.weather, /failed/);
 });
+test("sports: one local or big game plus one obscure one, from ESPN scoreboards", async () => {
+  const ev = (home, away, hs, as, state = "post", loc = home) => ({ date: "2026-10-10T18:00Z", competitions: [{ status: { type: { state, shortDetail: state === "post" ? "Final" : "Q3" } },
+    competitors: [{ team: { location: loc, displayName: home + " Team", shortDisplayName: home }, score: String(hs), winner: hs > as }, { team: { location: away, displayName: away + " Team", shortDisplayName: away }, score: String(as), winner: as > hs }] }] });
+  answers = { "geocoding-api": { results: [{ latitude: 41.26, longitude: -95.94, name: "Omaha", admin1: "Nebraska" }] }, "open-meteo.com/v1/forecast": forecast,
+    "college-football": { events: [ev("Nebraska", "Iowa", 31, 24)] }, "/scoreboard": { events: [ev("Melbourne", "Geelong", 88, 91)] } };
+  const live = createLive(() => ({ units: "f", city: "Omaha" }));
+  const g = await live.sports();
+  assert.ok(g && g.length === 2, JSON.stringify(g));
+  assert.strictEqual(g[0].team, "Nebraska"); assert.strictEqual(g[0].obscure, undefined);
+  assert.strictEqual(g[1].obscure, true); assert.strictEqual(g[1].team, "Geelong Team"); assert.strictEqual(g[1].score, 91);   // told from the winner's side
+  assert.match(live.status.sports, /Nebraska \(local\)/);
+});

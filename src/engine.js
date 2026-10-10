@@ -251,78 +251,144 @@ const PROGS={
 };
 const T_A=["Satin","Rooftop","Slow Motion","Afterglow","Basement Tapes","Late Checkout","Quiet Storm","Soft Launch","Pending Review","Low Battery","Window Seat","Two Pillows","Hazy","Overcast","Warm Leatherette","Cozy Closet","Show Pony","Mattress Storage","Sugar Mist","Band Fourteen","Midnight","Velvet","Cardboard","Chrome","Leftover","Sunday","Turbo","Gravy","Crispy","Lunch Money","Basement","Fruit Fly","Triage","Spud","Floorplan","Overtime","Grandma's","Parking Lot","Bulk","Certified","Unapproved","Pending","Steel","Off-Brand","Lukewarm","Late Fee","Reheated","Sideways"];
 const T_B=["Serenade","Weather","Drive","Exhale","Voicemail","Daydream","Afterparty","Lullaby","Slow Dance","Blueprint","Static","Mirage","Reflections","Situationship","Dial Tone","Hold Music","Shuffle","Theory","Cypher","Remix","Bounce","Ride","Hustle","Anthem","Groove","Business","Slump","Situation","Hotline","Breakdown","Freestyle","Banger","Interlude","Freestyle (Live)","Season","Pressure","Forecast","Exit Strategy","Receipt","Paperwork","Rotation"];
+/* ---------- songs: every song gets its own instruments, arrangement, melodies and kit, within its genre ---------- */
+// Instrument pools by family, so a genre keeps its feel but two songs in it don't sound the same.
+const FAM={
+  trap:{chords:["piano","bellarp","pianostab","rhodes","padonly","pluckarp"],lead:["piano","bell","whistle","pluck","saw","bell"],pad:["choir","pad","strings","none"]},
+  soul:{chords:["rhodes","piano","pianostab","rhodesoff","rhodes"],lead:["rhodesline","whistle","bell","piano","pluck"],pad:["pad","strings","choir","none"]},
+  dance:{chords:["rhodesoff","pianostab","rhodes","pluckarp","saw"],lead:["pluck","whistle","bell","saw","piano"],pad:["pad","strings","none"]},
+};
+const STYLE_FAM={"MELODIC DRILL":"trap","CHILL TRAP":"trap","PLUGGNB":"trap","CLOUD RAP":"trap","CHILL PHONK":"trap","SLOW JAM R&B":"soul","NEO-SOUL":"soul","LO-FI BOOM BAP":"soul","JAZZ HOP":"soul","AFROSWING":"dance","AMAPIANO":"dance","WEST COAST":"dance"};
+// Song forms. Section kinds: intro, verse, pre (build-up), hook, break, bridge, outro. "u" is a unit of 4 or 8 bars.
+const FORMS=[
+  [["intro",.5],["verse",1],["hook",1],["verse",1],["hook",1],["break",.5],["hook",1],["outro",.5]],
+  [["intro",.5],["hook",1],["verse",1],["pre",.5],["hook",1],["bridge",1],["hook",1],["outro",.5]],
+  [["intro",1],["verse",1],["verse",1],["hook",1],["break",.5],["verse",1],["hook",1],["outro",.5]],
+  [["intro",.5],["verse",1],["pre",.5],["hook",1],["verse",1],["pre",.5],["hook",1],["hook",1],["outro",.5]],
+  [["intro",.5],["hook",1],["bridge",1],["hook",1],["verse",1],["hook",1],["outro",.5]],
+];
+const recentStyles=[];
+function motifGen(base,deg,dens,half,len,start){ // a melody: len bars of 16 steps, stepwise with the odd leap
+  let cur=start; const out=[];
+  for(let i=0;i<len*16;i++){ const p=i%4===0?dens*1.8:i%2===0?dens:(half?0:dens*.25);
+    if(R()<p){ cur=Math.max(-2,Math.min(9,cur+pick([-2,-1,-1,0,1,1,2,3,-3,4]))); out.push({i,m:base+deg(cur)}); } }
+  if(!out.length) out.push({i:0,m:base+deg(start)});
+  out.forEach((n,k)=>{ const nx=k+1<out.length?out[k+1].i:len*16; n.len=Math.max(1,Math.min(8,nx-n.i)); });
+  return out;
+}
 function makeSong(force){
-  const name=force||pick(Object.keys(STY)),st=STY[name],sc=pick(st.scales),root=ri(37,46),bpm=ri(st.bpm[0],st.bpm[1]),major=sc[2]===4;
+  let name=force; if(!name){ const all=Object.keys(STY), fresh=all.filter(n=>!recentStyles.includes(n)); name=pick(fresh.length?fresh:all); recentStyles.push(name); if(recentStyles.length>4) recentStyles.shift(); }
+  const st=STY[name],fam=FAM[STYLE_FAM[name]]||FAM.soul,sc=pick(st.scales),root=ri(36,47),bpm=ri(st.bpm[0]-2,st.bpm[1]+2),major=sc[2]===4;
   const deg=d=>{const k=((d%7)+7)%7,o=Math.floor(d/7);return sc[k]+12*o;};
-  const voi=st.voicing==='ext'?pick([[0,2,4,6],[0,2,6,8],[0,4,6,9]]):[0,2,4], chord=d=>voi.map(x=>root+12+deg(d+x));
-  const sp=60/bpm/4, barSec=sp*16, bars=Math.max(24,Math.round(rr(48,64)/barSec/8)*8);
-  const brk=Math.floor(bars*.45/2)*2;
-  const LOG=pick(st.LOG||[""]),K=pick(st.K),S=pick(st.S),H=pick(st.H),O=pick(st.O),P=pick(st.P),K2=R()<.6?pick(st.K):K,H2=R()<.6?pick(st.H):H,P2=pick(st.P);
+  const voi=st.voicing==='ext'?pick([[0,2,4,6],[0,2,6,8],[0,4,6,9],[0,2,4,6,8]]):pick([[0,2,4],[0,4,7],[-3,0,2]]), chord=(d,up=0)=>voi.map((x,j)=>root+12+deg(d+x)+(j<up?12:0));
+  const sp=60/bpm/4, barSec=sp*16;
+  // arrangement: a form, sized so the song runs about 70-110 seconds
+  const form=pick(FORMS), unit=barSec*8*form.reduce((a,f)=>a+f[1],0)>115?4:8, sections=[]; let at=0;
+  for(const [kind,len] of form){ const bars=Math.max(2,Math.round(len*unit/2)*2); sections.push({kind,start:at,bars}); at+=bars; }
+  const bars=Math.max(at,16), brkSec=sections.find(x=>x.kind==="break"||x.kind==="bridge"), brk=brkSec?brkSec.start:Math.floor(bars*.45/2)*2;
+  // per-section flavour
+  const kinds={}; for(const k of ["intro","verse","pre","hook","break","bridge","outro"]) kinds[k]={
+    hats:k==="hook"?pick(["full","busy"]):k==="verse"?pick(["sparse","full","full"]):k==="pre"?"build":"sparse",
+    kick:k==="hook"?pick(["A","B"]):"A", lead:k==="hook"?pick(["hook","hookHi","hookDbl"]):k==="verse"?pick(["none","verse","verse"]):k==="bridge"?pick(["verse","none"]):k==="pre"?pick(["none","verse"]):"none",
+    chords:k==="bridge"||k==="break"?"sustain":k==="hook"?pick(["main","main","stab"]):pick(["main","sparse"]),
+    bass:k==="intro"||k==="break"?"none":k==="bridge"?pick(["none","half"]):k==="verse"?pick(["full","half","full"]):"full",
+    drums:!(k==="intro"&&R()<.6)&&k!=="break"&&!(k==="bridge"&&R()<.5), up:k==="hook"&&R()<.5?1:0 };
+  const K=pick(st.K),S=pick(st.S),H=pick(st.H),O=pick(st.O),P=pick(st.P),K2=pick(st.K),H2=pick(st.H),P2=pick(st.P),LOG=pick(st.LOG||[""]);
   const bassPat=[...K].map((c,i)=>c==="x"||(R()<.1&&i%2===0)?1:0), bassOff=bassPat.map(()=>pick([0,0,0,0,0,7,12,-2,3,5]));
-  const dens={piano:.24,bell:.26,whistle:.2,rhodesline:.18,pluck:.3,cowbell:.32}[st.lead]||.25;
+  // instruments for this song: the genre's own sound most of the time, a swap some of the time
+  const chordsI=R()<.45?st.chords:pick(fam.chords), leadI=R()<.4?st.lead:pick(fam.lead), leadB=pick(fam.lead), padI=R()<.5?st.pad:pick(fam.pad);
+  const dens=({piano:.24,bell:.26,whistle:.2,rhodesline:.18,pluck:.3,cowbell:.32,saw:.2}[leadI]||.25)*rr(.75,1.3);
   const base=root+12*Math.round((st.octLead-root)/12);
-  let cur=ri(0,4); const motif=[];
-  for(let i=0;i<32;i++){ const p=i%4===0?dens*1.8:i%2===0?dens:(st.half?0:dens*.25);
-    if(R()<p){ cur=Math.max(-2,Math.min(9,cur+pick([-2,-1,-1,0,1,1,2,3,-3]))); motif.push({i,m:base+deg(cur)}); } }
-  motif.forEach((n,k)=>{ const nx=k+1<motif.length?motif[k+1].i:32; n.len=Math.min(6,nx-n.i); });
-  const answer=motif.map((n,k)=>k>=motif.length/2&&R()<.5?{...n,m:base+deg(ri(-1,5))}:n);
-  return {name,st,sc,root,bpm,sp,bars,brk,deg,chord,prog:pick(major?PROGS.maj:PROGS.min),cpb:st.half?1:(R()<.5?1:2),swing:rr(st.sw[0],st.sw[1]),K,S,H,O,P,K2,H2,P2,LOG,bassPat,bassOff,motif,answer,
+  const hookLen=pick([1,2,2,4]), verseLen=pick([2,4]);
+  const hook=motifGen(base,deg,dens*1.15,st.half,hookLen,ri(1,5)), verse=motifGen(base-12*(R()<.4?1:0),deg,dens*.7,st.half,verseLen,ri(0,4));
+  const answer=hook.map((n,k)=>k>=hook.length/2&&R()<.5?{...n,m:base+deg(ri(-1,5))}:n);
+  const pa=pick(major?PROGS.maj:PROGS.min), pb=R()<.6?pick(major?PROGS.maj:PROGS.min):pa;
+  const fills=sections.map(()=>pick(["tom","snareroll","hatstutter","drop","none","tom"]));
+  const keyUp=R()<.22?pick([1,2]):0, lastHook=[...sections].reverse().find(x=>x.kind==="hook");
+  return {name,st,sc,root,bpm,sp,bars,brk,deg,chord,sections,kinds,fills,keyUp,keyFrom:keyUp&&lastHook?lastHook.start:1e9,
+    prog:pa,progB:pb,cpb:st.half?1:(R()<.5?1:2),swing:rr(st.sw[0],Math.min(.66,st.sw[1]+.02)),K,S,H,O,P,K2,H2,P2,LOG,bassPat,bassOff,
+    hook,answer,verse,hookLen,verseLen,chordsI,leadI,leadB,padI,kTune:rr(.88,1.12),sTone:rr(.85,1.2),hatDec:rr(-.24,-.12),
     title:`${pick(T_A)} ${pick(T_B)}`};
 }
+function secAt(s,bar){ for(const x of s.sections) if(bar>=x.start&&bar<x.start+x.bars) return x;
+  // past the written form (let it ride): keep cycling verse / hook in 8-bar blocks, ending on the outro
+  const last=s.sections[s.sections.length-1], over=bar-(last.start+last.bars), n=Math.floor(over/8);
+  return {kind:bar>=s.bars-4?"outro":n%2?"verse":"hook",start:last.start+last.bars+n*8,bars:8}; }
 function playStep(s,step,t){
   const st=s.st,bar=Math.floor(step/16),i=step%16,sp=s.sp;
   let tt=t+(i%2?(s.swing-.5)*2*sp:0); if(s.swing>.55) tt+=rr(-.004,.004);
-  const B2=s.brk2??-99,late=bar>s.brk+1&&!(B2>0&&bar>B2+1),intro=bar<2,brk=bar===s.brk||bar===s.brk+1||bar===B2||bar===B2+1,full=!intro&&!brk;
-  const d=s.prog[Math.floor(bar/s.cpb)%4],notes=s.chord(d);
-  if(step===0){ s.mlp.frequency.setValueAtTime(450,t); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*32); }
-  if((bar===s.brk||bar===B2)&&i===0){ s.mlp.frequency.setValueAtTime(18000,t); s.mlp.frequency.exponentialRampToValueAtTime(800,t+sp*8); s.mlp.frequency.setValueAtTime(800,t+sp*24); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*32); }
+  const B2=s.brk2??-99, sec=(bar===B2||bar===B2+1)?{kind:"break",start:B2,bars:2}:secAt(s,bar), K=s.kinds[sec.kind]||s.kinds.verse;
+  const sb=bar-sec.start, lastBar=sb===sec.bars-1, nextSec=secAt(s,sec.start+sec.bars), fill=s.fills[s.sections.indexOf(sec)]||(sec.kind==="hook"?"snareroll":"tom");
+  const drop=lastBar&&fill==="drop"&&nextSec.kind==="hook"&&i>=8;   // a beat of silence before the hook lands
+  const tr=bar>=s.keyFrom?s.keyUp:0, prog=sec.kind==="hook"||sec.kind==="pre"?s.prog:s.progB;
+  const d=prog[Math.floor(bar/s.cpb)%4], notes=s.chord(d,K.up).map(n=>n+tr);
+  // filter sweeps: open up across the intro and out of breaks; close down into a break
+  if(step===0){ s.mlp.frequency.setValueAtTime(450,t); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*16*Math.max(2,s.sections[0].bars)); }
+  if(sb===0&&i===0&&(sec.kind==="break"||sec.kind==="bridge")&&bar>0){ s.mlp.frequency.setValueAtTime(18000,t); s.mlp.frequency.exponentialRampToValueAtTime(900,t+sp*8); s.mlp.frequency.setValueAtTime(900,t+sp*16*(sec.bars-1)); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*16*sec.bars); }
   /* drums */
-  if(full){
-    if((late?s.K2:s.K)[i]==="x") D.kick(s,tt,i===0?1:.88);
+  if(K.drums&&!drop){
+    const kp=K.kick==="B"?s.K2:s.K; if(kp[i]==="x") D.kick(s,tt,i===0?1:.88,s.kTune);
     const sp2=s.S[bar%s.S.length];
-    if(sp2[i]==="x"){ if(st.snare==="snare"){ D.snare(s,tt,1); if(st.clap) D.clap(s,tt,.65);} else if(st.snare==="snapclap"){ D.snap(s,tt,1.1); D.clap(s,tt,.5,.45);} else { D.clap(s,tt,1); D.snare(s,tt,.3,.1); } }
-    const Pp=late?s.P2:s.P; if(Pp&&Pp[i]==="x"){ if(st.perc==="rim") D.rim(s,tt,.9); else if(st.perc==="snap") D.snap(s,tt,.8); else if(st.perc==="conga") D.conga(s,tt,.9,(i>>1)%2===1); else if(st.perc==="ghost") D.snare(s,tt,.2,.05); }
-    if(st.shaker) D.shaker(s,tt,i%2?1:.6);
-    const roll=s.ride&&bar%16===15&&bar+1!==s.brk&&bar+1!==B2;
-    if(roll&&i>=8) D.snare(s,tt,.35+(i-8)*.08,.12);
-    else if(bar%8===7&&i>=12) D.tom(s,tt,.7,[190,160,130,100][i-12]);
-    if((bar===2||bar===s.brk+2||bar===B2+2||(s.ride&&bar>2&&bar%16===0))&&i===0) D.crash(s,tt,1);
+    if(sp2[i]==="x"){ if(st.snare==="snare"){ D.snare(s,tt,1,.22,s.sTone); if(st.clap) D.clap(s,tt,.65);} else if(st.snare==="snapclap"){ D.snap(s,tt,1.1); D.clap(s,tt,.5,.45);} else { D.clap(s,tt,1); D.snare(s,tt,.3,.1,s.sTone); } }
+    const Pp=sec.kind==="hook"?s.P2:s.P; if(Pp&&Pp[i]==="x"&&sec.kind!=="intro"){ if(st.perc==="rim") D.rim(s,tt,.9); else if(st.perc==="snap") D.snap(s,tt,.8); else if(st.perc==="conga") D.conga(s,tt,.9,(i>>1)%2===1); else if(st.perc==="ghost") D.snare(s,tt,.2,.05); }
+    if(st.shaker&&sec.kind!=="intro") D.shaker(s,tt,i%2?1:.6);
+    if(lastBar&&nextSec.kind!=="outro"){   // the fill into the next section
+      if(fill==="tom"&&i>=12) D.tom(s,tt,.7,[190,160,130,100][i-12]);
+      else if(fill==="snareroll"&&i>=8) D.snare(s,tt,.3+(i-8)*.08,.12,s.sTone);
+      else if(fill==="hatstutter"&&i>=12) for(let k=0;k<4;k++) D.hat(s,tt+k*sp/4,.6,false,s.hatDec);
+    } else if(s.ride&&bar%16===15&&i>=8) D.snare(s,tt,.35+(i-8)*.08,.12,s.sTone);
+    if(sb===0&&i===0&&(sec.kind==="hook"||(sec.kind==="verse"&&R()<.4))) D.crash(s,tt,sec.kind==="hook"?1:.6);
   }
-  if(bar===s.brk+1||bar===B2+1){ if(i===0) D.riser(s,t,sp*16); if(i>=8) D.snare(s,tt,.25+(i-8)*.09,.15); }
-  if(!(intro&&bar===0)){
-    const c=(late?s.H2:s.H)[i],hv=(i%4===0?1:rr(.55,.75))*(brk?.6:1)*(intro?.5:1);
-    if(c==="x") D.hat(s,tt,hv);
-    else if(c==="r"){ D.hat(s,tt,hv*.8); D.hat(s,tt+sp/2,hv*.6); }
-    else if(c==="3"){ for(let k=0;k<3;k++) D.hat(s,tt+k*sp/3,hv*(.85-k*.12)); }
-    if(s.O&&s.O[i]==="o"&&!brk) D.hat(s,tt,.85,true,.2);
+  if(lastBar&&nextSec.kind==="hook"&&i===0&&(sec.kind==="pre"||sec.kind==="break"||R()<.5)) D.riser(s,t,sp*16);
+  if(!(sec.kind==="intro"&&sb===0)&&!drop&&sec.kind!=="break"){
+    const hp=K.hats==="busy"?s.H2:s.H, c=hp[i], hv=(i%4===0?1:rr(.55,.75))*(sec.kind==="intro"?.5:1)*(K.hats==="sparse"?.8:1);
+    const build=K.hats==="build"&&sb>=sec.bars-2;
+    if(K.hats==="sparse"){ if(i%4===0||c==="r") D.hat(s,tt,hv,false,s.hatDec); }
+    else if(build){ if(i%2===0||sb===sec.bars-1) D.hat(s,tt,hv*(.6+sb/sec.bars*.4),false,s.hatDec); }
+    else if(c==="x") D.hat(s,tt,hv,false,s.hatDec);
+    else if(c==="r"){ D.hat(s,tt,hv*.8,false,s.hatDec); D.hat(s,tt+sp/2,hv*.6,false,s.hatDec); }
+    else if(c==="3"){ for(let k=0;k<3;k++) D.hat(s,tt+k*sp/3,hv*(.85-k*.12),false,s.hatDec); }
+    if(s.O&&s.O[i]==="o"&&K.drums) D.hat(s,tt,.85,true,.2);
   }
   if(i===0&&st.vinyl) D.vinyl(s,t,sp*16);
   /* bass */
-  if(full&&st.bass==="log"&&s.LOG[i]==="x"){ let m=s.root+s.deg(d)+pick([0,0,0,7,12,-5]); if(m>55) m-=12; D.logdrum(s,tt,m,1); }
-  if(full&&st.bass!=="log"&&s.bassPat[i]){
+  const bassOn=K.bass==="full"||(K.bass==="half"&&i<8);
+  if(bassOn&&!drop&&st.bass==="log"&&s.LOG[i]==="x"){ let m=s.root+s.deg(d)+tr+pick([0,0,0,7,12,-5]); if(m>55) m-=12; D.logdrum(s,tt,m,1); }
+  if(bassOn&&!drop&&st.bass!=="log"&&s.bassPat[i]){
     let len=1; while(i+len<16&&!s.bassPat[i+len]) len++;
-    if(st.bass==="bass"){ let m=s.root+s.deg(d)+s.bassOff[i]; if(m>52) m-=12; M.bass(s,tt,m,Math.min(len,4)*sp*.9,1,R()<.2?m+pick([-2,2]):null); }
-    else { let m=s.root-12+s.deg(d)+(s.bassOff[i]===12?0:s.bassOff[i]); if(m>40) m-=12; if(m<26) m+=12;
-      let nxt=null; if(R()<st.slide){ nxt=m+pick([-5,-2,3,5,7,12]); }
+    if(st.bass==="bass"){ let m=s.root+s.deg(d)+s.bassOff[i]+tr; if(m>52) m-=12; M.bass(s,tt,m,Math.min(len,4)*sp*.9,1,R()<.2?m+pick([-2,2]):null); }
+    else { let m=s.root-12+s.deg(d)+tr+(s.bassOff[i]===12?0:s.bassOff[i]); if(m>40) m-=12; if(m<26) m+=12;
+      let nxt=null; if(R()<st.slide) nxt=m+pick([-5,-2,3,5,7,12]);
       D.b808(s,tt,m,Math.min(len,8)*sp,st.bass==="808soft"?.75:1,nxt,false); }
   }
   /* chords + pad */
-  const ck=st.chords;
-  if(ck==="piano"&&i===0) M.piano(s,tt,notes,sp*15,.75);
+  const ck=s.chordsI, cmode=K.chords;
+  if(cmode==="sustain"){ if(i===0&&bar%2===0) M.rhodes(s,tt,notes,sp*30,.7); }
+  else if(cmode==="sparse"){ if(i===0) (ck==="piano"||ck==="pianostab"?M.piano:M.rhodes)(s,tt,notes,sp*12,.6); }
+  else if(cmode==="stab"){ if("x..x..x.x.....x."[i]==="x") M.piano(s,tt,notes,sp*1.1,.6); }
+  else if(ck==="piano"&&i===0) M.piano(s,tt,notes,sp*15,.75);
   else if(ck==="rhodes"&&(i===0||i===10)) M.rhodes(s,tt,notes,sp*(i?5:9),.9);
   else if(ck==="rhodesoff"&&(i===2||i===6||i===10||i===14)) M.rhodes(s,tt,notes,sp*1.6,.75);
   else if(ck==="pianostab"&&(i===2||i===6||i===10||i===14)) M.piano(s,tt,notes,sp*1.2,.55);
   else if(ck==="saw"&&"x..x..x...x..x.."[i]==="x") M.saw(s,tt,notes,sp*2.2,.9);
   else if(ck==="bellarp"&&"x..x..x.x..x..x."[i]==="x"){ s.arp=(s.arp||0)+1; M.bell(s,tt,notes[s.arp%notes.length]+12,sp*3,.75,(s.arp%2?.3:-.3)); }
-  if(i===0&&bar%2===0){ const pd=st.pad; if(pd==="choir") M.choir(s,tt,notes,sp*32,.8); else M.pad(s,tt,notes,sp*32,.8,pd==="strings"?2000:1000); }
-  /* lead */
-  if(bar>=st.leadFrom&&!brk&&s.motif.length){
-    const ph=step%32,mot=(Math.floor(bar/2)%2)?s.answer:s.motif;
-    for(let k=0;k<mot.length;k++){ const n=mot[k]; if(n.i!==ph) continue; const dur=n.len*sp;
-      if(st.lead==="piano") M.piano(s,tt,[n.m],dur,1); else if(st.lead==="bell") M.bell(s,tt,n.m,dur,1,.15);
-      else if(st.lead==="saw") M.saw(s,tt,[n.m],dur,.8); else if(st.lead==="whistle") M.whistle(s,tt,n.m,dur,1,k?mot[k-1].m:null);
-      else if(st.lead==="rhodesline") M.rhodes(s,tt,[n.m],dur,.9); else if(st.lead==="pluck") M.pluck(s,tt,n.m,dur,1.1); else if(st.lead==="cowbell") M.cowbell(s,tt,n.m,dur,1); }
+  else if(ck==="pluckarp"&&i%2===0){ s.arp=(s.arp||0)+1; M.pluck(s,tt,notes[s.arp%notes.length]+12,sp*1.5,.6); }
+  if(i===0&&bar%2===0&&s.padI!=="none"&&!drop){ const pd=s.padI; if(pd==="choir") M.choir(s,tt,notes,sp*32,.8); else M.pad(s,tt,notes,sp*32,.8,pd==="strings"?2000:1000); }
+  else if(i===0&&bar%2===0&&ck==="padonly") M.pad(s,tt,notes,sp*32,.9,1400);
+  /* melodies: the hook in hooks (sometimes up an octave or doubled), a sparser line in verses */
+  if(K.lead!=="none"&&!drop&&bar>=1){
+    const isHook=K.lead!=="verse", L=isHook?s.hookLen:s.verseLen, phrase=Math.floor(sb/L), mot=isHook?(phrase%2?s.answer:s.hook):s.verse;
+    const ph=(sb%L)*16+i, inst=isHook?s.leadI:s.leadB, oct=K.lead==="hookHi"?12:0;
+    for(let k=0;k<mot.length;k++){ const n=mot[k]; if(n.i!==ph) continue; const dur=n.len*sp, m=n.m+tr+oct;
+      playLead(s,inst,tt,m,dur,k?mot[k-1].m+tr+oct:null,isHook?1:.75);
+      if(K.lead==="hookDbl") playLead(s,inst==="bell"?"pluck":"bell",tt,m+12,dur,null,.45); }
   }
+}
+function playLead(s,inst,t,m,dur,prev,v){
+  if(inst==="piano") M.piano(s,t,[m],dur,v); else if(inst==="bell") M.bell(s,t,m,dur,v,.15);
+  else if(inst==="saw") M.saw(s,t,[m],dur,.8*v); else if(inst==="whistle") M.whistle(s,t,m,dur,v,prev);
+  else if(inst==="rhodesline") M.rhodes(s,t,[m],dur,.9*v); else if(inst==="pluck") M.pluck(s,t,m,dur,1.1*v); else if(inst==="cowbell") M.cowbell(s,t,m,dur,v);
+  else M.bell(s,t,m,dur,v,.15);
 }
 function setupSong(s,t,fadeBars){
   Object.assign(s,makeBus(musicDuck,songRev));
@@ -485,6 +551,8 @@ const fill=(s,v)=>s.replace(/\{(\w+)\}/g,(m,k)=>v[k]!=null?v[k]:m);
 let wxCache=null, wxAt=0, spCache=null, spAt=0;
 const TAB={withData:cat2("tabitha","withData"),noData:cat2("tabitha","noData"),thanks:cat2("tabitha","thanks")};
 const CHIP={}; for(const k of ["intro","win","loss","live","pre","noData","outro"]) CHIP[k]=cat2("sports",k);
+const CHIP_OBS={intro:[],win:[],live:[],pre:[],tie:[]}, CHIP_NAT={win:[],loss:[],live:[],pre:[]};
+packs.forEach(p=>{ const o=p.sports&&p.sports.obscure; if(o) for(const k in CHIP_OBS) CHIP_OBS[k].push(...(o[k]||[])); const n=p.sports&&p.sports.national; if(n) for(const k in CHIP_NAT) CHIP_NAT[k].push(...(n[k]||[])); });
 function cat2(a,b){ return packs.flatMap(p=>(p[a]&&p[a][b])||[]); }
 const TABITHA={accent:"british",names:["Serena","Kate","Martha","Stephanie","Google UK English Female","Microsoft Hazel","Microsoft Sonia","Moira"],pitch:1.05,rate:.95};
 const ARTS_HOST={accent:"american",names:["Ava","Allison","Samantha","Microsoft Aria","Google US English"],pitch:.95,rate:.86};
@@ -494,9 +562,14 @@ async function sportsLines(){
   let g=null; if(typeof opts.sports==="function") g=await fetchCached(opts.sports,"sp",10*60e3);
   if(!(g&&g.length)&&typeof opts.sports==="function"&&!opts.cannedFallback) return null;   // live mode: no canned sports
   const lines=[]; if(CHIP.intro.length) lines.push(["host",pick(CHIP.intro)]);
-  if(g&&g.length){ for(const x of g.slice(0,2)){ const k=x.state==="in"?"live":x.state==="pre"?"pre":(x.won||x.score>x.oscore)?"win":"loss";
+  if(g&&g.length){
+    // half mainstream, half obscure: the provider sends one of each when it can; play them in a random order
+    const list=g.slice(0,2); if(list.length===2&&R()<.4) list.reverse();
+    for(const x of list){ const k=x.state==="in"?"live":x.state==="pre"?"pre":(x.won||x.score>x.oscore)?"win":"loss";
       const when=x.date?new Date(x.date).toLocaleString([],{weekday:"long",hour:"numeric",minute:"2-digit"}):"soon";
-      if(CHIP[k].length) lines.push(["chip",fill(pick(CHIP[k]),{...x,when,detail:(x.detail||"").replace(/(\d)(st|nd|rd|th)\b/g,"$1$2")})]); } }
+      const v={...x,when,detail:(x.detail||"").replace(/(\d)(st|nd|rd|th)\b/g,"$1$2"),league:x.league||"sports"};
+      if(x.obscure){ const pool=CHIP_OBS[x.state==="in"?"live":x.state==="pre"?"pre":x.score===x.oscore&&CHIP_OBS.tie.length?"tie":"win"]; if(CHIP_OBS.intro.length) lines.push(["chip",fill(pick(CHIP_OBS.intro),v)]); if(pool.length) lines.push(["chip",fill(pick(pool),v)]); }
+      else { const pool=x.national&&CHIP_NAT[k]&&CHIP_NAT[k].length?CHIP_NAT[k]:CHIP[k]; if(pool.length) lines.push(["chip",fill(pick(pool),v)]); } } }
   else if(CHIP.noData.length) lines.push(["chip",pick(CHIP.noData)]);
   if(CHIP.outro.length) lines.push(["chip",pick(CHIP.outro)]);
   return lines;
@@ -621,12 +694,19 @@ function speak(text,done,cast,shown){
     const spec={text,voice:c.voice?c.voice.name:(c.voiceName||null),rate:c.rate||1,pitch:c.pitch==null?1:c.pitch};
     Promise.race([opts.tts(spec),new Promise((_,rej)=>setTimeout(()=>rej(new Error("tts timeout")),15000))])
       .then(buf=>ctx.decodeAudioData(buf instanceof ArrayBuffer?buf:buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength)))
-      .then(ab=>{ if(!on){ fin(); return; } const src=ctx.createBufferSource(); src.buffer=ab; src.connect(voiceIn); voiceSrc=src;
+      .then(ab=>{ if(!on){ fin(); return; } const src=ctx.createBufferSource(); src.buffer=ab; src.connect(c.phone?phoneLine():voiceIn); voiceSrc=src;
         src.onended=fin; src.start(ctx.currentTime+.02); setTimeout(fin,ab.duration*1000+2500); })
       .catch(()=>systemSpeak(text,fin,c));
     return;
   }
   systemSpeak(text,fin,c);
+}
+/* Callers sound like they're on the phone: band-limited (high-pass and low-pass), a nasal bump and a little distortion. */
+function phoneLine(){
+  const hp=filt("highpass",420,.9), hp2=filt("highpass",380,.7), bump=filt("peaking",1600,1.2), lp=filt("lowpass",3300,.9), lp2=filt("lowpass",3600,.7);
+  bump.gain.value=5; const sh=ctx.createWaveShaper(); sh.curve=shaper(3.2); sh.oversample="2x"; const out=G(.85);
+  hp.connect(hp2).connect(bump).connect(G(1.6)).connect(sh).connect(lp).connect(lp2).connect(out).connect(voiceIn);
+  return hp;
 }
 function systemSpeak(text,fin,c){
   if(!HAS_TTS){ setTimeout(fin,Math.min(20000,text.length*70)); return; }
@@ -688,7 +768,7 @@ function spot(force){
     if(sp.kind==="arts"){ const host=hostCast(), wren=guestCast(ARTS_HOST,host), cast={host:wren,dj:host,names:{host:"Wren Applewhite-Dunst",dj:"DJ"}};
       for(const k of ["reporter","subject","subject2"]) if(sp[k]){ cast[k]=guestCast(sp[k],wren); cast.names[k]=(k==="reporter"?sp[k].name:sp[k].name)||k; }
       speakLines([["dj","M D F M Arts and Culture. Here's Wren."],["host",`This is M D F M Arts and Culture. I'm Wren Applewhite-Dunst.`],["pause",700],...sp.lines,["host",pick(["This is M D F M Arts. Thank you for listening slowly.","For M D F M Arts and Culture, I'm Wren Applewhite-Dunst. Breathe in. Okay, that's enough.","I'm Wren Applewhite-Dunst. Art is everywhere. Mostly in the way."])]],cast,after); return; }
-    if(iv){ const host=hostCast(); speakLines([["host",`M D F M interview. Today: ${sp.title}.`],...sp.lines],{host,guest:guestCast(sp.guest,host),guest2:guestCast(sp.guest2||{accent:"british"},host),names:{host:"DJ",guest:sp.title,guest2:"Guest"}},after); }
+    if(iv){ const host=hostCast(); speakLines(sp.title==="Caller"?sp.lines:[["host",`M D F M interview. Today: ${sp.title}.`],...sp.lines],{host,guest:{...guestCast(sp.guest,host),phone:sp.title==="Caller"},guest2:guestCast(sp.guest2||{accent:"british"},host),names:{host:"DJ",guest:sp.title,guest2:"Guest"}},after); }
     else speak(sp.text,after); }, lead*1000);
 }
 
