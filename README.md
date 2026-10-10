@@ -39,6 +39,8 @@ Notes
 | `radio.skip()` | Crossfade into the next song now. |
 | `radio.spotNow()` | Play a stinger plus an ad or station ID now. |
 | `radio.setVolume(v)` / `setSpots(bool)` | Live settings. |
+| `radio.setLetItRide(bool)` / `isLetItRide()` | Keep each song going about 2 minutes (second breakdown, extra fills). Also `opts.letItRide`. |
+| `radio.setUnderwater(bool)` / `isUnderwater()` | Muffled underwater sound on the music. Also `opts.underwater`. |
 | `radio.getSpectrum()` | 19 levels (0–1) from the live audio, or `null` when off. Draw your own EQ with it. |
 | `radio.nowPlaying()` | `{ title, style, bpm }` |
 | `radio.on(event, fn)` | Events: `nowplaying`, `spot` (`{ kind, text }`), `start`, `stop`. Returns an unsubscribe function. |
