@@ -30,6 +30,8 @@ const ALLOW = [
   "https://slack.com/api/conversations.history?channel=C2WCGG31N&limit=20&oldest=1",
   "https://slack.com/api/users.info?user=U123", "https://slack.com/api/auth.revoke",
   "https://api.github.com/repos/Octoroboto/mdfm/releases?per_page=30",
+  "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/manifest.json",
+  "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/receiver.css",
   "https://registry.npmjs.org/@cedar-policy/cedar-wasm/latest",
   "https://registry.npmjs.org/-/package/electron/dist-tags",
 ];
@@ -41,6 +43,8 @@ const BLOCK = [
   ["GET", "https://api.github.com/repos/Octoroboto/floorplan-video-uploader/releases", "another repo"],
   ["GET", "https://claude.ai/api/organizations", "the app's own code calling claude.ai"],
   ["GET", "https://example.com/", "an unknown site"],
+  ["GET", "https://raw.githubusercontent.com/Octoroboto/mdfm/main/dist/radio.html", "radio content (the hub app doesn't need it)"],
+  ["GET", "https://raw.githubusercontent.com/someone-else/meddev-receiver/main/dist/receiver.js", "a look from another account"],
   ["GET", "https://registry.npmjs.org/left-pad", "other npm packages"],
   ["PUT", "https://api.open-meteo.com/v1/forecast", "a change"],
 ];

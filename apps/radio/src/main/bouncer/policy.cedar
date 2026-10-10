@@ -101,6 +101,11 @@ when { context.path == "/api/auth.revoke" && context.sameToday < 20 };
 permit (principal == Caller::"app", action == Action::"GET", resource == Host::"raw.githubusercontent.com")
 when { context.path like "/Octoroboto/mdfm/*" && context.sameToday < 200 };
 
+@id("receiver-look")
+@description("Download new versions of the receiver look from the meddev-receiver repo")
+permit (principal == Caller::"app", action == Action::"GET", resource == Host::"raw.githubusercontent.com")
+when { context.path like "/Octoroboto/meddev-receiver/main/dist/*" && context.sameToday < 100 };
+
 @id("mdfm-app-releases")
 @description("See whether a newer MDFM Radio app is out (mdfm releases)")
 permit (principal == Caller::"app", action == Action::"GET", resource == Host::"api.github.com")

@@ -8,6 +8,7 @@ const { createSlack } = require("../common/slack");
 const pkg = require("../../package.json");
 const { createUpdater, validateEngine, inlineScripts } = require("./updater");
 const { startFutureproofer } = require("./futureproof");
+const { createReceiverUpdater, applyToPage, versionOf } = require("../common/receiver");
 const tts = require("./tts");
 
 protocol.registerSchemesAsPrivileged([{ scheme: "mdfm", privileges: { standard: true, secure: true, supportFetchAPI: false } }]);
@@ -23,6 +24,12 @@ let slack = null;   // optional company news; created once the app is ready (nee
 const updater = createUpdater({ app, getSettings, bundledDir, appVersion: app.getVersion(),
   onStatus: () => sendStatus(), onEngine: () => sendStatus("New MDFM content is ready. It plays from the next launch, or press Cmd+R now.") });
 
+// The look (MedDev Receiver, its own repo): newer versions are fetched quietly and swapped into the page on the next launch or Cmd+R.
+const lookOn = () => !!(settings && settings.contentUpdates && !settings.useBundled);
+const bundledLook = () => { try { const h = fs.readFileSync(path.join(bundledDir, "radio.html"), "utf8"); return { version: versionOf((/<style id="mdfm-skin">([\s\S]{0,400})/.exec(h) || [])[1]) || "0.0.0" }; } catch { return { version: "0.0.0" }; } };
+const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, o), bundled: bundledLook, enabled: lookOn,
+  onChange: s => sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or press Cmd+R now.`) });
+
 function status(note) { return { ...updater.status, engine: servedEngine || updater.status.engine, live: { ...live.status }, bouncer: bouncerSummary(), futureproofer: fp ? fpSummary() : null, slack: slack ? { ...slack.status, ready: !!(pkg.mdfm && pkg.mdfm.slackRelay) } : null, note: note || null, appVersion: app.getVersion() }; }
 function bouncerSummary() { const b = bouncer.status(); return { level: b.level, label: b.label, mode: b.mode, healthy: b.healthy, blocked: b.counts.blocked, problem: b.problems[0] || null, rules: b.policy.version }; }
 function fpSummary() { const f = fp.status(); return { level: f.level, label: f.label, results: f.results.map(r => ({ id: r.id, title: r.title, level: r.level, summary: r.summary, action: r.action || null })) }; }
@@ -36,6 +43,7 @@ function pageToServe() {
     const b = JSON.parse(fs.readFileSync(path.join(bundledDir, "version.json"), "utf8"));
     html = fs.readFileSync(path.join(bundledDir, "radio.html"), "utf8"); servedEngine = { version: b.version, source: "bundled" };
   } else servedEngine = { version: pick.version, source: pick.source };
+  if (lookOn()) html = applyToPage(html, look.active());   // only ever swaps in a checked, newer look
   return html;
 }
 function csp(html) {
@@ -115,7 +123,7 @@ app.whenReady().then(() => {
     { role: "help", submenu: [{ label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") }] },
   ]));
   createWindow(); updater.start();
-  fp = startFutureproofer({ updater, enginePackageVersion: bouncer.status().enginePackageVersion, onChange: () => sendStatus() });
+  fp = startFutureproofer({ updater, look, enginePackageVersion: bouncer.status().enginePackageVersion, onChange: () => sendStatus() });
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });

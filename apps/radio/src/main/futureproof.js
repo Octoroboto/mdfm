@@ -12,7 +12,7 @@ const TESTED_MACOS = 26;   // newest macOS the app has been used on
 function underRosetta() { try { return execFileSync("sysctl", ["-in", "sysctl.proc_translated"], { encoding: "utf8" }).trim() === "1"; } catch { return false; } }
 function buildReport() { try { return JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "build", "dependency-report.json"), "utf8")); } catch { return null; } }
 
-function startFutureproofer({ updater, enginePackageVersion, onChange }) {
+function startFutureproofer({ updater, look, enginePackageVersion, onChange }) {
   const translated = process.platform === "darwin" && underRosetta();
   const fp = createFutureproofer({
     appName: "MDFM Radio",
@@ -28,6 +28,10 @@ function startFutureproofer({ updater, enginePackageVersion, onChange }) {
         await updater.checkContent(); const s = updater.status;
         if (/fail/i.test(s.result || "")) throw new Error(s.result);
         return checks.result("content", "MDFM content and looks", "ok", `MDFM ${s.engine && s.engine.version} (${s.result || "checked"}). New content plays from the next launch.`);
+      } },
+      { id: "look", title: "Receiver look (MedDev Receiver)", everyHours: 6, run: async () => {
+        const s = await look.check(); if (/fail/i.test(s.result || "")) throw new Error(s.result);
+        return checks.result("look", "Receiver look (MedDev Receiver)", "ok", `Look ${s.version} (${s.source === "updated" ? "updated" : "built in"}; ${s.result}). A new look shows from the next launch.`);
       } },
       { id: "electron", title: "Electron (the app's engine)", everyHours: 12, run: () => checks.checkElectron({ current: process.versions.electron, getJson: getJSON }) },
       { id: "bouncer-engine", title: "Bouncer's rule engine (Cedar)", everyHours: 12, run: () => checks.checkPackage({ id: "bouncer-engine", title: "Bouncer's rule engine (Cedar)", name: "@cedar-policy/cedar-wasm", current: enginePackageVersion, getJson: getJSON, behindMajorIsBad: true }) },

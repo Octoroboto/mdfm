@@ -5,7 +5,7 @@
 // allows it, and a "forbid" rule always wins. Checked by Cedar (https://www.cedarpolicy.com).
 // The hub page itself (claude.ai and the hub artifact) is watched by a second Bouncer, see view-policy.cedar.
 //
-// Who asks: Caller::"app" (src/common/net.js: weather, location, sports, Slack news, update checks).
+// Who asks: Caller::"app" (src/common/net.js: weather, location, sports, Slack news, update checks, the receiver look).
 // The app only READS, plus one security lookup at OSV (a POST).
 // Changing this file: review, then `npm run bouncer:lock`.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -62,6 +62,11 @@ when { ["/api/conversations.history", "/api/conversations.list", "/api/users.inf
 @description("Give the Slack token back when disconnecting")
 permit (principal == Caller::"app", action == Action::"GET", resource == Host::"slack.com")
 when { context.path == "/api/auth.revoke" && context.sameToday < 20 };
+
+@id("receiver-look")
+@description("Download new versions of the receiver look from the meddev-receiver repo")
+permit (principal == Caller::"app", action == Action::"GET", resource == Host::"raw.githubusercontent.com")
+when { context.path like "/Octoroboto/meddev-receiver/main/dist/*" && context.sameToday < 100 };
 
 @id("app-releases")
 @description("See whether a newer MD Hub app is out (mdfm releases)")

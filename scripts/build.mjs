@@ -1,5 +1,5 @@
 // Zero-dependency build: stitches src/ into dist/mdfm.mjs (ES module) and dist/mdfm.iife.js (window.MDFM),
-// and the shared look (skin/) into dist/skin.css, dist/skin.js and the self-contained dist/radio.html.
+// and the shared look (the MedDev Receiver, vendor/meddev-receiver) into dist/skin.css, dist/skin.js and the self-contained dist/radio.html.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 const root = new URL("../", import.meta.url);
 const read = p => readFileSync(new URL(p, root), "utf8");
@@ -16,16 +16,19 @@ const out = (p, s) => writeFileSync(new URL("dist/" + p, root), s);
 out("mdfm.mjs", `${banner}${body}export { createMDFM, mountEQ, openMeteo, espnSports, corePack, VERSION, STYLES };\n`);
 const iife = `${banner}var MDFM = (function () {\n"use strict";\n${body}return { createMDFM, mountEQ, openMeteo, espnSports, corePack, VERSION, STYLES };\n})();\n`;
 out("mdfm.iife.js", iife);
-// shared look
-const badges = read("skin/badges.html");
-const skinCss = `/* MDFM skin ${version} */\n` + read("skin/skin.css");
-// The receiver badging (MedDev pin + faceplate marks) ships inside skin.js so every app that loads the skin gets the same footer:
-// any element with data-mdfm-badges is filled in (and refreshed when the skin updates from the repo).
-const skinJs = `/* MDFM skin ${version} */\nwindow.MDFM_BADGES=${JSON.stringify(badges)};\n(()=>{ const fill=()=>document.querySelectorAll("[data-mdfm-badges]").forEach(el=>{ if(el.dataset.mdfmBadges===${JSON.stringify(version)}) return; el.classList.add("deck","pinfoot"); if(!el.getAttribute("aria-label")) el.setAttribute("aria-label","MedDev"); el.innerHTML=window.MDFM_BADGES; el.dataset.mdfmBadges=${JSON.stringify(version)}; }); if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",fill); else fill(); window.MDFM_mountBadges=fill; })();\n` + read("skin/skin.js") + "\n" + read("skin/types.js") + "\n" + read("skin/receiver.js");
+// shared look: the MedDev Receiver (its own repo, Octoroboto/meddev-receiver), bundled in vendor/meddev-receiver by
+// "npm run receiver:sync". The apps also follow newer receiver versions live; see apps/common/receiver.js.
+const RX = p => read("vendor/meddev-receiver/" + p);
+const rx = JSON.parse(RX("manifest.json")), badges = RX("badges.html").trim();
+const skinCss = RX("receiver.css"), receiverJs = RX("receiver.js");
+const mdfmSkinJs = `/* MDFM ${version}: content types for the receiver controls */\n` + read("skin/types.js");
+// dist/skin.js keeps everything in one file for pages that load it directly (Collin's app, demos).
+const skinJs = receiverJs + "\n" + mdfmSkinJs;
 out("skin.css", skinCss); out("skin.js", skinJs);
 const radio = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="mdfm-version" content="${version}">
+<meta name="meddev-receiver" content="${rx.version}">
 <title>MDFM Radio</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Russo+One&family=Rye&family=Bangers&family=Alfa+Slab+One&family=Press+Start+2P&family=Creepster&family=Black+Ops+One&family=Pacifico&family=Monoton&display=swap">
 <style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
@@ -34,9 +37,10 @@ const radio = `<!doctype html>
 </head><body>
 ${read("skin/radio-body.html").replace("<!--MDFM:BADGES-->", badges)}
 <script id="mdfm-lib">${iife}</script>
-<script id="mdfm-skin-js">${skinJs}</script>
+<script id="meddev-receiver-js">${receiverJs}</script>
+<script id="mdfm-skin-js">${mdfmSkinJs}</script>
 <script id="mdfm-radio-wire">${read("skin/radio-wire.js")}</script>
 </body></html>
 `;
 out("radio.html", radio);
-console.log(`built mdfm ${version} -> dist/mdfm.mjs, dist/mdfm.iife.js, dist/skin.css, dist/skin.js, dist/radio.html`);
+console.log(`built mdfm ${version} (receiver ${rx.version}) -> dist/mdfm.mjs, dist/mdfm.iife.js, dist/skin.css, dist/skin.js, dist/radio.html`);

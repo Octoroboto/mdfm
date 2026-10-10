@@ -2,6 +2,15 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.6.0 (2026-10-10, Rob)
+- The shared look and controls moved to their own repo, **MedDev Receiver** (`Octoroboto/meddev-receiver`, 1.0.0). It has the steel, LCDs, LEDs, buttons, knobs, VU meters, LED EQ, light knobs, flies and spray, badge plates, the MedDev badging and the receiver controls. Update it there once, and everything that points to it follows.
+- mdfm ships a checked copy in `vendor/meddev-receiver/` as the built-in fallback. Refresh it with `npm run receiver:sync` (it needs `../meddev-receiver` next to mdfm).
+- Pages now carry the look as `<style id="mdfm-skin">` plus `<script id="meddev-receiver-js">`. `<script id="mdfm-skin-js">` keeps the MDFM content-type list. `dist/skin.css` and `dist/skin.js` still contain everything, for pages that load them directly.
+- MDFM Radio app 0.2.5 and MD Hub 0.1.1 follow newer receiver versions live. They download the look from the receiver repo's checked `dist/` and use it from the next launch (MD Hub: also on a hub reload). Both apps get one new read-only Bouncer rule for this (Radio rules v4, MD Hub rules v2) and a "Receiver look" line in Futureproofer.
+
+## 1.5.10 (2026-10-10, Rob)
+- The SOUND and EQ switches now match the receiver's other buttons: a round black push button with a red LED and an engraved caption (SOUND, EQ), the same as METER, LET IT RIDE and UNDERWATER. Applies everywhere the skin is used (MDFM Radio, the hub page, MD Hub).
+
 ## 1.5.9 (2026-10-10, Rob)
 - The list of what plays between songs (the content switches) is now one shared list, `skin/types.js`, used by every MDFM receiver and the MD Hub app's Settings. The wording is the same everywhere.
 - MD Hub: the content switches are in Settings too, and they stay in step with the receiver on the hub page both ways. The hub page shows them open instead of folded away.

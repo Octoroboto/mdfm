@@ -15,6 +15,13 @@ protocol.registerSchemesAsPrivileged([{ scheme: "mdhub", privileges: { standard:
 if (!app.requestSingleInstanceLock()) app.quit();
 
 const STRIP = 44;   // height of the steel top strip (POWER / MIN / FULL, title, lights, SETTINGS)
+const { createReceiverUpdater, versionOf } = require("../common/receiver");
+// The look (MedDev Receiver, its own repo). Newer versions are fetched quietly; the frame uses them from the next launch,
+// and the hub page gets the newer styling too (its controls' code updates when the hub artifact is republished).
+const SHELL_SKIN = path.join(__dirname, "../shell/skin.css");
+const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, o),
+  bundled: () => { try { const css = fs.readFileSync(SHELL_SKIN, "utf8"); return { version: versionOf(css) || "0.0.0", css, js: null }; } catch { return { version: "0.0.0" }; } },
+  onChange: s => sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or reload the hub (Cmd+R).`) });
 const TYPE_KEYS = ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "news"];
 const HUB_HOSTS = /(^|\.)(claude\.ai|claudeusercontent\.com|claude\.site|claude\.com|anthropic\.com)$/;
 const LOGIN_HOSTS = /(^|\.)(accounts\.google\.com|appleid\.apple\.com)$/;
@@ -83,7 +90,7 @@ app.whenReady().then(() => {
     openExternal: url => { if (relayUrl && url.startsWith(relayUrl.replace(/\/$/, "") + "/start?")) shell.openExternal(url); } });
 
   protocol.handle("mdhub", req => {
-    const name = new URL(req.url).pathname.replace(/^\//, "") || "shell.html", body = /^[a-z-]+\.(html|css|js)$/.test(name) ? shellPage(name) : null;
+    const name = new URL(req.url).pathname.replace(/^\//, "") || "shell.html", body = name === "skin.css" ? look.active().css : /^[a-z-]+\.(html|css|js)$/.test(name) ? shellPage(name) : null;
     if (!body) return new Response("not found", { status: 404 });
     const type = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : "text/javascript";
     return new Response(body, { headers: { "content-type": type + "; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" } });
@@ -108,6 +115,8 @@ app.whenReady().then(() => {
   const broadcastTypes = () => { const s = typesNow();
     if (win && !win.isDestroyed()) win.webContents.send("settings:types", s);
     if (view) for (const f of view.webContents.mainFrame.framesInSubtree) { try { if (f !== view.webContents.mainFrame && HUB_HOSTS.test(new URL(f.url).hostname)) f.send("hub:settings:changed", s); } catch {} } };
+  // A newer look for the hub page's own styling (the preload compares it with the page's version and only ever adds a newer one).
+  ipcMain.on("hub:look", e => { const a = look.active(); e.returnValue = fromHub(e) && a.source === "updated" ? { version: a.version, css: a.css } : null; });
   ipcMain.on("hub:settings:get", e => { e.returnValue = fromHub(e) ? { types: settings.types, slackNews: settings.slackNews } : {}; });
   ipcMain.handle("hub:settings:set", (e, s) => { if (!fromHub(e)) return null; const t = {};
     for (const k of TYPE_KEYS) if (s && s.types && k in s.types) t[k] = !!s.types[k];
@@ -152,7 +161,7 @@ app.whenReady().then(() => {
       { label: "Open the hub in your browser", click: () => shell.openExternal(settings.hubUrl) }, { label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") }] },
   ]));
   createWindow();
-  fp = startFutureproofer({ getWindow: () => win, getSettings, saveSettings, enginePackageVersion, onChange: () => sendStatus() });
+  fp = startFutureproofer({ look, getWindow: () => win, getSettings, saveSettings, enginePackageVersion, onChange: () => sendStatus() });
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });

@@ -1,5 +1,5 @@
 {
-  "policyVersion": 3,
+  "policyVersion": 4,
   "mode": "enforce",
   "quietRules": []
 }

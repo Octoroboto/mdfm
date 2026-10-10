@@ -41,3 +41,16 @@ test("network: hosts outside the allow-list are blocked before any request", asy
   await assert.rejects(getJSON("https://example.com/x"), /blocked host/);
   await assert.rejects(getJSON("http://api.open-meteo.com/x"), /blocked host/);
 });
+
+test("a newer receiver look is swapped into the radio page, and nothing else changes", () => {
+  const fs = require("fs"), path = require("path"), crypto = require("crypto");
+  const { applyToPage, versionOf, validate } = require("../src/common/receiver");
+  const html = fs.readFileSync(path.join(__dirname, "../vendor/radio.html"), "utf8");
+  const cur = versionOf(/<style id="mdfm-skin">([\s\S]{0,400})/.exec(html)[1]); assert.ok(cur, "the page says which look it has");
+  const [a, b, c] = cur.split(".").map(Number), next = `${a}.${b}.${c + 1}`;
+  const css = "/* MedDev Receiver " + next + " */\n.deck{color:red}", js = "/* MedDev Receiver " + next + " */\nwindow.MedDevReceiver={};";
+  const out = applyToPage(html, { version: next, css, js });
+  assert.ok(out.includes(css) && out.includes(`<script id="meddev-receiver-js">${js}</script>`));
+  for (const id of ["mdfm-lib", "mdfm-skin-js", "mdfm-radio-wire"]) assert.strictEqual(/<script id="X">([\s\S]*?)<\/script>/.source && out.match(new RegExp(`<script id="${id}">([\\s\\S]*?)</script>`))[1], html.match(new RegExp(`<script id="${id}">([\\s\\S]*?)</script>`))[1]);
+  assert.strictEqual(applyToPage(html, { version: cur, css, js }), html, "same or older look: page untouched");
+});

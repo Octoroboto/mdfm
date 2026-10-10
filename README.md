@@ -40,7 +40,7 @@ Every app that plays MDFM shows the hub's receiver footer: the MedDev pin and th
 <script src="node_modules/mdfm/dist/skin.js"></script>
 ```
 
-`skin.js` fills any `[data-mdfm-badges]` element. If you add one later, call `window.MDFM_mountBadges()`.
+The look and controls come from **MedDev Receiver** (`Octoroboto/meddev-receiver`), bundled in `vendor/meddev-receiver` (`npm run receiver:sync` refreshes it). `skin.js` fills any `[data-mdfm-badges]` element. If you add one later, call `window.MDFM_mountBadges()`.
 
 ## API
 

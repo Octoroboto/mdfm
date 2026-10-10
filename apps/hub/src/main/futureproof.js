@@ -20,7 +20,7 @@ async function latestRelease() {
   return { version: best.tag_name.replace(/^hub-v/, ""), url: best.html_url, download: dmg ? dmg.browser_download_url : best.html_url, notes: String(best.body || "").slice(0, 600) };
 }
 
-function startFutureproofer({ getWindow, getSettings, saveSettings, enginePackageVersion, onChange }) {
+function startFutureproofer({ look, getWindow, getSettings, saveSettings, enginePackageVersion, onChange }) {
   const translated = process.platform === "darwin" && underRosetta();
   let asked = null;   // versions already asked about this launch
   async function offer(u) {
@@ -39,6 +39,10 @@ function startFutureproofer({ getWindow, getSettings, saveSettings, enginePackag
         if (u && cmpVersion(u.version, app.getVersion()) > 0) { setTimeout(() => offer(u), 500);
           return checks.result("app", "This app", "warn", `MD Hub ${u.version} is available (you have ${app.getVersion()}). Optional.`, { action: { label: `Download ${u.version}`, url: u.download } }); }
         return checks.result("app", "This app", "ok", `Version ${app.getVersion()} is the newest.`); } },
+      { id: "look", title: "Receiver look (MedDev Receiver)", everyHours: 6, run: async () => {
+        const s = await look.check(); if (/fail/i.test(s.result || "")) throw new Error(s.result);
+        return checks.result("look", "Receiver look (MedDev Receiver)", "ok", `Look ${s.version} (${s.source === "updated" ? "updated" : "built in"}; ${s.result}). A new look shows from the next launch or hub reload.`);
+      } },
       { id: "electron", title: "Electron (the app's engine)", everyHours: 12, run: () => checks.checkElectron({ current: process.versions.electron, getJson: getJSON }) },
       { id: "bouncer-engine", title: "Bouncer's rule engine (Cedar)", everyHours: 12, run: () => checks.checkPackage({ id: "bouncer-engine", title: "Bouncer's rule engine (Cedar)", name: "@cedar-policy/cedar-wasm", current: enginePackageVersion, getJson: getJSON, behindMajorIsBad: true }) },
       { id: "vulnerabilities", title: "Known security problems", everyHours: 12, run: () => checks.checkVulnerabilities({ packages: [{ name: "electron", version: process.versions.electron }, { name: "@cedar-policy/cedar-wasm", version: enginePackageVersion }], postJson: postJSON }) },
