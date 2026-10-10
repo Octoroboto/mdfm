@@ -1,6 +1,6 @@
 // Every outbound request goes through here. Only these hosts, only GET, short timeouts. Nothing else leaves the app.
 // slack.com is only called when the person has connected Slack (read-only: channel history, channel list, user names).
-const ALLOWED = new Set(["registry.npmjs.org", "api.osv.dev", "api.open-meteo.com", "geocoding-api.open-meteo.com", "api.bigdatacloud.net", "ipwho.is", "site.api.espn.com",
+const ALLOWED = new Set(["registry.npmjs.org", "api.osv.dev", "api.open-meteo.com", "geocoding-api.open-meteo.com", "api.bigdatacloud.net", "ipwho.is", "get.geojs.io", "site.api.espn.com",
   "raw.githubusercontent.com", "api.github.com", "slack.com"]);
 // Bouncer (the app's Cedar rules) checks every request here first. Without it, nothing leaves (tests excepted).
 let bouncer = null;

@@ -62,9 +62,12 @@ permit (principal == Caller::"app", action == Action::"GET", resource == Host::"
 when { context.path == "/data/reverse-geocode-client" && context.sameToday < 500 };
 
 @id("network-location")
-@description("Rough location from the network when the Mac's location is off (ipwho.is)")
-permit (principal == Caller::"app", action == Action::"GET", resource == Host::"ipwho.is")
-when { context.path == "/" && context.sameToday < 200 };
+@description("Rough location from the network when the Mac's location is off (ipwho.is, then geojs.io)")
+permit (principal == Caller::"app", action == Action::"GET", resource)
+when {
+  ((context.host == "ipwho.is" && context.path == "/") || (context.host == "get.geojs.io" && context.path == "/v1/ip/geo.json")) &&
+  context.sameToday < 200
+};
 
 
 // ══ Local sports ═════════════════════════════════════════════════════════════════════════════

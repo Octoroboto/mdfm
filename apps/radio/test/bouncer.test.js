@@ -18,6 +18,7 @@ const ALLOW = [
   ["app", "https://geocoding-api.open-meteo.com/v1/search?count=1&name=Chicago"],
   ["app", "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=41.9&longitude=-87.6&localityLanguage=en"],
   ["app", "https://ipwho.is/"],
+  ["app", "https://get.geojs.io/v1/ip/geo.json"],
   ["app", "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"],
   ["app", "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard"],
   ["app", "https://slack.com/api/conversations.list?types=public_channel&limit=1000"],

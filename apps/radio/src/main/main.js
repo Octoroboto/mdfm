@@ -66,14 +66,18 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(perm === "geolocation"));
   session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === "geolocation");
   ipcMain.handle("live:get", async (e, kind) => { const v = kind === "weather" ? await live.weather() : kind === "sports" ? await live.sports() : kind === "news" ? await slack.fetchNews() : null; sendStatus(); return v; });
-  ipcMain.on("live:coords", (e, c) => { live.setCoords(c); live.weather().then(() => live.sports()).then(() => sendStatus()); });
+  const refreshLive = () => live.weather().then(() => live.sports()).then(() => sendStatus()).catch(() => sendStatus());
+  ipcMain.on("live:coords", (e, c) => { live.setCoords(c); refreshLive(); });
+  ipcMain.on("live:geoError", (e, msg) => { live.setGeoError(msg); sendStatus(); });
+  // Don't wait for a weather break: find the location and fetch weather and scores at launch, then every 15 minutes.
+  setTimeout(refreshLive, 4000); setInterval(refreshLive, 15 * 60e3);
   ipcMain.on("settings:get", e => { e.returnValue = settings; });
   ipcMain.handle("settings:set", (e, s) => {
     const before = settings; settings = { ...settings, ...pick(s, ["contentUpdates", "useBundled", "city", "units", "slackNews", "slackChannels", "nameFixes", "types"]) };
     { const t = {}; for (const k of ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "news"]) if (settings.types && k in settings.types) t[k] = !!settings.types[k]; settings.types = t; }
     settings.slackNews = !!settings.slackNews; settings.slackChannels = String(settings.slackChannels || "").slice(0, 500); settings.nameFixes = String(settings.nameFixes || "").slice(0, 4000);
     settingsStore.save(app, settings);
-    if (before.city !== settings.city || before.units !== settings.units) live.reset();
+    if (before.city !== settings.city || before.units !== settings.units) { live.reset(); setTimeout(() => live.weather().then(() => live.sports()).then(() => sendStatus()), 200); }
     sendStatus(before.useBundled !== settings.useBundled ? "Version choice saved. It applies from the next launch, or press Cmd+R now." : null); return settings;
   });
   ipcMain.handle("slack:connect", async () => { try { await slack.connect(); if (!settings.slackNews) { settings = { ...settings, slackNews: true }; settingsStore.save(app, settings); } sendStatus("Slack connected. Company news plays at the top of the hour."); return true; }

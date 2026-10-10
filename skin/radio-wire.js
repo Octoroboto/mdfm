@@ -50,7 +50,10 @@
   document.querySelectorAll(".apponly").forEach(el=>el.hidden=!app);
   if(!app) return;
   if(app.autoplay) setTimeout(()=>{ box.checked=true; radio.start(); },600);
-  if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>app.coords(p.coords.latitude,p.coords.longitude),()=>{}, {timeout:8000,maximumAge:3600e3});
+  // The Mac's own location (macOS asks once). If it's off or unavailable, the app uses a rough network location and says so.
+  const geoWhy=e=>e&&e.code===1?"not allowed (System Settings → Privacy & Security → Location Services → MDFM Radio)":e&&e.code===3?"timed out":"unavailable";
+  if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>app.coords(p.coords.latitude,p.coords.longitude),e=>{ if(app.geoError) app.geoError(geoWhy(e)); }, {timeout:15000,maximumAge:3600e3,enableHighAccuracy:false});
+  else if(app.geoError) app.geoError("unavailable");
   const s=app.settings.get();
   $("#setSlackChannels").value=s.slackChannels||""; $("#setNameFixes").value=s.nameFixes||"";
   $("#setUpdates").checked=!!s.contentUpdates; $("#setBundled").checked=!!s.useBundled; $("#setCity").value=s.city||""; $("#setUnits").value=s.units||"f";

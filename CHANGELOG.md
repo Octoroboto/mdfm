@@ -2,6 +2,9 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.5.2 (2026-10-10, Rob)
+- MDFM Radio app 0.2.2: finds the location and fetches weather and scores at launch (then every 15 minutes) instead of waiting for a weather break; a second network-location service (geojs.io) as backup; the Station screen says where the location came from and why the Mac's location wasn't used; changing the city in Settings refetches right away.
+
 ## 1.5.1 (2026-10-10, Rob)
 - MDFM Radio app 0.2.1: the frameless receiver window can be dragged by its metal (the page reports a press and the window follows the pointer; the spray-can layer no longer blocks dragging).
 
