@@ -21,3 +21,4 @@ pre{white-space:pre-wrap;word-break:break-word;font:12px ui-monospace,Menlo,mono
 .fine{color:var(--muted);font-size:12px;margin:14px 0}
 .logbox summary{cursor:pointer;color:var(--muted)}#log{max-height:240px;overflow:auto}
 code{font:12px ui-monospace,Menlo,monospace;color:var(--ink)}
+.alt{margin:8px 0 0}button.link{background:none;border:0;box-shadow:none;padding:0;color:#8fe3ff;text-decoration:underline;font:inherit}

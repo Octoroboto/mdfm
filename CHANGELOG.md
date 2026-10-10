@@ -6,6 +6,7 @@ Bump `version` in package.json and add an entry here with every change that gets
 - **Connect Slack** (MDFM Radio app 0.2.7, MD Hub 0.1.3) opens Slack's sign-in in an app window. The window can only go to Slack, Google or Apple sign-in, the MDFM helper, and the app's own one-time return address. It closes itself when Slack hands the token back and drops you back in the app. Closing it early cancels cleanly.
 - **Set up Slack for everyone:** a one-time wizard, shown only in a copy run from source next to `apps/slack-relay`. It runs Cloudflare's tool to sign in and deploy the helper, opens Slack with the MDFM app pre-filled, reads RentVision's team id from Slack, sets the helper's secrets, and writes `config/slack.json`. Pushing that file switches Slack on for every installed app without an app release (MD Hub gets a read-only Bouncer rule for it: rules v3).
 - Before Slack is switched on, the apps say so instead of "isn't set up for this copy".
+- The sign-in windows have their own enforced Bouncer, with rules in `apps/common/signin-policy.cedar`. They allow Slack, the Google, Apple or Okta sign-in Slack may use, MDFM's helper, and the app's own return address; the builder's setup windows also allow Cloudflare. Before this, the app's main Bouncer blocked everything in those windows, so they stayed blank. If a window still won't load, the wizard has "Open in my browser instead" for the Cloudflare steps.
 
 ## 1.7.1 (2026-10-10, Rob)
 - MedDev Receiver 1.1.1: the VOLUME knob's numbers no longer float out of place on iPhone.

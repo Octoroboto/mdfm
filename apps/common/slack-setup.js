@@ -8,7 +8,8 @@ const { openSignInWindow, CLOUDFLARE_HOSTS, SLACK_HOSTS } = require("./signin");
 const { validRelay } = require("./slack-config");
 
 // ---- pure helpers (tested) ----
-const findLoginUrl = out => (/(https:\/\/dash\.cloudflare\.com\/oauth2\/auth\?[^\s"'<>]+)/.exec(out) || [])[1] || null;
+// Only once the whole link has arrived (it can come in pieces): it must be followed by whitespace.
+const findLoginUrl = out => (/(https:\/\/dash\.cloudflare\.com\/oauth2\/auth\?[^\s"'<>]+)\s/.exec(String(out).replace(/[\u001b]\[[0-9;]*m/g, "")) || [])[1] || null;
 const findWorkerUrl = out => (/(https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev)\b/i.exec(out) || [])[1] || null;
 const needsSubdomain = out => /register a workers\.dev subdomain|workers\.dev subdomain/i.test(out);
 const loggedIn = out => /You are logged in|associated with the email/i.test(out) && !/not authenticated/i.test(out);
@@ -22,13 +23,15 @@ function manifestFor(relay, base) {
 }
 const slackCreateUrl = manifest => `https://api.slack.com/apps?new_app=1&manifest_json=${encodeURIComponent(JSON.stringify(manifest))}`;
 
+const ONBOARDING = "https://dash.cloudflare.com/?to=/:account/workers/onboarding";
+
 function setupAvailable({ app }) {
   if (app.isPackaged) return null;
   const repo = path.resolve(app.getAppPath(), "../.."), relayDir = path.join(repo, "apps/slack-relay");
   return fs.existsSync(path.join(relayDir, "wrangler.toml")) ? { repo, relayDir } : null;
 }
 
-function startSlackSetup({ app, parent, saveOverride, onDone }) {
+function startSlackSetup({ app, parent, saveOverride, onDone, bouncer }) {
   const where = setupAvailable({ app }); if (!where) return null;
   const { BrowserWindow, ipcMain } = require("electron");
   const win = new BrowserWindow({ width: 760, height: 820, title: "Set up Slack for MDFM", parent: parent && !parent.isDestroyed() ? parent : undefined,
@@ -36,8 +39,11 @@ function startSlackSetup({ app, parent, saveOverride, onDone }) {
     webPreferences: { preload: path.join(__dirname, "slack-setup-preload.js"), sandbox: true, contextIsolation: true, nodeIntegration: false } });
   const mine = e => e.sender === win.webContents;
   const log = t => { if (!win.isDestroyed()) win.webContents.send("slackSetup:log", String(t).slice(0, 2000)); };
-  const st = { relay: "", appId: "", teamId: "" };
+  const st = { relay: "", appId: "", teamId: "", loginUrl: "" };
+  const watch = what => ({ onBlocked: u => log(`${what}: the window tried to open ${u}, which isn't allowed there; it opened in your browser instead.`),
+    onFail: m => log(`${what}: the page didn't load: ${m}. Use "Open in my browser instead".`) });
   const PARTITION = "persist:mdfm-setup";
+  const guarded = { bouncer, caller: "setup" };
   const env = { ...process.env, PATH: `${process.env.PATH || ""}:/opt/homebrew/bin:/usr/local/bin`, BROWSER: "none", WRANGLER_SEND_METRICS: "false", CI: "" };
   function run(args, { input, onOut } = {}) {
     return new Promise(resolve => {
@@ -62,27 +68,36 @@ function startSlackSetup({ app, parent, saveOverride, onDone }) {
       let signWin = null;
       const r = await run(["login", "--browser=false"], { onOut: (out, proc) => {
         const url = findLoginUrl(out);
-        if (url && !signWin) signWin = openSignInWindow(url, { parent: win, title: "Sign in to Cloudflare", hosts: CLOUDFLARE_HOSTS, localPorts: [8976], partition: PARTITION,
-          onClosed: () => { try { proc.kill(); } catch {} } });
+        if (url && !signWin) { st.loginUrl = url; log("Opening Cloudflare's sign-in. If the window stays blank, press \"Open in my browser instead\".");
+          if (!win.isDestroyed()) win.webContents.send("slackSetup:loginUrl", "1");
+          signWin = openSignInWindow(url, { parent: win, title: "Sign in to Cloudflare", hosts: CLOUDFLARE_HOSTS, anyHttps: true, localPorts: [8976], partition: PARTITION, ...guarded, width: 900, height: 820,
+            ...watch("Cloudflare"), onClosed: () => { if (!st.browserLogin) { try { proc.kill(); } catch {} } } }); }
       } });
       if (signWin && !signWin.isDestroyed()) signWin.close();
       return r.code === 0 ? { ok: true, note: "Signed in to Cloudflare." } : { ok: false, note: "Cloudflare sign-in didn't finish. Try again." };
+    },
+    // Fallback: finish Cloudflare's sign-in in the normal browser. Cloudflare's tool is still waiting on this Mac, so it works the same.
+    async browser(kind) {
+      if (kind === "onboarding") { require("electron").shell.openExternal(ONBOARDING); return { ok: true, note: "Pick a workers.dev name in your browser, then press Deploy again." }; }
+      if (!/^https:\/\/dash\.cloudflare\.com\/oauth2\/auth\?/.test(st.loginUrl)) return { ok: false, note: "Press Sign in to Cloudflare first." };
+      st.browserLogin = true; require("electron").shell.openExternal(st.loginUrl);
+      return { ok: true, note: "Finish signing in in your browser. This step turns green when Cloudflare says you're in." };
     },
     async deploy() {
       const r = await run(["deploy"]);
       const url = findWorkerUrl(r.out);
       if (r.code === 0 && url) { st.relay = url; return { ok: true, relay: url }; }
       if (needsSubdomain(r.out)) {
-        openSignInWindow("https://dash.cloudflare.com/?to=/:account/workers/onboarding", { parent: win, title: "Pick your workers.dev name", hosts: CLOUDFLARE_HOSTS, partition: PARTITION });
-        return { ok: false, note: "Cloudflare needs a workers.dev name first. Pick one in the window that opened, then press Deploy again." };
+        openSignInWindow(ONBOARDING, { parent: win, title: "Pick your workers.dev name", hosts: CLOUDFLARE_HOSTS, anyHttps: true, partition: PARTITION, ...guarded, width: 1000, height: 820, ...watch("Cloudflare") });
+        return { ok: false, onboarding: true, note: "Cloudflare needs a workers.dev name first. Pick one in the window that opened (or in your browser), then press Deploy again." };
       }
       return { ok: false, note: "The deploy didn't work. The log below says why." };
     },
     async slackApp() {
       if (!st.relay) return { ok: false, note: "Deploy the helper first." };
       const base = JSON.parse(fs.readFileSync(path.join(where.relayDir, "slack-app-manifest.json"), "utf8"));
-      openSignInWindow(slackCreateUrl(manifestFor(st.relay, base)), { parent: win, title: "Create the MDFM Slack app", hosts: SLACK_HOSTS, partition: PARTITION, width: 1000, height: 820,
-        onNavigate: (u, w) => { const id = findAppId(u); if (id && id !== st.appId) { st.appId = id; log(`Slack app created: ${id}`);
+      openSignInWindow(slackCreateUrl(manifestFor(st.relay, base)), { parent: win, title: "Create the MDFM Slack app", hosts: SLACK_HOSTS, partition: PARTITION, ...guarded, width: 1000, height: 820,
+        ...watch("Slack"), onNavigate: (u, w) => { const id = findAppId(u); if (id && id !== st.appId) { st.appId = id; log(`Slack app created: ${id}`);
           if (!/\/general/.test(u)) setTimeout(() => { if (!w.isDestroyed()) w.loadURL(`https://api.slack.com/apps/${id}/general`); }, 800);
           if (!win.isDestroyed()) win.webContents.send("slackSetup:appId", id); } } });
       return { ok: true, note: "Finish creating the app in the Slack window, then copy the Client ID and Client Secret from its Basic Information page." };
@@ -90,7 +105,7 @@ function startSlackSetup({ app, parent, saveOverride, onDone }) {
     async team() {
       return new Promise(resolve => {
         let done = false;
-        const w = openSignInWindow("https://app.slack.com/client", { parent: win, title: "Open the RentVision Slack", hosts: SLACK_HOSTS, partition: PARTITION,
+        const w = openSignInWindow("https://app.slack.com/client", { parent: win, title: "Open the RentVision Slack", hosts: SLACK_HOSTS, partition: PARTITION, ...guarded, ...watch("Slack"),
           onNavigate: (u, ww) => { const t = findTeamId(u); if (t && !done) { done = true; st.teamId = t; log(`RentVision team id: ${t}`); setTimeout(() => ww.close(), 400); resolve({ ok: true, teamId: t }); } },
           onClosed: () => { if (!done) { done = true; resolve({ ok: false, note: "Closed before Slack opened. Sign in and pick RentVision, or type the team id." }); } } });
         return w;

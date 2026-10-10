@@ -103,3 +103,12 @@ test("only common/net.js sends requests", () => {
   roots.forEach(walk);
   assert.deepStrictEqual(bad, [], "these files send requests without going through Bouncer");
 });
+
+test("sign-in windows' rules are locked and enforcing here too", () => {
+  const S = { policyText: fs.readFileSync(path.join(__dirname, "../src/common/signin-policy.cedar"), "utf8"),
+    config: JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.signin.config.json"), "utf8")), lock: JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.signin.lock.json"), "utf8")) };
+  assert.deepStrictEqual({ p: S.lock.policySha256, c: S.lock.configSha256 }, fp(S)); assert.strictEqual(S.config.mode, "enforce");
+  const b = make(S, "MD Hub (sign-in windows)"); assert.strictEqual(b.status().healthy, true);
+  assert.strictEqual(b.check({ url: "https://slack.com/oauth/v2/authorize", method: "GET" }, "slack-signin").decision, "allow");
+  assert.strictEqual(b.check({ url: "https://claude.ai/", method: "GET" }, "slack-signin").allow, false);
+});

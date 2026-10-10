@@ -36,7 +36,7 @@ const LOGIN_HOSTS = /(^|\.)(accounts\.google\.com|appleid\.apple\.com)$/;
 let slackCfg = null;
 let win = null, view = null, settings = null, fp = null, slack = null, settingsOpen = false;
 
-const { appB, viewB, enginePackageVersion } = security.startBouncers({ notify: p => sendStatus(`Bouncer stopped a request: ${p.body}`) });
+const { appB, viewB, signinB, enginePackageVersion } = security.startBouncers({ notify: p => sendStatus(`Bouncer stopped a request: ${p.body}`) });
 const getSettings = () => settings;
 const saveSettings = patch => { settings = { ...settings, ...patch }; settingsStore.save(app, settings); return settings; };
 const live = createLive(getSettings);
@@ -101,10 +101,10 @@ app.whenReady().then(() => {
   slack = createSlack({ dataDir: app.getPath("userData"), safeStorage, relayUrl: () => slackCfg.relay(), getSettings,
     openExternal: url => { const r = slackCfg.relay(); if (r && url.startsWith(r + "/start?")) shell.openExternal(url); },
     openSignIn: (url, onClosed) => { const u = new URL(url); return openSignInWindow(url, { parent: win, title: "Connect Slack to MDFM",
-      extraHosts: [u.hostname], localPorts: [+u.searchParams.get("port")], onClosed }); } });
+      extraHosts: [u.hostname], localPorts: [+u.searchParams.get("port")], onClosed, bouncer: signinB, caller: "slack-signin" }); } });
   const refreshSlackCfg = () => slackCfg.refresh().then(() => sendStatus()).catch(() => {});
   setTimeout(refreshSlackCfg, 6000); setInterval(refreshSlackCfg, 6 * 3600e3);
-  const openSlackSetup = () => startSlackSetup({ app, parent: win,
+  const openSlackSetup = () => startSlackSetup({ app, parent: win, bouncer: signinB,
     saveOverride: v => { saveSettings({ slackRelay: v }); sendStatus(); },
     onDone: () => sendStatus("Slack is switched on for this Mac. Push config/slack.json to switch it on for everyone.") });
 

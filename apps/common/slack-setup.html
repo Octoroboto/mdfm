@@ -10,10 +10,12 @@
   <ol class="steps">
     <li id="s1"><div class="hd"><i class="led"></i><b>Sign in to Cloudflare</b></div>
       <p>Sign in (or make a free account) in the window that opens. It closes by itself.</p>
-      <button type="button" data-step="cloudflare">Sign in to Cloudflare</button><span class="note"></span></li>
+      <button type="button" data-step="cloudflare">Sign in to Cloudflare</button><span class="note"></span>
+      <p class="alt" id="cfAlt" hidden>Window blank or stuck? <button type="button" class="link" id="cfBrowser">Open in my browser instead</button></p></li>
     <li id="s2"><div class="hd"><i class="led"></i><b>Put the sign-in helper online</b></div>
       <p>Deploys the helper and gets its address. If Cloudflare asks for a workers.dev name first, pick one and press Deploy again.</p>
-      <button type="button" data-step="deploy">Deploy</button><span class="note"></span><p class="addr" id="addr"></p></li>
+      <button type="button" data-step="deploy">Deploy</button><span class="note"></span><p class="addr" id="addr"></p>
+      <p class="alt" id="obAlt" hidden>Window blank? <button type="button" class="link" id="obBrowser">Pick the name in my browser instead</button></p></li>
     <li id="s3"><div class="hd"><i class="led"></i><b>Create the MDFM Slack app</b></div>
       <p>Slack opens with the app already filled in: pick <b>RentVision</b>, press <b>Next</b>, then <b>Create</b>. The window then shows the app's <b>Basic Information</b>. Copy the Client ID and Client Secret (press Show) into here.</p>
       <button type="button" data-step="slackApp">Open Slack</button><span class="note"></span>

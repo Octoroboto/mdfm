@@ -17,8 +17,12 @@ function startBouncers({ notify }) {
     lock: readJson("bouncer.lock.json", {}), logDir: path.join(app.getPath("userData"), "bouncer"), notify, enginePackageVersion: ev, modeOverride: dev });
   const viewB = createBouncer({ appName: "MD Hub (hub page)", policyText: fs.readFileSync(path.join(DIR, "view-policy.cedar"), "utf8"), config: readJson("bouncer.view.config.json", {}),
     lock: readJson("bouncer.view.lock.json", {}), logDir: path.join(app.getPath("userData"), "bouncer-hub-page"), notify: () => {}, enginePackageVersion: ev });
+  // The sign-in windows (Connect Slack, the builder's setup) get their own enforced Bouncer (../common/signin-policy.cedar).
+  const signinB = createBouncer({ appName: "MD Hub (sign-in windows)", policyText: fs.readFileSync(path.join(__dirname, "../common/signin-policy.cedar"), "utf8"),
+    config: readJson("bouncer.signin.config.json", {}), lock: readJson("bouncer.signin.lock.json", {}), logDir: path.join(app.getPath("userData"), "bouncer-signin"),
+    notify: () => {}, enginePackageVersion: ev, modeOverride: dev });
   net.useBouncer(appB);
   app.whenReady().then(() => { const check = () => appB.checkForUpdates(url => net.getJSON(url)); setTimeout(check, 8000); setInterval(check, 24 * 3600e3); });
-  return { appB, viewB, enginePackageVersion: ev };
+  return { appB, viewB, signinB, enginePackageVersion: ev };
 }
 module.exports = { startBouncers };

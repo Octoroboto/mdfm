@@ -78,10 +78,10 @@ app.whenReady().then(() => {
   slack = createSlack({ dataDir: app.getPath("userData"), safeStorage, relayUrl: () => slackCfg.relay(), getSettings,
     openExternal: url => { const r = slackCfg.relay(); if (r && url.startsWith(r + "/start?")) shell.openExternal(url); },
     openSignIn: (url, onClosed) => { const u = new URL(url); return openSignInWindow(url, { parent: win, title: "Connect Slack to MDFM",
-      extraHosts: [u.hostname], localPorts: [+u.searchParams.get("port")], onClosed }); } });
+      extraHosts: [u.hostname], localPorts: [+u.searchParams.get("port")], onClosed, bouncer: security.signin(), caller: "slack-signin" }); } });
   const refreshSlackCfg = () => slackCfg.refresh().then(() => sendStatus()).catch(() => {});
   setTimeout(refreshSlackCfg, 6000); setInterval(refreshSlackCfg, 6 * 3600e3);
-  const openSlackSetup = () => startSlackSetup({ app, parent: win,
+  const openSlackSetup = () => startSlackSetup({ app, parent: win, bouncer: security.signin(),
     saveOverride: v => { settings = { ...settings, slackRelay: v }; settingsStore.save(app, settings); sendStatus(); },
     onDone: () => sendStatus("Slack is switched on for this Mac. Push config/slack.json to switch it on for everyone.") });
   protocol.handle("mdfm", () => { const html = pageToServe(); return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": csp(html) } }); });

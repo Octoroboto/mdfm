@@ -1,0 +1,7 @@
+{
+  "policyVersion": 1,
+  "mode": "enforce",
+  "quietRules": [
+    "sign-in-sites"
+  ]
+}

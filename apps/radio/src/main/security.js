@@ -6,7 +6,7 @@ const fs = require("fs"), path = require("path");
 const { createBouncer } = require("../../kit/bouncer");
 const net = require("../common/net");
 const DIR = path.join(__dirname, "bouncer");
-let bouncer = null;
+let bouncer = null, signinBouncer = null;
 
 function enginePackageVersion() {
   try { return JSON.parse(fs.readFileSync(path.join(path.dirname(require.resolve("@cedar-policy/cedar-wasm/nodejs")), "..", "package.json"), "utf8")).version; }
@@ -28,6 +28,17 @@ function startBouncer({ notify }) {
     modeOverride: !app.isPackaged && process.env.MDFM_BOUNCER_OBSERVE === "1" ? "observe" : null,
   });
   net.useBouncer(bouncer);
+  // The sign-in windows (Connect Slack, the builder's setup) get their own Bouncer and rules (../common/signin-policy.cedar).
+  // Their sessions are handed to it when they open, which replaces the app's gate for those sessions only.
+  signinBouncer = createBouncer({
+    appName: "MDFM Radio (sign-in windows)",
+    policyText: fs.readFileSync(path.join(__dirname, "../common/signin-policy.cedar"), "utf8"),
+    config: readJson(path.join(DIR, "bouncer.signin.config.json"), {}),
+    lock: readJson(path.join(DIR, "bouncer.signin.lock.json"), {}),
+    logDir: path.join(app.getPath("userData"), "bouncer-signin"),
+    notify: () => {}, enginePackageVersion: enginePackageVersion(),
+    modeOverride: !app.isPackaged && process.env.MDFM_BOUNCER_OBSERVE === "1" ? "observe" : null,
+  });
   app.on("session-created", s => bouncer.attachSession(s));
   app.whenReady().then(() => {
     bouncer.attachSession(session.defaultSession);
@@ -36,4 +47,4 @@ function startBouncer({ notify }) {
   });
   return bouncer;
 }
-module.exports = { startBouncer, get: () => bouncer };
+module.exports = { startBouncer, get: () => bouncer, signin: () => signinBouncer };

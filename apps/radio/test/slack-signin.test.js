@@ -14,6 +14,8 @@ test("the sign-in window only goes to sign-in sites, the helper and this app's o
   assert.ok(allowed("https://dash.cloudflare.com/oauth2/auth?x", { hosts: CLOUDFLARE_HOSTS, localPorts: [8976] }));
   assert.ok(allowed("http://localhost:8976/oauth/callback?code=1", { hosts: CLOUDFLARE_HOSTS, localPorts: [8976] }));
   assert.ok(!allowed("https://slack.com/", { hosts: CLOUDFLARE_HOSTS }));
+  assert.ok(allowed("https://login.example-sso.com/", { hosts: CLOUDFLARE_HOSTS, anyHttps: true }), "the builder's Cloudflare window may follow any https sign-in");
+  assert.ok(!allowed("http://example.com/", { hosts: CLOUDFLARE_HOSTS, anyHttps: true }) && !allowed("http://localhost:9/", { anyHttps: true }));
 });
 
 test("helper address: this Mac's setting, then the app, then the repo's switch; only plain https", async () => {
@@ -35,6 +37,8 @@ test("helper address: this Mac's setting, then the app, then the repo's switch; 
 
 test("setup wizard reads Cloudflare's and Slack's output correctly", () => {
   assert.strictEqual(S.findLoginUrl("Opening a link in your default browser: https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=54d1\nWaiting"), "https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=54d1");
+  assert.strictEqual(S.findLoginUrl("Opening a link in your default browser: https://dash.cloudflare.com/oauth2/auth?response_type=co"), null, "waits for the whole link");
+  assert.strictEqual(S.findLoginUrl("\u001b[33mVisit https://dash.cloudflare.com/oauth2/auth?a=1&b=2\u001b[39m\n"), "https://dash.cloudflare.com/oauth2/auth?a=1&b=2");
   assert.strictEqual(S.findWorkerUrl("Uploaded mdfm-slack (1.2 sec)\nDeployed mdfm-slack triggers\n  https://mdfm-slack.robd.workers.dev\nCurrent Version ID: x"), "https://mdfm-slack.robd.workers.dev");
   assert.ok(S.needsSubdomain("You need to register a workers.dev subdomain before publishing to workers.dev"));
   assert.ok(S.loggedIn("Getting User settings...\n👋 You are logged in with an OAuth Token, associated with the email rob@x")); assert.ok(!S.loggedIn("You are not authenticated. Please run `wrangler login`."));
@@ -76,4 +80,23 @@ test("connect: closing the sign-in window cancels cleanly, and nothing happens u
   await assert.rejects(p, /closed before it finished/);
   const off = createSlack({ dataDir: dir, safeStorage, getSettings: () => ({}), relayUrl: () => "" });
   assert.strictEqual(off.ready, false); await assert.rejects(off.connect(), /isn't switched on/);
+});
+
+test("sign-in windows' Bouncer (real Cedar): Slack and its sign-in, the helper and the way back; nothing else", () => {
+  const { createBouncer, fingerprint } = require("../kit/bouncer");
+  const DIR = path.join(__dirname, "../src/main/bouncer");
+  const policyText = fs.readFileSync(path.join(__dirname, "../src/common/signin-policy.cedar"), "utf8");
+  const config = JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.signin.config.json"), "utf8")), lock = JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.signin.lock.json"), "utf8"));
+  assert.deepStrictEqual([lock.policySha256, lock.configSha256], (f => [f.policySha256, f.configSha256])(fingerprint(policyText, config)), "run npm run bouncer:lock");
+  const b = createBouncer({ appName: "t", policyText, config, lock, logDir: fs.mkdtempSync(path.join(os.tmpdir(), "sb-")), enginePackageVersion: "4.13.0" });
+  assert.strictEqual(b.status().healthy, true); assert.strictEqual(config.mode, "enforce");
+  const ok = (caller, method, url) => assert.strictEqual(b.check({ url, method }, caller).decision, "allow", `${caller} ${method} ${url}`);
+  const no = (caller, method, url) => assert.strictEqual(b.check({ url, method }, caller).allow, false, `${caller} ${method} ${url} should be blocked`);
+  for (const u of ["https://slack.com/oauth/v2/authorize?x", "https://rentvision.slack.com/sso/saml", "https://a.slack-edge.com/app.js", "https://accounts.google.com/o/oauth2/v2/auth",
+    "https://www.gstatic.com/x.js", "https://mdfm-slack.robd.workers.dev/start?port=5&nonce=x", "https://mdfm-slack.robd.workers.dev/callback?code=1"]) { ok("slack-signin", "GET", u); ok("background", "GET", u); }
+  ok("slack-signin", "POST", "https://slack.com/api/signin.check"); ok("slack-signin", "POST", "http://127.0.0.1:53111/slack");
+  no("slack-signin", "GET", "https://example.com/"); no("slack-signin", "GET", "https://evil.workers.dev/"); no("slack-signin", "GET", "https://dash.cloudflare.com/");
+  no("ui", "POST", "http://127.0.0.1:53111/slack"); no("slack-signin", "POST", "http://127.0.0.1:53111/other");
+  ok("setup", "GET", "https://dash.cloudflare.com/oauth2/auth?x"); ok("setup", "POST", "https://api.slack.com/apps"); ok("background", "GET", "https://dash.cloudflare.com/api/v4/x");
+  ok("setup", "GET", "https://some-sso.example.com/login");
 });
