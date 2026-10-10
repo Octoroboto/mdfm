@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MD Hub</title>
+<link rel="stylesheet" href="skin.css">
+<link rel="stylesheet" href="shell.css">
+</head><body>
+<div class="strip" id="strip">
+  <span class="wctl"><span class="wbtn"><span class="rd-led on"></span><button type="button" id="wClose" title="Turn off (close)" aria-label="Close"></button><small>POWER</small></span><span class="wbtn"><button type="button" id="wMin" title="Minimize" aria-label="Minimize"></button><small>MIN</small></span><span class="wbtn"><button type="button" id="wFull" title="Full screen" aria-label="Full screen"></button><small>FULL</small></span></span>
+  <span class="gold"></span><span class="title">MEDIA DEVELOPMENT HUB</span><span class="gold"></span>
+  <span class="lights">
+    <button type="button" class="kbadge" id="bdgBouncer" title="Bouncer: what this app may send. Click for details." aria-label="Bouncer"><i class="led"></i><span class="kb-name">BOUNCER</span><span class="kb-lcd" id="bdgBouncerTxt">STARTING</span></button>
+    <button type="button" class="kbadge" id="bdgFp" title="Futureproofer: what's out of date. Click for details." aria-label="Futureproofer"><i class="led"></i><span class="kb-name">FUTUREPROOFER</span><span class="kb-lcd" id="bdgFpTxt">CHECKING</span></button>
+    <span class="wbtn"><button type="button" id="setBtn" title="Settings" aria-label="Settings" aria-pressed="false"></button><small>SETTINGS</small></span>
+  </span>
+</div>
+<main class="hole" id="hole" aria-label="Media Development Hub">
+  <p class="loading">Tuning in to the hub… If it asks you to sign in, use your RentVision Claude account.</p>
+</main>
+<section class="settings deck" id="settings" hidden aria-label="Settings">
+  <div class="wtitle"><span>Settings</span></div>
+  <div class="setgrid">
+    <fieldset class="box" id="boxTypes"><legend>What plays between songs</legend>
+      <p class="hint">Music always plays. Uncheck anything you'd rather skip. The same switches are on the hub's MDFM receiver.</p>
+      <div class="types" id="setTypes"></div>
+    </fieldset>
+    <fieldset class="box"><legend>Weather and sports</legend>
+      <p class="lcd small" id="liveStatus">Finding your location…</p>
+      <label class="fld">City (blank = this Mac's location) <input type="text" id="setCity" placeholder="Omaha"></label>
+      <label class="fld">Units <select id="setUnits"><option value="f">°F, mph</option><option value="c">°C, km/h</option></select></label>
+    </fieldset>
+    <fieldset class="box"><legend>Company news from Slack (optional)</legend>
+      <p class="hint" id="slackState">Not connected.</p>
+      <div class="row"><button type="button" class="btn" id="slackConnect">Connect Slack</button><button type="button" class="btn" id="slackDisconnect" hidden>Disconnect</button></div>
+      <label class="fld">More channels <input type="text" id="setSlackChannels" placeholder="#media-wins, #kudos"></label>
+      <label class="fld">Name pronunciation fixes, one per line <textarea id="setNameFixes" rows="3" placeholder="Siobhan = Shiv-awn"></textarea></label>
+    </fieldset>
+    <fieldset class="box" id="boxFp"><legend>Keeping things current (Futureproofer)</legend>
+      <p class="hint">When a new MD Hub is out, it asks: Download, Later or Skip. Nothing installs on its own. The hub page itself is always the live one on claude.ai.</p>
+      <ul class="fplist" id="fpList"><li>Not checked yet.</li></ul>
+      <div class="row"><button type="button" class="btn" id="checkNow">Check everything now</button></div>
+    </fieldset>
+    <fieldset class="box wide" id="boxBouncer"><legend>Bouncer</legend>
+      <p class="hint" id="bouncerState">Starting…</p>
+      <div class="bdetail" id="bouncerDetail"></div>
+      <p class="hint">Rules are checked by Cedar, an open-source policy engine from AWS (a CNCF project) whose core is formally verified. Everything not on a list is blocked by default, and a "never" rule always beats an "allow".</p>
+      <div class="row"><button type="button" class="btn" id="logApp">App's requests log</button><button type="button" class="btn" id="logHub">Hub page log</button><button type="button" class="btn" id="reloadHub">Reload the hub</button></div>
+    </fieldset>
+  </div>
+  <div class="row end"><button type="button" class="btn primary" id="closeSet">Back to the hub</button></div>
+</section>
+<script src="types.js"></script>
+<script src="shell.js"></script>
+</body></html>

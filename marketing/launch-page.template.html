@@ -1,0 +1,325 @@
+<title>MDFM Radio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=VT323&display=swap">
+<style>
+/* Layout: a product launch, night edition. One huge statement per screen, then a bento of hardware close-ups,
+   then specs, credits and install, the way a keynote page walks you down. Single dark look on purpose:
+   the receiver is a dark steel object and its lights only read on black. */
+:root{
+  --night:#09090b; --panel:#141418; --panel-2:#1c1c22; --line:#2b2b33;
+  --text:#f4f4f6; --muted:#a3a4ae; --dim:#6f707b;
+  --lcd:#8cff8c; --lcd-deep:#23d323; --gold:#e2c86b; --cream:#f3e3b5; --amber:#ff9a1f;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --f-lcd:"VT323","Courier New",monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{background:var(--night);color:var(--text);font:17px/1.55 var(--f-body);-webkit-font-smoothing:antialiased;padding-inline:20px}
+a{color:inherit}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.025em;line-height:1.02}
+p{margin:0}
+.wrap{max-width:1120px;margin:0 auto}
+section{padding-block:clamp(72px,11vw,140px);display:flex;flex-direction:column;gap:28px}
+.eyebrow{font:600 .8rem/1 var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.lede{font-size:clamp(1.1rem,2vw,1.35rem);color:var(--muted);max-width:44ch}
+.lede b{color:var(--text);font-weight:600}
+.center{align-items:center;text-align:center}
+.center .lede{margin-inline:auto}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:14px 26px;border-radius:999px;font:600 1.02rem/1 var(--f-body);text-decoration:none;cursor:pointer;border:1px solid transparent;transition:transform .15s ease,background .15s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.btn.primary{background:var(--text);color:var(--night)}
+.btn.ghost{border-color:var(--line);color:var(--text);background:transparent}
+.btn.ghost:hover{background:var(--panel)}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.center .row{justify-content:center}
+
+/* nav */
+nav.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--night) 80%,transparent);backdrop-filter:saturate(1.4) blur(16px);-webkit-backdrop-filter:saturate(1.4) blur(16px);border-bottom:1px solid var(--line);margin-inline:-20px;padding:0 20px}
+nav.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;height:52px}
+nav.top .brand{display:flex;align-items:center;gap:10px;font:700 .98rem/1 var(--f-display);font-stretch:110%;letter-spacing:.01em}
+nav.top .brand img{width:26px;height:26px}
+nav.top .links{display:flex;gap:22px;font-size:.88rem;color:var(--muted)}
+nav.top .links a{text-decoration:none}
+nav.top .links a:hover{color:var(--text)}
+nav.top .btn{padding:8px 16px;font-size:.88rem}
+@media (max-width:720px){nav.top .links{display:none}}
+
+/* hero */
+.hero{padding-block:clamp(56px,9vw,110px) 0;gap:22px}
+.hero h1{font-size:clamp(3.4rem,11vw,9rem);font-weight:900;font-stretch:118%;letter-spacing:-.045em;line-height:.9}
+.hero h1 .freq{display:block;font-family:var(--f-lcd);font-weight:400;font-stretch:100%;letter-spacing:.02em;font-size:.62em;color:var(--lcd);text-shadow:0 0 18px rgba(80,255,80,.45),0 0 2px rgba(140,255,140,.8);margin-top:.12em}
+.hero .tag{font:600 clamp(1.4rem,3vw,2.2rem)/1.15 var(--f-display);font-stretch:105%;letter-spacing:-.02em;max-width:22ch}
+.shot{position:relative;margin-top:clamp(28px,5vw,56px)}
+.shot img{display:block;width:100%;height:auto;filter:drop-shadow(0 40px 60px rgba(0,0,0,.7)) drop-shadow(0 0 120px rgba(60,200,60,.08))}
+.shot::before{content:"";position:absolute;inset:8% 10% 0;background:radial-gradient(ellipse at 50% 30%,rgba(226,200,107,.12),transparent 65%);filter:blur(30px);z-index:-1}
+.avail{font-size:.92rem;color:var(--dim)}
+
+/* big statement */
+.statement h2{font-size:clamp(2.4rem,6.4vw,5.2rem);font-weight:800;font-stretch:112%}
+.statement h2 .soft{color:var(--dim)}
+.styles{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:860px}
+.styles span{font:600 .9rem/1 var(--f-body);padding:9px 14px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+
+/* live demo */
+.tuner{width:100%;max-width:880px;margin-inline:auto;background:linear-gradient(180deg,#2c2e38,#16171c);border-radius:18px;padding:18px;border:1px solid #3a3c47;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 30px 60px rgba(0,0,0,.5);display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+@media (max-width:700px){.tuner{grid-template-columns:1fr}}
+.tuner .lcdbox{background:#000;border-radius:10px;padding:16px 18px;min-height:150px;display:flex;flex-direction:column;gap:8px;box-shadow:inset 0 0 0 2px #0b0c10,inset 0 0 30px rgba(0,0,0,.9);min-width:0}
+.tuner .lcdbox .big{font:400 clamp(2rem,5vw,2.8rem)/1 var(--f-lcd);color:#cdeeff;text-shadow:0 0 10px rgba(120,200,255,.45)}
+.tuner .lcdbox .np{font:400 1.25rem/1.15 var(--f-lcd);color:#d8b4ff;min-height:1.2em;overflow-wrap:anywhere}
+.tuner .lcdbox .cap{font:400 1.2rem/1.15 var(--f-lcd);color:var(--lcd);min-height:2.4em;overflow-wrap:anywhere}
+.tuner canvas{width:100%;height:150px;background:#000;border-radius:10px;display:block;box-shadow:inset 0 0 0 2px #0b0c10}
+.tuner .ctl{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tuner .ctl .note{font-size:.85rem;color:var(--dim)}
+.tuner .ctl .btn{padding:10px 18px;font-size:.92rem}
+.tuner .ctl .btn[aria-pressed=true]{background:var(--lcd);color:#041204}
+
+/* bento */
+.bento{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px}
+.tile{background:var(--panel);border-radius:24px;padding:clamp(22px,3vw,34px);display:flex;flex-direction:column;gap:14px;min-width:0;overflow:hidden;border:1px solid #1f1f26}
+.tile h3{font-size:clamp(1.5rem,2.6vw,2.1rem);font-weight:800;font-stretch:108%}
+.tile p{color:var(--muted);max-width:52ch}
+.tile p b{color:var(--text);font-weight:600}
+.tile img{max-width:100%;height:auto;display:block;border-radius:10px;margin-top:auto}
+.tile .k{font:600 .78rem/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.w6{grid-column:span 6}.w4{grid-column:span 4}.w3{grid-column:span 3}.w2{grid-column:span 2}
+@media (max-width:900px){.w4,.w3,.w2{grid-column:span 6}}
+.tile.cream{background:linear-gradient(160deg,#2a2519,#16140f)}
+.tile.lcd{background:#030603}
+.tile.lcd h3{font-family:var(--f-lcd);font-weight:400;font-stretch:100%;letter-spacing:.01em;color:var(--lcd);text-shadow:0 0 12px rgba(80,255,80,.4);font-size:clamp(2rem,4vw,2.8rem)}
+.tile.lcd p{color:#9fd19f}
+.quote{font:500 1.05rem/1.4 var(--f-lcd);font-size:1.3rem;color:var(--lcd);background:#000;border-radius:10px;padding:12px 14px;border:1px solid #102410}
+.quote span{color:#9a9da8}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips span{font-size:.82rem;padding:6px 10px;border-radius:8px;background:var(--panel-2);color:var(--muted)}
+.big-num{font:900 clamp(3.6rem,8vw,6rem)/.9 var(--f-display);font-stretch:120%;letter-spacing:-.04em}
+.big-num small{display:block;font:500 1rem/1.3 var(--f-body);letter-spacing:0;color:var(--muted);margin-top:10px;font-stretch:100%}
+
+/* hub origin */
+.origin{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,5vw,64px);align-items:center}
+@media (max-width:800px){.origin{grid-template-columns:1fr}}
+.origin h2{font-size:clamp(2rem,4.6vw,3.6rem);font-weight:800;font-stretch:110%}
+.origin .badge{background:linear-gradient(180deg,#3d3f4d,#1f2029);border-radius:20px;padding:28px;border:1px solid #4a4c5a;display:flex;flex-direction:column;gap:12px;align-items:center}
+.origin .badge svg{width:min(320px,100%);height:auto}
+.origin .badge .spec{font:700 .64rem/1.4 Tahoma,Verdana,sans-serif;letter-spacing:.2em;color:#9a9db0;text-align:center}
+
+/* specs */
+.specs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border-radius:20px;overflow:hidden;border:1px solid var(--line)}
+.specs div{background:var(--night);padding:24px 22px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.specs dt{font:600 .78rem/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.specs dd{margin:0;font:700 1.25rem/1.25 var(--f-display);font-stretch:104%}
+.specs dd small{display:block;font:400 .9rem/1.4 var(--f-body);color:var(--muted);margin-top:4px;font-stretch:100%}
+@media (max-width:860px){.specs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:460px){.specs{grid-template-columns:1fr}}
+
+/* credits */
+.credits h2{font-size:clamp(2.2rem,5.6vw,4.4rem);font-weight:800;font-stretch:112%}
+.credits .names{display:flex;flex-wrap:wrap;gap:clamp(20px,6vw,80px);justify-content:center}
+.credits .names div{display:flex;flex-direction:column;gap:6px;align-items:center}
+.credits .names b{font:900 clamp(2.6rem,7vw,4.6rem)/1 var(--f-display);font-stretch:122%;letter-spacing:-.03em;background:linear-gradient(180deg,#ffd27a,#ff9a1f 55%,#c25a06);-webkit-background-clip:text;background-clip:text;color:transparent}
+.credits .names span{color:var(--muted);font-size:.95rem}
+
+/* install */
+.install{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:clamp(24px,5vw,64px);align-items:start}
+@media (max-width:860px){.install{grid-template-columns:1fr}}
+.install h2{font-size:clamp(2rem,4.6vw,3.4rem);font-weight:800;font-stretch:110%}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;counter-reset:s}
+.steps li{counter-increment:s;display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;padding:18px 0;border-top:1px solid var(--line)}
+.steps li:first-child{border-top:none}
+.steps li::before{content:counter(s);font:800 1.6rem/1 var(--f-display);font-stretch:120%;color:var(--gold)}
+.steps b{display:block;font-weight:600;color:var(--text);margin-bottom:4px}
+.steps p{color:var(--muted);font-size:.98rem}
+.kbd{font:600 .86em var(--f-body);padding:1px 7px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--text);white-space:nowrap}
+.which{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:460px){.which{grid-template-columns:1fr}}
+.which a{display:flex;flex-direction:column;gap:4px;padding:16px 18px;border-radius:16px;background:var(--panel);border:1px solid var(--line);text-decoration:none}
+.which a:hover{border-color:var(--muted)}
+.which a b{font:700 1.05rem var(--f-display)}
+.which a span{color:var(--muted);font-size:.88rem}
+.fine{font-size:.85rem;color:var(--dim);max-width:60ch}
+
+footer{border-top:1px solid var(--line);padding-block:28px 48px;color:var(--dim);font-size:.82rem}
+footer .wrap{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between}
+</style>
+
+<nav class="top" aria-label="MDFM Radio">
+  <div class="wrap">
+    <div class="brand"><img src="data:image/webp;base64,{{ICON}}" alt="">MDFM Radio</div>
+    <div class="links"><a href="#listen">Listen</a><a href="#features">Features</a><a href="#specs">Specs</a><a href="#install">Install</a></div>
+    <a class="btn primary" href="https://github.com/Octoroboto/mdfm/releases" target="_blank" rel="noopener">Download</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="hero center">
+    <p class="eyebrow">New from MedDev</p>
+    <h1>MDFM Radio<span class="freq">99.9 HD</span></h1>
+    <p class="tag">A radio station that writes itself. On your desk.</p>
+    <p class="lede">Endless original hip-hop, a staff of robot DJs who can't stop roasting themselves, live local weather and sports, and the company news at the top of every hour. <b>Free for Mac.</b></p>
+    <div class="row">
+      <a class="btn primary" href="https://github.com/Octoroboto/mdfm/releases" target="_blank" rel="noopener">Download for Mac</a>
+      <a class="btn ghost" href="#listen">Listen now</a>
+    </div>
+    <p class="avail">macOS 13 or later · Apple silicon and Intel · Zero Claude credits</p>
+    <div class="shot"><img src="data:image/webp;base64,{{HERO}}" alt="MDFM Radio: a dark steel receiver with a blue LCD reading MDFM 99.9 HD, an LED equalizer, colour knobs, two analog VU meters, a bug spray can poking out the side and the MedDev badge plate along the bottom" width="1500" height="1364"></div>
+  </section>
+
+  <section class="statement center" id="listen">
+    <p class="eyebrow">The music</p>
+    <h2>Every song is new. <span class="soft">Every single time.</span></h2>
+    <p class="lede">MDFM composes as it plays, right on your Mac. Real chord progressions, heavy drums, warm 808s, songs that crossfade into each other. Chill and danceable, never the same twice.</p>
+    <div class="styles" aria-label="Styles">
+      <span>Melodic drill</span><span>Chill trap</span><span>PluggnB</span><span>Slow-jam R&amp;B</span><span>Afroswing</span><span>Lo-fi boom bap</span><span>Neo-soul</span><span>Amapiano</span><span>Cloud rap</span><span>Jazz hop</span><span>Chill phonk</span><span>West Coast</span>
+    </div>
+    <div class="tuner" role="group" aria-label="Try MDFM in this page">
+      <div class="lcdbox"><div class="big">MDFM 99.9 HD</div><div class="np" id="np">Press Tune in.</div><div class="cap" id="cap" aria-live="polite"></div></div>
+      <canvas id="eq" aria-hidden="true"></canvas>
+      <div class="ctl">
+        <span class="note">This is the real MDFM engine, running in this page. Turn your sound on.</span>
+        <div class="row"><button class="btn primary" id="tune" type="button" aria-pressed="false">Tune in</button><button class="btn ghost" id="skip" type="button">Next song</button><button class="btn ghost" id="brk" type="button">Station break</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <p class="eyebrow">The station</p>
+    <h2 style="font-size:clamp(2.2rem,5.4vw,4.2rem);font-weight:800;font-stretch:112%">Talk breaks with a personality problem.</h2>
+    <div class="bento">
+      <div class="tile lcd w4">
+        <span class="k">Station IDs, ads and stingers</span>
+        <h3>Robot voice. Human shame.</h3>
+        <p>Low-bitrate robot DJs read station IDs, cheesy ads over cheesier jingles, and stingers they clearly didn't write. Sometimes the DJ is late and has to explain why.</p>
+        <p class="quote">"Sorry I'm late. I was primping my show pony."<br><span>MDFM, ninety nine point nine</span></p>
+      </div>
+      <div class="tile w2">
+        <span class="k">Two meters</span>
+        <div class="big-num">2×<small>An LED meter and a needle meter that measure the same thing. The DJs will not let it go.</small></div>
+      </div>
+      <div class="tile w3">
+        <span class="k">Interviews and call-ins</span>
+        <h3>Guests nobody asked for.</h3>
+        <p>A fruit fly. The lid of a spray can. The intern. Band fourteen of the equalizer. Callers phone in from their cars to complain about things. Every guest has their own voice.</p>
+      </div>
+      <div class="tile cream w3">
+        <span class="k">Golden Age Radio Hour</span>
+        <h3>1940s radio plays, with organ.</h3>
+        <p>A private ear on the case of a stolen fly swatter. Rocket Rangers versus a planet of unread messages. A western about expense reports. Full cast, sound effects and sponsors that don't exist.</p>
+      </div>
+      <div class="tile w3">
+        <span class="k">Arts and Culture</span>
+        <h3>Public radio, quietly.</h3>
+        <p>Wren Applewhite-Dunst visits the Museum of Beige, a symphony for office printers and seventeen hours of paint drying. Long pauses included at no extra charge.</p>
+      </div>
+      <div class="tile w3">
+        <span class="k">Live, where you are</span>
+        <h3>Weather and sports from your Mac's location.</h3>
+        <p><b>Tabitha Snatterbean</b> reads the real forecast with total confidence and very little understanding. <b>Chip Nitro</b> gets far too excited about your local teams' real scores.</p>
+      </div>
+      <div class="tile w6">
+        <span class="k">Company news, on the hour</span>
+        <h3>Your Slack, read out loud. If you want.</h3>
+        <p>Connect Slack and MDFM reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour, two minutes at most. First name and last initial, pronounced the way people set it in their Slack profile. Photos get jokes about the radio not having eyes. Official news is read straight, kids never get roasted, and sad posts are skipped. It only ever reads; it can't post.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">The hardware</p>
+    <h2 style="font-size:clamp(2.2rem,5.4vw,4.2rem);font-weight:800;font-stretch:112%">It's a receiver. On your desktop.</h2>
+    <p class="lede">No window frame, no grey bar. Just a steel box with its own POWER, MIN and FULL buttons. Drag it by the metal. Go full screen and it fills the room.</p>
+    <div class="bento">
+      <div class="tile w3"><span class="k">LED equalizer</span><h3>Nineteen bands. All of them dramatic.</h3><img src="data:image/webp;base64,{{EQ}}" alt="LED equalizer with green, yellow and red segments" width="680" height="422"></div>
+      <div class="tile cream w3"><span class="k">Analog VU meters</span><h3>Needles with real ballistics.</h3><p>Driven by the actual audio, left and right. The METER button turns the lamps off.</p><img src="data:image/webp;base64,{{VU}}" alt="Two cream VU meters with black needles and a red zone" width="790" height="232"></div>
+      <div class="tile w3"><span class="k">Light knobs</span><h3>Red, green, blue. Or AUTO.</h3><p>Every light on the receiver shifts together, keeping its place on the colour wheel.</p><img src="data:image/webp;base64,{{KNOBS}}" alt="AUTO and RESET buttons with red, green and blue knobs" width="576" height="138"></div>
+      <div class="tile w3"><span class="k">Pest control</span><h3>Flies. And a can for that.</h3><p>Fruit flies wander onto the lights. The can on the side sprays them away, in a different themed can every time. Flip it to Sugar Mist and they all come back.</p></div>
+      <div class="tile w6"><span class="k">You choose</span><h3>Turn off anything you'd rather skip.</h3><p>Station IDs, ads, interviews, call-ins, weather, sports, radio plays, arts, company news. Each one has a checkbox. The music always plays, and it gets most of the airtime.</p><img src="data:image/webp;base64,{{TYPES}}" alt="Settings: What plays between songs, with a checkbox for each kind of talk" width="1100" height="210"></div>
+    </div>
+  </section>
+
+  <section class="statement center">
+    <p class="eyebrow">Peace of mind</p>
+    <h2>It only reads. <span class="soft">And it keeps itself current.</span></h2>
+    <p class="lede"><b>Bouncer</b> checks every request against a locked rule list before it leaves your Mac. MDFM reads weather, scores, its own updates and, if you connect it, Slack. Nothing else gets out. <b>Futureproofer</b> watches for new content and new versions in the background, and never interrupts you or installs anything on its own.</p>
+    <div class="tile w6" style="width:100%;max-width:900px;text-align:left"><img src="data:image/webp;base64,{{FP}}" alt="Settings: Keeping things current, with green checks for the app, content, Electron and security" width="1100" height="197"></div>
+  </section>
+
+  <section class="origin">
+    <div style="display:flex;flex-direction:column;gap:22px">
+      <p class="eyebrow">Where it came from</p>
+      <h2>Born in the Automation Hub. Now it has its own box.</h2>
+      <p class="lede">MDFM started as the radio inside the MedDev Automation Hub, the place the media team posts ideas and problems for its tools. It got good enough to leave home. Same station, same steel, now a standalone app anyone can run, no hub required. The hub still plays it, and both get every update from the same source.</p>
+    </div>
+    <div class="badge" aria-label="MedDev">{{MEDDEV}}<p class="spec">7.2 CH AUTOMATION RECEIVER · CONFIRM-BEFORE-EXECUTE · 0 CREDITS AT IDLE</p></div>
+  </section>
+
+  <section class="credits center">
+    <p class="eyebrow">Programming</p>
+    <h2>Made by two people with a lot of opinions about radio.</h2>
+    <div class="names"><div><b>Collin</b><span>Programming</span></div><div><b>Rob</b><span>Programming</span></div></div>
+    <p class="lede">MedDev, RentVision media development. Built with Claude. Open source on GitHub.</p>
+  </section>
+
+  <section id="specs">
+    <p class="eyebrow">Tech specs</p>
+    <dl class="specs">
+      <div><dt>Price</dt><dd>Free<small>Runs on your Mac with zero Claude credits.</small></dd></div>
+      <div><dt>Compatibility</dt><dd>macOS 13 or later<small>Apple silicon and Intel builds.</small></dd></div>
+      <div><dt>Music</dt><dd>12 styles<small>Composed live, with crossfades.</small></dd></div>
+      <div><dt>Live data</dt><dd>Weather, sports, Slack<small>Location-based; Slack is optional.</small></dd></div>
+      <div><dt>Shows</dt><dd>6 radio plays, 12 arts pieces<small>Plus interviews, call-ins and a very large ad budget.</small></dd></div>
+      <div><dt>Meters</dt><dd>19-band LED, stereo VU<small>Both. Yes, both.</small></dd></div>
+      <div><dt>Security</dt><dd>Bouncer<small>Read-only rules, checked by Cedar.</small></dd></div>
+      <div><dt>Updates</dt><dd>Futureproofer<small>New content arrives quietly. Never forced.</small></dd></div>
+    </dl>
+  </section>
+
+  <section class="install" id="install">
+    <div style="display:flex;flex-direction:column;gap:22px">
+      <p class="eyebrow">Install</p>
+      <h2>Up and playing in about a minute.</h2>
+      <p class="lede">No Terminal. Pick the download that matches your Mac. Not sure which? Apple menu → About This Mac. "Chip: Apple M…" means Apple silicon.</p>
+      <div class="which">
+        <a href="https://github.com/Octoroboto/mdfm/releases" target="_blank" rel="noopener"><b>Apple silicon</b><span>M1 and newer · file ending in arm64.dmg</span></a>
+        <a href="https://github.com/Octoroboto/mdfm/releases" target="_blank" rel="noopener"><b>Intel</b><span>Older Macs · the other .dmg</span></a>
+      </div>
+      <p class="fine">Both are on the MDFM releases page on GitHub. Pick the newest release named MDFM Radio.</p>
+    </div>
+    <ol class="steps">
+      <li><div><b>Open the download.</b><p>Double-click the .dmg. A window opens with MDFM Radio and an Applications folder.</p></div></li>
+      <li><div><b>Drag it into Applications.</b><p>Drag the MDFM Radio icon onto the Applications folder. You can eject the .dmg after.</p></div></li>
+      <li><div><b>Open it.</b><p>Find MDFM Radio in Applications or Spotlight. The first time, macOS says it can't check the app. Click <span class="kbd">Done</span>.</p></div></li>
+      <li><div><b>Allow it once.</b><p>Open System Settings → Privacy &amp; Security, scroll to the bottom, and click <span class="kbd">Open Anyway</span> next to MDFM Radio. Enter your Mac password if asked. This is only needed once.</p></div></li>
+      <li><div><b>Allow location.</b><p>For local weather and sports. Prefer not to? Type a city in Settings instead.</p></div></li>
+      <li><div><b>Press the speaker.</b><p>You're on the air. New content arrives on its own; when there's a new version of the app, Settings offers the download.</p></div></li>
+    </ol>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>MDFM Radio · MedDev, RentVision</span><span>Not affiliated with any actual radio station, sponsor, fly or spray can.</span></div>
+</footer>
+
+<script>{{ENGINE}}</script>
+<script>
+(()=>{
+  const $=id=>document.getElementById(id);
+  let radio=null, stopEQ=null;
+  const ensure=()=>{
+    if(radio) return radio;
+    radio=MDFM.createMDFM();
+    radio.on("nowplaying",s=>{ $("np").textContent=`Now playing: “${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`; });
+    let t=0; radio.on("caption",c=>{ $("cap").textContent=`${c.who}: ${c.text}`; clearTimeout(t); t=setTimeout(()=>{ $("cap").textContent=""; },14000); });
+    try{ stopEQ=MDFM.mountEQ($("eq"),radio); }catch(e){}
+    return radio;
+  };
+  const set=on=>{ const b=$("tune"); b.setAttribute("aria-pressed",String(on)); b.textContent=on?"Turn off":"Tune in"; if(!on){ $("np").textContent="Press Tune in."; $("cap").textContent=""; } };
+  $("tune").addEventListener("click",()=>{ const r=ensure(); if(r.isOn()){ r.stop(); set(false); } else { r.start(); set(true); } });
+  $("skip").addEventListener("click",()=>{ const r=ensure(); if(!r.isOn()){ r.start(); set(true); } else r.skip(); });
+  $("brk").addEventListener("click",()=>{ const r=ensure(); if(!r.isOn()){ r.start(); set(true); setTimeout(()=>r.spotNow(),1200); } else r.spotNow(); });
+  ensure();   // the LED display shimmers until someone tunes in
+})();
+</script>

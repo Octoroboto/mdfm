@@ -1,4 +1,4 @@
-# Runs the MDFM tests and the MDFM Radio app tests on every push and every Dependabot pull request.
+# Runs the MDFM tests and the MDFM Radio and MD Hub app tests on every push and every Dependabot pull request.
 name: tests
 on:
   push: { branches: [main] }
@@ -16,5 +16,9 @@ jobs:
         working-directory: apps/radio
       - run: npm test
         working-directory: apps/radio
+      - run: npm install --ignore-scripts --no-audit --no-fund
+        working-directory: apps/hub
+      - run: npm test
+        working-directory: apps/hub
       - run: npm test
         working-directory: apps/slack-relay

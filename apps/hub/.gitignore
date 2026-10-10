@@ -1,0 +1,5 @@
+node_modules/
+dist/
+src/common/
+src/shell/skin.css
+src/shell/types.js

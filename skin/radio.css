@@ -18,10 +18,6 @@ header.top .lcd.viz{min-height:110px}
 .slackset legend{font-weight:700;color:#cfd2de;text-shadow:var(--engrave);padding:0 6px}
 .slackset .hint{margin:0;font-size:.85rem;color:#b9bdc9}
 .slackset textarea{font:inherit;min-height:3.6em;resize:vertical}
-.opt{display:flex;gap:8px;align-items:center;color:#e6e6ee}
-.opt input{width:16px;height:16px;flex:none;accent-color:var(--lcd)}
-.types{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 18px}
-.types .opt small{color:#9a9db0;font-size:.8rem}
 
 /* ===== App mode: no macOS window frame. The receiver sits on the desktop with its own controls. ===== */
 html.appwin,html.appwin body{background:transparent!important}
@@ -53,31 +49,9 @@ header.top .wctl{position:absolute;left:8px;top:50%;transform:translateY(-50%);m
 .fplist .ok .dot{background:#44e044}.fplist .warn .dot{background:#ffd23f}.fplist .bad .dot{background:#ff6a5f}
 .fplist b{color:#e6e6ee;font-weight:700}.fplist span{color:#b9bdc9}
 .fplist button{font-size:.8rem;padding:2px 8px}
-.fxbtns{align-self:center;display:flex;gap:14px}
-.fxbtns small{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;color:rgba(226,229,238,.82);text-shadow:0 1px 0 rgba(0,0,0,.65);white-space:nowrap}
 html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-select:none!important}
 
-/* Tone knobs (LOW / MID / HIGH) and the big VOLUME knob, in the space beside the meters */
-.mixer{flex:1 1 360px;display:flex;align-items:center;justify-content:flex-end;gap:18px;flex-wrap:wrap;min-width:0}
-.tk{display:flex;flex-direction:column;align-items:center;gap:2px;width:58px}
-.tk-dial{position:relative;width:52px;height:46px}
-.tk-ticks{position:absolute;left:-4px;top:-5px;width:60px;height:60px;overflow:visible}
-.tk .rd-knob{--kc:#ffd27a}
-.tk small,.vol small{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;color:rgba(226,229,238,.82);text-shadow:0 1px 0 rgba(0,0,0,.65)}
-.tk .rd-mm{width:58px}
-.vol{display:flex;flex-direction:column;align-items:center;gap:6px;margin-left:8px}
-.vol-dial{position:relative;width:140px;height:132px}
-.vol-scale{position:absolute;inset:0;width:140px;height:140px;overflow:visible}
-.vol-knob{position:absolute;left:28px;top:28px;width:84px;height:84px;border-radius:50%;cursor:grab;touch-action:none;outline-offset:4px;
-  background:radial-gradient(circle at 50% 50%,#c9ccd6 0 18%,transparent 19%),
-    repeating-conic-gradient(from 0deg,#d9dce4 0 2deg,#9a9eaa 2deg 4deg,#c6c9d2 4deg 6deg),
-    radial-gradient(circle at 35% 30%,#f2f3f7,#8f93a0 60%,#4a4d58);
-  box-shadow:0 6px 10px rgba(0,0,0,.7),0 0 0 3px #1a1b20,0 0 0 5px #4a4d58,inset 0 2px 2px rgba(255,255,255,.6),inset 0 -3px 5px rgba(0,0,0,.35)}
-.vol-knob::before{content:"";position:absolute;inset:12px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#eef0f5,#a7abb7 70%,#7d818d);box-shadow:inset 0 1px 2px rgba(255,255,255,.7),inset 0 -2px 4px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.45)}
-.vol-knob:active{cursor:grabbing}
-.vol-dot{position:absolute;left:50%;top:9px;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:#ff9a1f;box-shadow:0 0 6px #ff9a1f,0 0 2px #ffd27a;z-index:1}
-.vol-knob:focus-visible,.tk-knob:focus-visible{outline:2px solid var(--gold)}
-@media (max-width:760px){.mixer{justify-content:center}}
+
 /* No scroll bar on the desktop receiver (it still scrolls with the trackpad or wheel when the window is short). */
 html.appwin,html.appwin body{scrollbar-width:none}
 html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;width:0;height:0}

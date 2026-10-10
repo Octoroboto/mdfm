@@ -2,6 +2,16 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.5.9 (2026-10-10, Rob)
+- The list of what plays between songs (the content switches) is now one shared list, `skin/types.js`, used by every MDFM receiver and the MD Hub app's Settings. The wording is the same everywhere.
+- MD Hub: the content switches are in Settings too, and they stay in step with the receiver on the hub page both ways. The hub page shows them open instead of folded away.
+
+## 1.5.8 (2026-10-10, Rob)
+- The receiver controls (VOLUME, LOW / MID / HIGH, LET IT RIDE, UNDERWATER and the content-type checkboxes) are now one shared piece, `MDFM_receiver(radio, {app})`, so the radio app, the hub page and the MD Hub app all get the same controls. The knob, button and checkbox styles moved into the shared skin.
+- Phones: the VU meters shrink to fit side by side.
+- New: **MD Hub** desktop app (`apps/hub`, releases tagged `hub-v*`). It shows the live Media Development Hub from claude.ai in a steel receiver frame with no grey title bar. It feeds MDFM real weather, sports, Slack news and rendered voices (so the EQ shapes the voices too). It has two Bouncers (the app's own requests enforced; the hub page observed) and a foreground Futureproofer that asks before updating.
+- Hub page: MDFM now has a full receiver deck with meters, knobs, mode buttons and content-type checkboxes.
+
 ## 1.5.7 (2026-10-10, Rob)
 - Sports are now half mainstream, half obscure, all from ESPN's public scoreboards (live data only in the app):
   - Mainstream: your local pro teams, plus local college football and basketball (matched by state, so Omaha gets Nebraska), or the day's big game in the major leagues when nothing local is on.
