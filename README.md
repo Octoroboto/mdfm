@@ -26,24 +26,63 @@ new BrowserWindow({ webPreferences: { autoplayPolicy: "no-user-gesture-required"
 ```
 
 Notes
-- Works with a strict Content-Security-Policy: it makes no network requests.
+- Works with a strict Content-Security-Policy: it makes no network requests unless you turn on live weather.
 - The voice is the system text-to-speech (`speechSynthesis`). On a Mac it uses the "Fred" robot voice when it's installed.
 - It only uses CPU while it's playing. `radio.stop()` suspends the audio engine.
+
+## Receiver badging (required in every app)
+
+Every app that plays MDFM shows the hub's receiver footer: the MedDev pin and the faceplate marks. It ships in the skin, so it updates with the repo:
+
+```html
+<link rel="stylesheet" href="node_modules/mdfm/dist/skin.css">
+<footer data-mdfm-badges></footer>            <!-- bottom of the window -->
+<script src="node_modules/mdfm/dist/skin.js"></script>
+```
+
+`skin.js` fills any `[data-mdfm-badges]` element. If you add one later, call `window.MDFM_mountBadges()`.
 
 ## API
 
 | Call | What it does |
 |---|---|
-| `createMDFM(opts)` | Makes a radio. `opts.packs` adds content packs, `opts.includeCore: false` drops the built-in one, `opts.volume` 0–1, `opts.spots: false` turns ads/IDs off. |
+| `createMDFM(opts)` | Makes a radio. `opts.packs` adds content packs, `opts.includeCore: false` drops the built-in one, `opts.volume` 0–1, `opts.spots: false` turns ads/IDs off, `opts.weather` an async function returning `{ temp, cond, place, wind }` (see `openMeteo`). |
 | `radio.start()` / `stop()` / `toggle()` / `isOn()` | Play control. Browsers need a click before the first `start()` unless autoplay is allowed. |
 | `radio.skip()` | Crossfade into the next song now. |
 | `radio.spotNow()` | Play a stinger plus an ad or station ID now. |
 | `radio.setVolume(v)` / `setSpots(bool)` | Live settings. |
 | `radio.getSpectrum()` | 19 levels (0–1) from the live audio, or `null` when off. Draw your own EQ with it. |
 | `radio.nowPlaying()` | `{ title, style, bpm }` |
-| `radio.on(event, fn)` | Events: `nowplaying`, `spot` (`{ kind, text }`), `start`, `stop`. Returns an unsubscribe function. |
+| `radio.on(event, fn)` | Events: `nowplaying`, `spot` (`{ kind, text }`), `caption` (`{ who, text }` for every spoken line), `start`, `stop`. Returns an unsubscribe function. |
+| `radio.setProviders({ weather, sports, cannedFallback })` | Turn live data on or off after creating the radio. |
 | `radio.thwack()` | A swatter-hit sound effect (used by the hub's fly swatter). |
 | `mountEQ(canvas, radio, opts)` | LED bars with falling peak caps. Idle shimmer when off (`idle: false` to hide). |
+
+## Weather and time
+
+The DJ reads the local time on its own, with a remark that fits the hour, then hands over to Tabitha Snatterbean for the weather. Real weather is opt-in, because it's the only part of MDFM that uses the network (Open-Meteo, free, no key):
+
+```js
+import { createMDFM, openMeteo } from "mdfm";
+const radio = createMDFM({ weather: openMeteo({ lat: 41.88, lon: -87.63, place: "Chicago" }) });
+// or openMeteo({ place: "the office", auto: true }) to use the device location
+```
+
+Without it (or where the network is blocked, like the hub), Tabitha does a cheeky no-data forecast instead. When you do pass a live provider, MDFM only uses live data: if a fetch fails, it plays a station ID instead of a canned forecast. Set `cannedFallback: true` to allow the canned lines as a backup. Sports works the same way. If your CSP is strict, allow `https://api.open-meteo.com` in `connect-src`.
+
+## Sports with Chip Nitro
+
+Chip Nitro does sports. With no data he reports on the Browser Tab League. For real local scores, pass the opt-in ESPN scoreboard reader (public feed, no key):
+
+```js
+import { createMDFM, openMeteo, espnSports } from "mdfm";
+const radio = createMDFM({
+  weather: openMeteo({ lat: 41.88, lon: -87.63, place: "Chicago" }),
+  sports: espnSports({ city: "Chicago" }),            // or { teams: ["Bears", "Cubs"], leagues: ["nfl", "mlb"] }
+});
+```
+
+Leagues: nfl, nba, mlb, nhl, mls, wnba (default), plus ncaaf and ncaab. It picks your city's teams, live games first, then recent results, then upcoming. If the renderer can't fetch it (CORS or CSP), pass `fetch` to route the request through your main process. Allow `https://site.api.espn.com` in `connect-src` if you have a strict CSP. This feed is ESPN's public site API, not an official, documented one, so treat it as best-effort.
 
 ## Content packs (ads and station IDs)
 

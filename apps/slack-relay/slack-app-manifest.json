@@ -1,0 +1,12 @@
+{
+  "display_information": {
+    "name": "MDFM Radio",
+    "description": "Reads company news from a few public channels into the MDFM Radio app. Read-only.",
+    "background_color": "#15161c"
+  },
+  "oauth_config": {
+    "redirect_urls": ["https://mdfm-slack.YOUR-SUBDOMAIN.workers.dev/callback"],
+    "scopes": { "user": ["channels:history", "channels:read", "users:read"] }
+  },
+  "settings": { "org_deploy_enabled": false, "socket_mode_enabled": false, "token_rotation_enabled": false }
+}

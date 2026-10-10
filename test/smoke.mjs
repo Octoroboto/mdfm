@@ -9,7 +9,7 @@ p.on("pageerror", e => errs.push(e.message));
 await p.goto(`http://localhost:${port}/demo/index.html`); await p.waitForTimeout(500);
 const r = await p.evaluate(async () => {
   const out = { version: radio.version };
-  const spots = []; for (let i = 0; i < 40; i++) spots.push(radio.nextSpotText());
+  const spots = []; for (let i = 0; i < 300; i++) spots.push(radio.nextSpotText());
   out.kinds = [...new Set(spots.map(s => s.kind))]; out.examplePackUsed = spots.some(s => /Analyze|whole other app|Collin's/.test(s.text));
   radio.start(); await new Promise(r => setTimeout(r, 4000));
   const sp = radio.getSpectrum(); out.spectrumMax = sp ? Math.max(...sp) : 0; out.np = radio.nowPlaying();
@@ -18,6 +18,6 @@ const r = await p.evaluate(async () => {
   out.rms = Math.sqrt(s / d.length); out.peak = pk; return out;
 });
 console.log(r); await b.close(); srv.close();
-const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.examplePackUsed && r.np;
+const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.kinds.includes("interview") && r.examplePackUsed && r.np;
 if (errs.length) console.log("page errors:", errs);
 console.log(ok ? "SMOKE TEST PASSED" : "SMOKE TEST FAILED"); process.exit(ok ? 0 : 1);

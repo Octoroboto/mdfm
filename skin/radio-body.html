@@ -1,0 +1,63 @@
+<div class="wrap">
+  <header class="top">
+    <div class="deck">
+      <div class="wtitle"><span class="wctl" id="wctl" hidden><span class="wbtn"><span class="rd-led on" id="wPowLed"></span><button type="button" id="wClose" title="Turn off (close)" aria-label="Close"></button><small>POWER</small></span><span class="wbtn"><button type="button" id="wMin" title="Minimize" aria-label="Minimize"></button><small>MIN</small></span><span class="wbtn"><button type="button" id="wFull" title="Full screen" aria-label="Full screen"></button><small>FULL</small></span></span><span>MDFM Radio</span></div>
+      <div class="hrow">
+        <div class="lcd">
+          <h1>MDFM 99.9 HD</h1>
+          <p class="lede" id="np">Press the speaker to tune in.</p><p class="lede cap" id="cap" aria-live="polite"></p>
+        </div>
+        <div class="hside"><div class="vizwrap"><div class="lcd viz" aria-hidden="true"><canvas id="vizCanvas"></canvas></div></div><div class="row" style="gap:10px;align-items:center"><span class="togs"><label class="vizsw sndsw" title="MDFM 99.9: turn the radio on or off"><input type="checkbox" id="sndOn" aria-label="Sound"><svg class="spk" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></label><label class="vizsw" title="Turn the visualizer on or off"><input type="checkbox" id="vizOn" checked>EQ</label></span><button type="button" class="btn" id="skipBtn">Next song</button><button type="button" class="btn" id="spotBtn">Station break</button></div></div>
+      </div>
+    </div>
+  </header>
+  <div class="grid">
+    <section class="panel station" aria-label="Station">
+      <div class="wtitle"><span>Station</span></div>
+      <div class="strow">
+        <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><filter id="rgbk" color-interpolation-filters="sRGB"><feColorMatrix id="rgbHue" type="hueRotate" values="0"/><feColorMatrix id="rgbSat" type="saturate" values="1"/><feComponentTransfer><feFuncR type="linear" slope="1"/><feFuncG type="linear" slope="1"/><feFuncB type="linear" slope="1"/></feComponentTransfer></filter></svg>
+<div id="rgbDeck" class="rdeck" role="group" aria-label="Light colour controls">
+  <div class="rd-btns">
+    <div class="rd-btn"><span class="rd-led" id="rdLed"></span><button type="button" id="rdAuto" aria-pressed="false" title="Cycle the light colours"></button><small>AUTO</small></div>
+    <div class="rd-btn"><button type="button" id="rdReset" title="Back to stock colours"></button><small>RESET</small></div>
+  </div>
+  <div class="rd-knobs">
+    <div class="rd-k" data-ch="r"><div class="rd-dial"><svg class="rd-ticks" viewBox="0 0 60 60" aria-hidden="true"></svg><div class="rd-knob" role="slider" tabindex="0" aria-label="Red level of the lights" aria-valuemin="0" aria-valuemax="200" aria-valuenow="100"></div></div><div class="rd-mm"><span>MIN</span><span>MAX</span></div><small>RED</small></div>
+    <div class="rd-k" data-ch="g"><div class="rd-dial"><svg class="rd-ticks" viewBox="0 0 60 60" aria-hidden="true"></svg><div class="rd-knob" role="slider" tabindex="0" aria-label="Green level of the lights" aria-valuemin="0" aria-valuemax="200" aria-valuenow="100"></div></div><div class="rd-mm"><span>MIN</span><span>MAX</span></div><small>GREEN</small></div>
+    <div class="rd-k" data-ch="b"><div class="rd-dial"><svg class="rd-ticks" viewBox="0 0 60 60" aria-hidden="true"></svg><div class="rd-knob" role="slider" tabindex="0" aria-label="Blue level of the lights" aria-valuemin="0" aria-valuemax="200" aria-valuenow="100"></div></div><div class="rd-mm"><span>MIN</span><span>MAX</span></div><small>BLUE</small></div>
+  </div>
+</div>
+        <div class="lcd status" id="status" aria-live="polite"><b>MDFM</b> <span id="stEngine"></span><br><span id="stLive">Live weather and sports appear here in the MDFM Radio app.</span><br><span id="stUpd"></span></div>
+        <div class="vu"><div class="rd-btn vu-btn"><span class="rd-led on" id="vuLed"></span><button type="button" id="vuOn" aria-pressed="true" title="Meter lights on or off" aria-label="VU meters"></button><small>METER</small></div><div class="vu-m" aria-hidden="true"><div class="vu-glass"><canvas data-ch="0"></canvas><span class="vu-pk" title="Peak"></span></div><small>LEFT</small></div><div class="vu-m"><div class="vu-glass"><canvas data-ch="1"></canvas><span class="vu-pk" title="Peak"></span></div><small>RIGHT</small></div></div>
+      </div>
+      <details class="settings" id="settings" hidden>
+        <summary>Settings</summary>
+        <div class="setgrid">
+          <fieldset class="slackset" id="typeSet">
+            <legend>What plays between songs</legend>
+            <p class="hint">Music always plays. Uncheck anything you'd rather skip.</p>
+            <div class="types" id="typeList"></div>
+          </fieldset>
+          <label class="apponly opt"><input type="checkbox" id="setUpdates"> Get new MDFM content and looks automatically</label>
+          <label class="apponly opt"><input type="checkbox" id="setBundled"> Use the version that came with the app</label>
+          <label class="apponly fld">City for weather and sports <input type="text" id="setCity" placeholder="Blank = use this Mac's location"></label>
+          <label class="apponly fld">Units <select id="setUnits"><option value="f">°F, mph</option><option value="c">°C, km/h</option></select></label>
+          <fieldset class="apponly slackset" id="slackSet">
+            <legend>Company news from Slack (optional)</legend>
+            <p class="hint" id="slackState">Not connected. When connected, the radio reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour (two minutes at most). Read-only.</p>
+            <div class="row"><button type="button" class="btn" id="slackConnect">Connect Slack</button><button type="button" class="btn" id="slackDisconnect" hidden>Disconnect</button></div>
+            <label class="fld">More channels (optional) <input type="text" id="setSlackChannels" placeholder="#media-wins, #kudos"></label>
+            <label class="fld">Name pronunciation fixes, one per line <textarea id="setNameFixes" rows="3" placeholder="Siobhan = Shiv-awn"></textarea><small class="hint">People can also set "Name pronunciation" in their Slack profile. That's used automatically.</small></label>
+          </fieldset>
+          <fieldset class="apponly slackset" id="fpSet">
+            <legend>Keeping things current (Futureproofer)</legend>
+            <p class="hint">Checked in the background. Nothing updates itself or interrupts you; new content plays from the next launch.</p>
+            <ul class="fplist" id="fpList"><li>Not checked yet.</li></ul>
+          </fieldset>
+          <div class="apponly row"><button type="button" class="btn" id="checkNow">Check everything now</button><button type="button" class="btn" id="appUpd" hidden>Get the new app version</button><button type="button" class="btn" id="bouncerLog">Show Bouncer log</button></div>
+        </div>
+      </details>
+    </section>
+  </div>
+  <footer class="deck pinfoot" aria-label="MedDev" data-mdfm-badges><!--MDFM:BADGES--></footer>
+</div>
