@@ -2,6 +2,14 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.5.5 (2026-10-10, Rob)
+- LOW / MID / HIGH are now a real 3-band EQ on the final output (low shelf 250 Hz, mid peak 1 kHz, high shelf 4 kHz, ±12 dB), after the compressor so cuts and boosts aren't evened out, with a limiter so boosts can't clip. Measured on identical renders: each knob moves its own band by about 10 dB at the ends (low boost about 7 dB, held back by the limiter).
+- The meters and visualizer read after the EQ, so they show what you hear.
+- Robot voices: `opts.tts(spec)` lets an app render each spoken line to audio; MDFM plays it through the volume, EQ, meters and visualizer. MDFM Radio app 0.2.3 does this with macOS voices (local, no network). Without it (browsers, the hub, older apps), system speech is used and follows the volume.
+
+## 1.5.4 (2026-10-10, Rob)
+- MDFM Radio app: no scroll bar along the right edge of the receiver (scrolling still works).
+
 ## 1.5.3 (2026-10-10, Rob)
 - Receiver: a big VOLUME knob (0–10) and LOW / MID / HIGH tone knobs (±12 dB, centre is flat) beside the VU meters. Drag, scroll or use the arrow keys; double-click resets. Remembered per device.
 - `radio.setTone({ low, mid, high })` / `getTone()` (dB, -12..+12; also `opts.tone`) and `radio.getVolume()`.

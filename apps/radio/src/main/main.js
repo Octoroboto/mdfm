@@ -8,6 +8,7 @@ const { createSlack } = require("../common/slack");
 const pkg = require("../../package.json");
 const { createUpdater, validateEngine, inlineScripts } = require("./updater");
 const { startFutureproofer } = require("./futureproof");
+const tts = require("./tts");
 
 protocol.registerSchemesAsPrivileged([{ scheme: "mdfm", privileges: { standard: true, secure: true, supportFetchAPI: false } }]);
 if (!app.requestSingleInstanceLock()) { app.quit(); }
@@ -85,6 +86,7 @@ app.whenReady().then(() => {
   ipcMain.handle("slack:disconnect", async () => { await slack.disconnect(); sendStatus("Slack disconnected. The app no longer has access."); return true; });
   ipcMain.handle("update:check", async () => { await fp.run({ force: true }); return status(); });
   ipcMain.handle("status:get", () => status());
+  ipcMain.handle("tts:render", async (e, spec) => tts.render({ text: String(spec && spec.text || ""), voice: spec && spec.voice ? String(spec.voice) : null, rate: +(spec && spec.rate) || 1, pitch: +(spec && spec.pitch) || 1 }));
   const from = e => BrowserWindow.fromWebContents(e.sender);
   ipcMain.on("win:close", e => from(e) && from(e).close());
   ipcMain.on("win:min", e => from(e) && from(e).minimize());

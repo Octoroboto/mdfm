@@ -78,3 +78,6 @@ html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-selec
 .vol-dot{position:absolute;left:50%;top:9px;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:#ff9a1f;box-shadow:0 0 6px #ff9a1f,0 0 2px #ffd27a;z-index:1}
 .vol-knob:focus-visible,.tk-knob:focus-visible{outline:2px solid var(--gold)}
 @media (max-width:760px){.mixer{justify-content:center}}
+/* No scroll bar on the desktop receiver (it still scrolls with the trackpad or wheel when the window is short). */
+html.appwin,html.appwin body{scrollbar-width:none}
+html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;width:0;height:0}

@@ -5,6 +5,7 @@ ipcRenderer.on("status", (e, s) => listeners.forEach(f => { try { f(s); } catch 
 contextBridge.exposeInMainWorld("mdfmApp", {
   live: kind => ipcRenderer.invoke("live:get", String(kind)),
   coords: (lat, lon) => ipcRenderer.send("live:coords", { lat: +lat, lon: +lon }),
+  tts: spec => ipcRenderer.invoke("tts:render", spec),
   geoError: msg => ipcRenderer.send("live:geoError", String(msg || "")),
   settings: { get: () => ipcRenderer.sendSync("settings:get"), set: s => ipcRenderer.invoke("settings:set", s) },
   checkNow: () => ipcRenderer.invoke("update:check"),

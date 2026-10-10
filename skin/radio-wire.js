@@ -18,6 +18,8 @@
       addEventListener("mouseup",end); addEventListener("blur",end); }
     const fit=()=>app.win.fit(Math.ceil(document.documentElement.scrollHeight)); setTimeout(fit,400); }
   if(app) radio.setProviders({weather:()=>app.live("weather"),sports:()=>app.live("sports"),news:()=>app.live("news"),cannedFallback:false});
+  // Newer apps render the robot voices as audio, so the volume and LOW/MID/HIGH EQ apply to them too.
+  if(app&&app.tts) radio.setProviders({tts:spec=>app.tts(spec)});
   const np=$("#np"), cap=$("#cap"); let capT=0;
   radio.on("nowplaying",s=>{ np.textContent=`Now playing: “${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`; });
   radio.on("caption",c=>{ cap.textContent=`${c.who}: ${c.text}`; clearTimeout(capT); capT=setTimeout(()=>{ cap.textContent=""; },14000); });
