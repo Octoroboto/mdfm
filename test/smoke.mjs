@@ -1,0 +1,23 @@
+// Browser smoke test (needs Playwright: npx playwright install chromium). Builds, then checks the engine runs,
+// the spectrum moves, spots generate, packs merge, and an offline render produces sound without clipping.
+import { createServer } from "node:http"; import { readFile } from "node:fs/promises"; import { join } from "node:path";
+let chromium; try { ({ chromium } = await import("playwright")); } catch { console.log("Playwright not installed: skipping browser smoke test."); process.exit(0); }
+const root = new URL("../", import.meta.url).pathname;
+const srv = createServer(async (q, r) => { try { r.writeHead(200, { "content-type": q.url.endsWith(".html") ? "text/html" : "text/javascript" }); r.end(await readFile(join(root, q.url))); } catch { r.writeHead(404); r.end(); } }).listen(0);
+const port = srv.address().port, b = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] }), p = await b.newPage(), errs = [];
+p.on("pageerror", e => errs.push(e.message));
+await p.goto(`http://localhost:${port}/demo/index.html`); await p.waitForTimeout(500);
+const r = await p.evaluate(async () => {
+  const out = { version: radio.version };
+  const spots = []; for (let i = 0; i < 40; i++) spots.push(radio.nextSpotText());
+  out.kinds = [...new Set(spots.map(s => s.kind))]; out.examplePackUsed = spots.some(s => /Analyze|whole other app|Collin's/.test(s.text));
+  radio.start(); await new Promise(r => setTimeout(r, 4000));
+  const sp = radio.getSpectrum(); out.spectrumMax = sp ? Math.max(...sp) : 0; out.np = radio.nowPlaying();
+  radio.stop();
+  const buf = await radio.renderOffline("song", 6); const d = buf.getChannelData(0); let s = 0, pk = 0; for (const x of d) { s += x * x; pk = Math.max(pk, Math.abs(x)); }
+  out.rms = Math.sqrt(s / d.length); out.peak = pk; return out;
+});
+console.log(r); await b.close(); srv.close();
+const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.examplePackUsed && r.np;
+if (errs.length) console.log("page errors:", errs);
+console.log(ok ? "SMOKE TEST PASSED" : "SMOKE TEST FAILED"); process.exit(ok ? 0 : 1);

@@ -1,0 +1,33 @@
+{
+  "name": "mdfm",
+  "version": "1.0.0",
+  "description": "MDFM 99.9 HD: a procedural hip-hop radio station (beats, stingers, robo-voice ads) synthesized live with Web Audio. No files, no network.",
+  "type": "module",
+  "main": "./dist/mdfm.mjs",
+  "module": "./dist/mdfm.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/mdfm.mjs",
+      "default": "./dist/mdfm.mjs"
+    },
+    "./iife": "./dist/mdfm.iife.js",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "packs"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node test/smoke.mjs",
+    "demo": "node scripts/build.mjs && node scripts/serve.mjs",
+    "hub": "node scripts/build.mjs && node scripts/hub-snippet.mjs",
+    "prepare": "node scripts/build.mjs"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

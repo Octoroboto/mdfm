@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><title>MDFM demo</title>
+<style>body{background:#15161c;color:#e4e4ec;font:15px system-ui;padding:24px}canvas{width:420px;height:110px;background:#000;display:block;margin:12px 0;border:2px solid #333}button{font:inherit;padding:8px 14px;margin-right:6px}</style></head>
+<body><h1>MDFM 99.9 HD</h1>
+<canvas id="eq"></canvas>
+<button id="go">Play / stop</button><button id="skip">Next song</button><button id="spot">Ad now</button>
+<p id="np">Off</p>
+<script type="module">
+import { createMDFM, mountEQ } from "../dist/mdfm.mjs";
+import examplePack from "../packs/example-pack.js";
+const radio = createMDFM({ packs: [examplePack] });
+window.radio = radio;
+mountEQ(document.getElementById("eq"), radio);
+radio.on("nowplaying", s => document.getElementById("np").textContent = `Now playing: “${s.title}” (${s.style}, ${s.bpm} BPM)`);
+radio.on("spot", s => console.log("spot:", s.text));
+document.getElementById("go").onclick = () => radio.toggle();
+document.getElementById("skip").onclick = () => radio.skip();
+document.getElementById("spot").onclick = () => radio.spotNow();
+</script></body></html>
