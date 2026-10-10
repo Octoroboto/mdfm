@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="mdfm-version" content="1.5.2">
+<meta name="mdfm-version" content="1.5.3">
 <title>MDFM Radio</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Russo+One&family=Rye&family=Bangers&family=Alfa+Slab+One&family=Press+Start+2P&family=Creepster&family=Black+Ops+One&family=Pacifico&family=Monoton&display=swap">
 <style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
-<style id="mdfm-skin">/* MDFM skin 1.5.2 */
+<style id="mdfm-skin">/* MDFM skin 1.5.3 */
 /* MDFM skin: the Media Development Hub look (brushed steel, scratched glass, LEDs). Shared by the hub and the MDFM Radio app.
    Edit here, then npm run build. */
 /* Layout: work-order desk. Intake form on the left, the queue on the right, an item opens as a sheet. */
@@ -661,6 +661,28 @@ header.top .wctl{position:absolute;left:8px;top:50%;transform:translateY(-50%);m
 .fxbtns{align-self:center;display:flex;gap:14px}
 .fxbtns small{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;color:rgba(226,229,238,.82);text-shadow:0 1px 0 rgba(0,0,0,.65);white-space:nowrap}
 html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-select:none!important}
+
+/* Tone knobs (LOW / MID / HIGH) and the big VOLUME knob, in the space beside the meters */
+.mixer{flex:1 1 360px;display:flex;align-items:center;justify-content:flex-end;gap:18px;flex-wrap:wrap;min-width:0}
+.tk{display:flex;flex-direction:column;align-items:center;gap:2px;width:58px}
+.tk-dial{position:relative;width:52px;height:46px}
+.tk-ticks{position:absolute;left:-4px;top:-5px;width:60px;height:60px;overflow:visible}
+.tk .rd-knob{--kc:#ffd27a}
+.tk small,.vol small{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;color:rgba(226,229,238,.82);text-shadow:0 1px 0 rgba(0,0,0,.65)}
+.tk .rd-mm{width:58px}
+.vol{display:flex;flex-direction:column;align-items:center;gap:6px;margin-left:8px}
+.vol-dial{position:relative;width:140px;height:132px}
+.vol-scale{position:absolute;inset:0;width:140px;height:140px;overflow:visible}
+.vol-knob{position:absolute;left:28px;top:28px;width:84px;height:84px;border-radius:50%;cursor:grab;touch-action:none;outline-offset:4px;
+  background:radial-gradient(circle at 50% 50%,#c9ccd6 0 18%,transparent 19%),
+    repeating-conic-gradient(from 0deg,#d9dce4 0 2deg,#9a9eaa 2deg 4deg,#c6c9d2 4deg 6deg),
+    radial-gradient(circle at 35% 30%,#f2f3f7,#8f93a0 60%,#4a4d58);
+  box-shadow:0 6px 10px rgba(0,0,0,.7),0 0 0 3px #1a1b20,0 0 0 5px #4a4d58,inset 0 2px 2px rgba(255,255,255,.6),inset 0 -3px 5px rgba(0,0,0,.35)}
+.vol-knob::before{content:"";position:absolute;inset:12px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#eef0f5,#a7abb7 70%,#7d818d);box-shadow:inset 0 1px 2px rgba(255,255,255,.7),inset 0 -2px 4px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.45)}
+.vol-knob:active{cursor:grabbing}
+.vol-dot{position:absolute;left:50%;top:9px;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:#ff9a1f;box-shadow:0 0 6px #ff9a1f,0 0 2px #ffd27a;z-index:1}
+.vol-knob:focus-visible,.tk-knob:focus-visible{outline:2px solid var(--gold)}
+@media (max-width:760px){.mixer{justify-content:center}}
 </style>
 </head><body>
 <div class="wrap">
@@ -695,6 +717,12 @@ html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-selec
         <div class="lcd status" id="status" aria-live="polite"><b>MDFM</b> <span id="stEngine"></span><br><span id="stLive">Live weather and sports appear here in the MDFM Radio app.</span><br><span id="stUpd"></span></div>
         <div class="rd-btns fxbtns" role="group" aria-label="Sound modes"><div class="rd-btn"><span class="rd-led" id="rideLed"></span><button type="button" id="rideBtn" aria-pressed="false" title="Let it ride: keep each song going about two minutes"></button><small>LET IT RIDE</small></div><div class="rd-btn"><span class="rd-led" id="uwLed"></span><button type="button" id="uwBtn" aria-pressed="false" title="Underwater: muffled, drifting sound"></button><small>UNDERWATER</small></div></div>
         <div class="vu"><div class="rd-btn vu-btn"><span class="rd-led on" id="vuLed"></span><button type="button" id="vuOn" aria-pressed="true" title="Meter lights on or off" aria-label="VU meters"></button><small>METER</small></div><div class="vu-m" aria-hidden="true"><div class="vu-glass"><canvas data-ch="0"></canvas><span class="vu-pk" title="Peak"></span></div><small>LEFT</small></div><div class="vu-m"><div class="vu-glass"><canvas data-ch="1"></canvas><span class="vu-pk" title="Peak"></span></div><small>RIGHT</small></div></div>
+        <div class="mixer" role="group" aria-label="Tone and volume">
+          <div class="tk" data-band="low"><div class="tk-dial"><svg class="tk-ticks" viewBox="0 0 60 60" aria-hidden="true"></svg><div class="rd-knob tk-knob" role="slider" tabindex="0" aria-label="Low (bass)" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="0"></div></div><div class="rd-mm"><span>−</span><span>+</span></div><small>LOW</small></div>
+          <div class="tk" data-band="mid"><div class="tk-dial"><svg class="tk-ticks" viewBox="0 0 60 60" aria-hidden="true"></svg><div class="rd-knob tk-knob" role="slider" tabindex="0" aria-label="Mid" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="0"></div></div><div class="rd-mm"><span>−</span><span>+</span></div><small>MID</small></div>
+          <div class="tk" data-band="high"><div class="tk-dial"><svg class="tk-ticks" viewBox="0 0 60 60" aria-hidden="true"></svg><div class="rd-knob tk-knob" role="slider" tabindex="0" aria-label="High (treble)" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="0"></div></div><div class="rd-mm"><span>−</span><span>+</span></div><small>HIGH</small></div>
+          <div class="vol"><div class="vol-dial"><svg class="vol-scale" viewBox="0 0 140 140" aria-hidden="true"></svg><div class="vol-knob" role="slider" tabindex="0" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80"><span class="vol-dot"></span></div></div><small>VOLUME</small></div>
+        </div>
       </div>
       <details class="settings" id="settings" hidden>
         <summary>Settings</summary>
@@ -758,7 +786,7 @@ html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-selec
 </footer>
 </div>
 
-<script id="mdfm-lib">/* MDFM 1.5.2: generated by "npm run build" from src/. Edit src/, not this file. */
+<script id="mdfm-lib">/* MDFM 1.5.3: generated by "npm run build" from src/. Edit src/, not this file. */
 var MDFM = (function () {
 "use strict";
 /* MDFM content pack: the core station IDs and ads.
@@ -940,7 +968,7 @@ const corePack = {
    Everything is synthesized live with Web Audio: no audio files, no network, no credits.
    Usage: const radio = createMDFM(); button.onclick = () => radio.start();   (see README) */
 
-const VERSION = "1.5.2";
+const VERSION = "1.5.3";
 const STYLES = ["MELODIC DRILL","CHILL TRAP","PLUGGNB","SLOW JAM R&B","AFROSWING","LO-FI BOOM BAP","NEO-SOUL","AMAPIANO","CLOUD RAP","JAZZ HOP","CHILL PHONK","WEST COAST"];
 
 function createMDFM(opts = {}) {
@@ -948,7 +976,7 @@ const listeners={}; const emit=(ev,data)=>(listeners[ev]||[]).forEach(f=>{try{f(
 let nowPlaying=null, spotsOn=opts.spots!==false, ride=!!opts.letItRide, underwater=!!opts.underwater;
 const R=Math.random, pick=a=>a[Math.floor(R()*a.length)], rr=(a,b)=>a+R()*(b-a), ri=(a,b)=>Math.floor(rr(a,b+1));
 const mtof=m=>440*Math.pow(2,(m-69)/12);
-let ctx=null,pre,master,analyser,freq,vuA=null,vuBuf=null,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW;
+let ctx=null,pre,master,analyser,freq,vuA=null,vuBuf=null,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE;
 let on=false,timer=0,songs=[],lastSpot=-999,spotCount=0,voicePulse=0,speaking=false,bed=null;
 const VOL=.62;
 function shaper(k){const c=new Float32Array(2048);for(let i=0;i<2048;i++){const x=i/1023.5-1;c[i]=Math.tanh(x*k)/Math.tanh(k);}return c;}
@@ -973,7 +1001,8 @@ function init(c){
   UW={dl:ctx.createDelay(.05),lp:filt("lowpass",20000,.7),wob:osc("sine",.55),wobG:G(0),drift:osc("sine",.13),driftG:G(0)};
   UW.dl.delayTime.value=.012; UW.wob.connect(UW.wobG).connect(UW.dl.delayTime); UW.drift.connect(UW.driftG).connect(UW.lp.frequency);
   UW.wob.start(); UW.drift.start(); applyUnderwater(underwater,true);
-  pre.connect(UW.dl).connect(UW.lp).connect(ls).connect(hs).connect(lp).connect(comp).connect(G(1.3)).connect(master).connect(analyser).connect(ctx.destination);
+  TONE={low:filt("lowshelf",120),mid:filt("peaking",1000,.8),high:filt("highshelf",5000)}; applyTone(true);   // listener tone knobs, flat by default
+  pre.connect(UW.dl).connect(UW.lp).connect(ls).connect(hs).connect(lp).connect(TONE.low).connect(TONE.mid).connect(TONE.high).connect(comp).connect(G(1.3)).connect(master).connect(analyser).connect(ctx.destination);
   freq=new Uint8Array(analyser.frequencyBinCount);
   { const sp=ctx.createChannelSplitter(2); master.connect(sp); vuA=[0,1].map(i=>{ const a=ctx.createAnalyser(); a.fftSize=1024; sp.connect(a,i); return a; }); vuBuf=new Float32Array(1024); }
   noiseBuf=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate);{const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=R()*2-1;}
@@ -985,6 +1014,9 @@ function init(c){
   fxDelay=G(1); const dl=ctx.createDelay(1); dl.delayTime.value=.24; const fb=G(.38), dlp=filt("lowpass",2600);
   fxDelay.connect(dl); dl.connect(dlp); dlp.connect(fb); fb.connect(dl); dlp.connect(G(.5)).connect(pre);
 }
+/* tone: low / mid / high in dB (-12..+12), the receiver's EQ knobs */
+const tone={low:0,mid:0,high:0,...(opts.tone||{})};
+function applyTone(now){ if(!ctx||!TONE) return; const t=ctx.currentTime; for(const k of ["low","mid","high"]){ const g=TONE[k].gain, v=Math.max(-12,Math.min(12,+tone[k]||0)); g.cancelScheduledValues(t); if(now) g.setValueAtTime(v,t); else g.setTargetAtTime(v,t,.05); } }
 function applyUnderwater(v,now){
   underwater=!!v; if(!ctx||!UW) return;
   const t=ctx.currentTime,k=now?.001:.35,set=(p,val)=>{ p.cancelScheduledValues(t); if(now) p.setValueAtTime(val,t); else p.setTargetAtTime(val,t,k); };
@@ -1632,12 +1664,12 @@ function getLevels(){
   return lv;
 }
 async function renderOffline(kind,secs,arg){
-  const keep={ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW};
+  const keep={ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE};
   const oc=new OfflineAudioContext(2,Math.floor(44100*secs),44100); init(oc); master.gain.value=VOL;
   if(kind==="song"){ const s=setupSong(makeSong(arg),.05,0); if(ride) rideOn(s); while(s.next<secs-.1&&s.step<s.bars*16){ playStep(s,s.step,s.next); s.step++; s.next+=s.sp; } }
   else if(kind==="bed"){ const b=startBed(.05); if(arg!=null) b.def=BEDS[arg]; while(b.next<secs-2.5){ playBed(b,b.next); b.step++; b.next+=b.sp; } endBed(b,secs-2.4); }
   else if(kind==="sting"){ STINGS[arg](.1); }
-  const buf=await oc.startRendering(); ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW}=keep);
+  const buf=await oc.startRendering(); ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE}=keep);
   return buf;
 }
 return {
@@ -1652,6 +1684,9 @@ return {
   stingNow(){ voiceSting(); },
   voices(){ return HAS_TTS?speechSynthesis.getVoices().map(v=>v.name+" ("+v.lang+")"):[]; },
   setSpots(v){ spotsOn=!!v; },
+  setTone(t){ for(const k of ["low","mid","high"]) if(t&&k in t) tone[k]=Math.max(-12,Math.min(12,+t[k]||0)); applyTone(); },   // dB, -12..+12
+  getTone(){ return {...tone}; },
+  getVolume(){ return opts.volume??1; },
   /* let it ride: the current song (and each next one while on) runs about two minutes, with a second breakdown and extra fills */
   setLetItRide(v){ ride=!!v; for(const s of songs) (ride?rideOn:rideOff)(s); },
   isLetItRide(){ return ride; },
@@ -1767,9 +1802,9 @@ function espnSports(o = {}) {
 return { createMDFM, mountEQ, openMeteo, espnSports, corePack, VERSION, STYLES };
 })();
 </script>
-<script id="mdfm-skin-js">/* MDFM skin 1.5.2 */
+<script id="mdfm-skin-js">/* MDFM skin 1.5.3 */
 window.MDFM_BADGES="<svg class=\"mdpin\" viewBox=\"0 0 320 120\" role=\"img\" aria-label=\"MedDev\">\n<defs>\n<text id=\"mdT\" x=\"160\" y=\"76\" text-anchor=\"middle\" textLength=\"262\" lengthAdjust=\"spacingAndGlyphs\" font-family=\"'Russo One','Arial Black',Impact,sans-serif\" font-size=\"66\" stroke-linejoin=\"round\" paint-order=\"stroke\">MedDev</text>\n<clipPath id=\"mdC\"><text x=\"160\" y=\"76\" text-anchor=\"middle\" textLength=\"262\" lengthAdjust=\"spacingAndGlyphs\" font-family=\"'Russo One','Arial Black',Impact,sans-serif\" font-size=\"66\">MedDev</text></clipPath>\n<linearGradient id=\"mdX\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#5a5d68\"/><stop offset=\"1\" stop-color=\"#1c1d23\"/></linearGradient>\n<linearGradient id=\"mdR\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#ffffff\"/><stop offset=\".22\" stop-color=\"#b9bdc9\"/><stop offset=\".48\" stop-color=\"#f2f4f8\"/><stop offset=\".52\" stop-color=\"#6f7380\"/><stop offset=\".8\" stop-color=\"#c9ccd6\"/><stop offset=\"1\" stop-color=\"#7d808c\"/></linearGradient>\n<linearGradient id=\"mdO\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#ffd27a\"/><stop offset=\".4\" stop-color=\"#ff9a1f\"/><stop offset=\".55\" stop-color=\"#e86a06\"/><stop offset=\"1\" stop-color=\"#9e3e00\"/></linearGradient>\n<linearGradient id=\"mdF\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fbfcff\"/><stop offset=\".44\" stop-color=\"#c3c7d2\"/><stop offset=\".46\" stop-color=\"#7c808e\"/><stop offset=\".7\" stop-color=\"#a9adb9\"/><stop offset=\"1\" stop-color=\"#e3e6ee\"/></linearGradient>\n<filter id=\"mdB\" x=\"0\" y=\"0\" width=\"100%\" height=\"100%\"><feTurbulence type=\"fractalNoise\" baseFrequency=\".004 .9\" numOctaves=\"2\" seed=\"4\"/><feColorMatrix values=\"0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.6 -.55\"/></filter>\n<filter id=\"mdS\" x=\"-20%\" y=\"-30%\" width=\"140%\" height=\"170%\"><feGaussianBlur stdDeviation=\"3.2\"/></filter>\n</defs>\n<g transform=\"translate(14 0) skewX(-13)\">\n<use href=\"#mdT\" transform=\"translate(6 12)\" stroke=\"#000\" stroke-width=\"16\" fill=\"#000\" opacity=\".55\" filter=\"url(#mdS)\"/>\n<use href=\"#mdT\" transform=\"translate(3.85 8.05)\" stroke=\"url(#mdX)\" stroke-width=\"15\" fill=\"#2c2e36\"/><use href=\"#mdT\" transform=\"translate(3.30 6.90)\" stroke=\"url(#mdX)\" stroke-width=\"15\" fill=\"#2c2e36\"/><use href=\"#mdT\" transform=\"translate(2.75 5.75)\" stroke=\"url(#mdX)\" stroke-width=\"15\" fill=\"#2c2e36\"/><use href=\"#mdT\" transform=\"translate(2.20 4.60)\" stroke=\"url(#mdX)\" stroke-width=\"15\" fill=\"#2c2e36\"/><use href=\"#mdT\" transform=\"translate(1.65 3.45)\" stroke=\"url(#mdX)\" stroke-width=\"15\" fill=\"#2c2e36\"/><use href=\"#mdT\" transform=\"translate(1.10 2.30)\" stroke=\"url(#mdX)\" stroke-width=\"15\" fill=\"#2c2e36\"/><use href=\"#mdT\" transform=\"translate(0.55 1.15)\" stroke=\"url(#mdX)\" stroke-width=\"15\" fill=\"#2c2e36\"/>\n<use href=\"#mdT\" stroke=\"url(#mdR)\" stroke-width=\"15\" fill=\"url(#mdR)\"/>\n<use href=\"#mdT\" stroke=\"url(#mdO)\" stroke-width=\"9.5\" fill=\"url(#mdO)\"/>\n<use href=\"#mdT\" stroke=\"#4a1f00\" stroke-width=\"3.2\" fill=\"none\" opacity=\".75\"/>\n<g clip-path=\"url(#mdC)\"><rect x=\"-20\" y=\"0\" width=\"360\" height=\"120\" fill=\"url(#mdF)\"/><rect x=\"-20\" y=\"0\" width=\"360\" height=\"120\" filter=\"url(#mdB)\" opacity=\".5\"/>\n<rect x=\"-20\" y=\"26\" width=\"360\" height=\"2\" fill=\"#fff\" opacity=\".7\"/></g>\n<use href=\"#mdT\" stroke=\"rgba(255,255,255,.55)\" stroke-width=\".8\" fill=\"none\" transform=\"translate(-.4 -.6)\"/>\n</g></svg>\n<div class=\"faceplate\">\n <span class=\"fmark\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\" class=\"fill\"/></svg><span><b>SLACKBY</b><small>DIGITAL SURROUND</small></span></span>\n <span class=\"fmark boxed\"><b class=\"big\">DRS</b><small>DIGITAL REVIEW<br>SYSTEM</small></span>\n <span class=\"fmark\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 18a9 9 0 0 1 9-13\"/><path d=\"M8 18a5 5 0 0 1 5-9\"/><path d=\"M12 4l1.2 2.6 2.8.3-2.1 1.9.6 2.8L12 10.2 9.5 11.6l.6-2.8L8 6.9l2.8-.3z\" class=\"fill\"/></svg><span><b>SERIOUS<i>XM</i></b><small>EXECUTES MANUALLY</small></span></span>\n <span class=\"fmark pill\"><b>TBX</b><small>TRIAGE BEFORE<br>EXECUTION</small></span>\n <span class=\"fmark\"><b class=\"hd\">HDMR</b><small>HIGH-DEFINITION<br>MEDIA REVIEW</small></span>\n <span class=\"fmark sq\"><b>Hi-Res</b><small>FEEDBACK</small></span>\n</div>\n<div class=\"specline\">7.2 CH AUTOMATION RECEIVER &middot; CONFIRM-BEFORE-EXECUTE &middot; 0 CREDITS AT IDLE &middot; MODEL MD-1999</div>\n";
-(()=>{ const fill=()=>document.querySelectorAll("[data-mdfm-badges]").forEach(el=>{ if(el.dataset.mdfmBadges==="1.5.2") return; el.classList.add("deck","pinfoot"); if(!el.getAttribute("aria-label")) el.setAttribute("aria-label","MedDev"); el.innerHTML=window.MDFM_BADGES; el.dataset.mdfmBadges="1.5.2"; }); if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",fill); else fill(); window.MDFM_mountBadges=fill; })();
+(()=>{ const fill=()=>document.querySelectorAll("[data-mdfm-badges]").forEach(el=>{ if(el.dataset.mdfmBadges==="1.5.3") return; el.classList.add("deck","pinfoot"); if(!el.getAttribute("aria-label")) el.setAttribute("aria-label","MedDev"); el.innerHTML=window.MDFM_BADGES; el.dataset.mdfmBadges="1.5.3"; }); if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",fill); else fill(); window.MDFM_mountBadges=fill; })();
 /* MDFM skin behaviour: LED equalizer, fruit flies + spray can + swatter, light-colour knobs.
    Shared by the hub and the MDFM Radio app. Edit here, then npm run build. */
 /* Spectrum analyzer: classic 19-band LED bars dancing to made-up music. No audio, no network, no credits. */
@@ -2383,6 +2418,25 @@ ${[0,1,2,3,4,5,6,7].map(k=>`<rect x="52" y="${262+k*7}" width="16" height="2.4" 
   $("#skipBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); } else radio.skip(); });
   $("#spotBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); setTimeout(()=>radio.spotNow(),1200); } else radio.spotNow(); });
   $("#stEngine").textContent=`v${MDFM.VERSION}`;
+  // LOW / MID / HIGH tone knobs (-12..+12 dB, centre = flat) and the big VOLUME knob. Drag up/right, scroll, or use the arrow keys;
+  // double-click puts a knob back. Remembered on this device.
+  { const load=(k,d)=>{ try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?d:v; }catch(e){ return d; } }, save=(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} };
+    const tone=Object.assign({low:0,mid:0,high:0},load("mdfmTone",{})); let vol=load("mdfmVolume",.8);
+    const ticks=(svg,n,r,cx,big)=>{ let h=""; for(let i=0;i<=n;i++){ const a=(-135+i*270/n)*Math.PI/180, major=i===0||i===n||i===n/2; h+=`<circle cx="${cx+Math.sin(a)*r}" cy="${cx-Math.cos(a)*r}" r="${major?1.5:.9}" fill="rgba(226,229,238,.75)"/>`; } svg.innerHTML=h+(big||""); };
+    document.querySelectorAll(".tk-ticks").forEach(s=>ticks(s,10,27,30));
+    { let lab=""; for(let i=0;i<=10;i++){ const a=(-135+i*27)*Math.PI/180; lab+=`<text x="${70+Math.sin(a)*64}" y="${70-Math.cos(a)*64+3}" text-anchor="middle" font-family="Tahoma,Verdana,sans-serif" font-weight="700" font-size="8.5" fill="rgba(226,229,238,.82)">${i}</text>`; }
+      const sc=document.querySelector(".vol-scale"); if(sc) ticks(sc,40,54,70,lab); }
+    const knob=(el,get,set,min,max,step,fmt,reset)=>{ if(!el) return; const show=()=>{ const v=get(), f=(v-min)/(max-min); el.style.transform=`rotate(${-135+f*270}deg)`; el.setAttribute("aria-valuenow",String(Math.round(v*10)/10)); el.setAttribute("aria-valuetext",fmt(v)); el.title=fmt(v); };
+      const put=v=>{ set(Math.max(min,Math.min(max,v))); show(); }; let sx=0,sy=0,sv=0;
+      el.addEventListener("pointerdown",e=>{ el.setPointerCapture(e.pointerId); sx=e.clientX; sy=e.clientY; sv=get(); e.preventDefault(); e.stopPropagation(); });
+      el.addEventListener("pointermove",e=>{ if(!el.hasPointerCapture(e.pointerId)) return; put(sv+((e.clientX-sx)-(e.clientY-sy))/150*(max-min)); });
+      el.addEventListener("wheel",e=>{ e.preventDefault(); put(get()-Math.sign(e.deltaY)*step); },{passive:false});
+      el.addEventListener("dblclick",()=>put(reset));
+      el.addEventListener("keydown",e=>{ const k=e.key, st=e.shiftKey?step*4:step; if(k==="ArrowUp"||k==="ArrowRight") put(get()+st); else if(k==="ArrowDown"||k==="ArrowLeft") put(get()-st); else if(k==="Home") put(min); else if(k==="End") put(max); else return; e.preventDefault(); });
+      show(); };
+    radio.setTone(tone); radio.setVolume(vol);
+    document.querySelectorAll(".tk").forEach(t=>{ const b=t.dataset.band; knob(t.querySelector(".tk-knob"),()=>tone[b],v=>{ tone[b]=Math.round(v*2)/2; radio.setTone({[b]:tone[b]}); save("mdfmTone",tone); },-12,12,1,v=>`${b[0].toUpperCase()+b.slice(1)} ${v>0?"+":""}${v} dB`,0); });
+    knob(document.querySelector(".vol-knob"),()=>vol,v=>{ vol=Math.round(v*100)/100; radio.setVolume(vol); save("mdfmVolume",vol); },0,1,.05,v=>`Volume ${Math.round(v*10*10)/10}`,.8); }
   // Collin's sound modes: LET IT RIDE (longer songs) and UNDERWATER. Remembered on this device.
   const mode=(btn,led,key,set,get)=>{ const b=$(btn); if(!b) return; let v=false; try{ v=localStorage.getItem(key)==="1"; }catch(e){}
     const show=()=>{ b.setAttribute("aria-pressed",String(get())); $(led).classList.toggle("on",get()); };
