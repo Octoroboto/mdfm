@@ -2,6 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MD Hub</title>
 <link rel="stylesheet" href="skin.css">
+<link rel="stylesheet" href="theme.css" id="themeCss">
 <link rel="stylesheet" href="shell.css">
 </head><body>
 <div class="strip" id="strip">
@@ -19,6 +20,10 @@
 <section class="settings deck" id="settings" hidden aria-label="Settings">
   <div class="wtitle"><span>Settings</span></div>
   <div class="setgrid">
+    <fieldset class="box" id="boxSkin"><legend>Skin</legend>
+      <p class="hint">How the metal looks, here and on the hub's MDFM receiver. "House default" follows whatever MedDev picks.</p>
+      <label class="fld">Skin <select id="setSkin"></select></label>
+    </fieldset>
     <fieldset class="box" id="boxTypes"><legend>What plays between songs</legend>
       <p class="hint">Music always plays. Uncheck anything you'd rather skip. The same switches are on the hub's MDFM receiver.</p>
       <div class="types" id="setTypes"></div>

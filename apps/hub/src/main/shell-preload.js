@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("mdhub", {
   onStatus: f => { if (typeof f === "function") listeners.push(f); },
   checkNow: () => ipcRenderer.invoke("update:check"),
   slack: { connect: () => ipcRenderer.invoke("slack:connect"), disconnect: () => ipcRenderer.invoke("slack:disconnect") },
+  skins: () => ipcRenderer.invoke("skins:list"),
   bouncerDetails: () => ipcRenderer.invoke("bouncer:details"),
   showBouncerLog: which => ipcRenderer.invoke("bouncer:showLog", which === "hub" ? "hub" : "app"),
   open: url => ipcRenderer.invoke("open:url", String(url)),

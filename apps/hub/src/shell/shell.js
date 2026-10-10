@@ -25,7 +25,16 @@
   const showTypes=st=>{ const t=Object.assign({},st.types||{}); t.news=!!st.slackNews; tbox.querySelectorAll("input").forEach(cb=>cb.checked=t[cb.dataset.type]!==false); };
   showTypes(s);
   tbox.addEventListener("change",()=>{ const t={}; tbox.querySelectorAll("input").forEach(cb=>t[cb.dataset.type]=cb.checked); h.settings.set({types:t}); });
-  if(h.settings.onTypes) h.settings.onTypes(showTypes);
+  // skin: the frame's own look follows the same choice as the hub page
+  const skinSel=$("setSkin");
+  async function skins(){ const l=await h.skins(); if(!l) return; const house=l.skins.find(k=>k.id===l.houseDefault);
+    skinSel.textContent=""; const o=document.createElement("option"); o.value=""; o.textContent=`House default (${house?house.name:"Default"})`; skinSel.append(o);
+    for(const k of l.skins){ const op=document.createElement("option"); op.value=k.id; op.textContent=k.name; op.title=k.description||""; skinSel.append(op); }
+    skinSel.value=l.skins.some(k=>k.id===l.choice)?l.choice:""; document.documentElement.dataset.skin=l.current;
+    $("themeCss").href="theme.css?s="+encodeURIComponent(l.current)+"&t="+Date.now(); }
+  skinSel.addEventListener("change",()=>h.settings.set({skin:skinSel.value}));
+  skins();
+  if(h.settings.onTypes) h.settings.onTypes(st=>{ showTypes(st); skins(); });
   const save=()=>h.settings.set({city:$("setCity").value.trim(),units:$("setUnits").value,slackChannels:$("setSlackChannels").value.trim(),nameFixes:$("setNameFixes").value});
   for(const id of ["setCity","setUnits","setSlackChannels","setNameFixes"]) $(id).addEventListener("change",save);
   $("slackConnect").onclick=()=>{ $("slackState").textContent="Finish signing in to Slack in your browser…"; h.slack.connect(); };

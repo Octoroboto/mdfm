@@ -22,6 +22,11 @@ const SHELL_SKIN = path.join(__dirname, "../shell/skin.css");
 const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, o),
   bundled: () => { try { const css = fs.readFileSync(SHELL_SKIN, "utf8"); return { version: versionOf(css) || "0.0.0", css, js: null }; } catch { return { version: "0.0.0" }; } },
   onChange: s => sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or reload the hub (Cmd+R).`) });
+const SHELL_SKINS = path.join(__dirname, "../shell/skins.json");
+const SKIN_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
+function skinsBundle() { const a = look.active(); if (a.source === "updated" && a.skins && Array.isArray(a.skins.skins)) return a.skins;
+  try { return JSON.parse(fs.readFileSync(SHELL_SKINS, "utf8")); } catch { return { version: "0.0.0", default: "default", skins: [{ id: "default", name: "Default", description: "", css: "" }] }; } }
+function currentSkin() { const b = skinsBundle(), want = settings && settings.skin; return b.skins.find(k => k.id === want) || b.skins.find(k => k.id === b.default) || b.skins[0]; }
 const TYPE_KEYS = ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "news"];
 const HUB_HOSTS = /(^|\.)(claude\.ai|claudeusercontent\.com|claude\.site|claude\.com|anthropic\.com)$/;
 const LOGIN_HOSTS = /(^|\.)(accounts\.google\.com|appleid\.apple\.com)$/;
@@ -90,8 +95,8 @@ app.whenReady().then(() => {
     openExternal: url => { if (relayUrl && url.startsWith(relayUrl.replace(/\/$/, "") + "/start?")) shell.openExternal(url); } });
 
   protocol.handle("mdhub", req => {
-    const name = new URL(req.url).pathname.replace(/^\//, "") || "shell.html", body = name === "skin.css" ? look.active().css : /^[a-z-]+\.(html|css|js)$/.test(name) ? shellPage(name) : null;
-    if (!body) return new Response("not found", { status: 404 });
+    const name = new URL(req.url).pathname.replace(/^\//, "") || "shell.html", body = name === "skin.css" ? look.active().css : name === "theme.css" ? (currentSkin() || {}).css || "" : /^[a-z-]+\.(html|css|js)$/.test(name) ? shellPage(name) : null;
+    if (body == null) return new Response("not found", { status: 404 });
     const type = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : "text/javascript";
     return new Response(body, { headers: { "content-type": type + "; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" } });
   });
@@ -111,16 +116,19 @@ app.whenReady().then(() => {
   ipcMain.on("hub:geoError", (e, msg) => { if (!fromHub(e)) return; live.setGeoError(msg); sendStatus(); });
   ipcMain.handle("hub:tts", async (e, spec) => { if (!fromHub(e)) throw new Error("not allowed"); return tts.render({ text: String(spec && spec.text || ""), voice: spec && spec.voice ? String(spec.voice) : null, rate: +(spec && spec.rate) || 1, pitch: +(spec && spec.pitch) || 1 }); });
   // The content switches live in two places (the hub page's receiver and Settings): tell both when either changes.
-  const typesNow = () => ({ types: { ...settings.types }, slackNews: !!settings.slackNews });
+  const typesNow = () => ({ types: { ...settings.types }, slackNews: !!settings.slackNews, skin: settings.skin || "" });
   const broadcastTypes = () => { const s = typesNow();
     if (win && !win.isDestroyed()) win.webContents.send("settings:types", s);
     if (view) for (const f of view.webContents.mainFrame.framesInSubtree) { try { if (f !== view.webContents.mainFrame && HUB_HOSTS.test(new URL(f.url).hostname)) f.send("hub:settings:changed", s); } catch {} } };
   // A newer look for the hub page's own styling (the preload compares it with the page's version and only ever adds a newer one).
   ipcMain.on("hub:look", e => { const a = look.active(); e.returnValue = fromHub(e) && a.source === "updated" ? { version: a.version, css: a.css } : null; });
-  ipcMain.on("hub:settings:get", e => { e.returnValue = fromHub(e) ? { types: settings.types, slackNews: settings.slackNews } : {}; });
+  ipcMain.on("hub:settings:get", e => { e.returnValue = fromHub(e) ? { types: settings.types, slackNews: settings.slackNews, skin: settings.skin || "" } : {}; });
+  ipcMain.on("hub:skins", e => { const a = look.active(); e.returnValue = fromHub(e) && a.source === "updated" && a.skins ? a.skins : null; });
   ipcMain.handle("hub:settings:set", (e, s) => { if (!fromHub(e)) return null; const t = {};
     for (const k of TYPE_KEYS) if (s && s.types && k in s.types) t[k] = !!s.types[k];
-    saveSettings({ types: t, ...(s && "slackNews" in s ? { slackNews: !!s.slackNews } : {}) }); broadcastTypes(); return true; });
+    const patch = { ...(s && s.types ? { types: t } : {}), ...(s && "slackNews" in s ? { slackNews: !!s.slackNews } : {}) };
+    if (s && "skin" in s) patch.skin = SKIN_ID.test(String(s.skin || "")) ? String(s.skin) : "";
+    saveSettings(patch); broadcastTypes(); return true; });
 
   // ---- the steel frame's controls ----
   const fromShell = e => win && e.sender === win.webContents;
@@ -140,7 +148,10 @@ app.whenReady().then(() => {
   ipcMain.handle("settings:set", (e, s) => { if (!fromShell(e)) return settings; const before = settings;
     const patch = {}; for (const k of ["city", "units", "slackChannels", "nameFixes", "slackNews"]) if (s && k in s) patch[k] = k === "slackNews" ? !!s[k] : String(s[k]).slice(0, k === "nameFixes" ? 4000 : 500);
     if (s && s.types && typeof s.types === "object") { const t = {}; for (const k of TYPE_KEYS) if (k in s.types) t[k] = !!s.types[k]; patch.types = { ...settings.types, ...t }; if ("news" in t) patch.slackNews = t.news; }
-    saveSettings(patch); if (patch.types || "slackNews" in patch) broadcastTypes(); if (before.city !== settings.city || before.units !== settings.units) { live.reset(); refreshLive(); } return settings; });
+    if (s && "skin" in s) patch.skin = SKIN_ID.test(String(s.skin || "")) ? String(s.skin) : "";
+    saveSettings(patch); if (patch.types || "slackNews" in patch || "skin" in patch) broadcastTypes(); if (before.city !== settings.city || before.units !== settings.units) { live.reset(); refreshLive(); } return settings; });
+  ipcMain.handle("skins:list", e => { if (!fromShell(e)) return null; const b = skinsBundle(), cur = currentSkin();
+    return { houseDefault: b.default, choice: settings.skin || "", current: cur ? cur.id : "default", skins: b.skins.map(({ id, name, description }) => ({ id, name, description })) }; });
   ipcMain.handle("status:get", e => fromShell(e) ? status() : null);
   ipcMain.handle("update:check", async e => { if (fromShell(e)) await fp.run({ force: true }); return status(); });
   ipcMain.handle("slack:connect", async e => { if (!fromShell(e)) return false; try { await slack.connect(); saveSettings({ slackNews: true }); sendStatus("Slack connected. Company news plays at the top of the hour."); return true; } catch (err) { sendStatus(err.message); return false; } });

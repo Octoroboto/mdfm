@@ -21,6 +21,7 @@ out("mdfm.iife.js", iife);
 const RX = p => read("vendor/meddev-receiver/" + p);
 const rx = JSON.parse(RX("manifest.json")), badges = RX("badges.html").trim();
 const skinCss = RX("receiver.css"), receiverJs = RX("receiver.js");
+const skinsTag = `<script id="meddev-skins" type="application/json">${RX("skins.json").trim().replace(/</g, "\\u003c")}</script>`;
 const mdfmSkinJs = `/* MDFM ${version}: content types for the receiver controls */\n` + read("skin/types.js");
 // dist/skin.js keeps everything in one file for pages that load it directly (Collin's app, demos).
 const skinJs = receiverJs + "\n" + mdfmSkinJs;
@@ -37,6 +38,7 @@ const radio = `<!doctype html>
 </head><body>
 ${read("skin/radio-body.html").replace("<!--MDFM:BADGES-->", badges)}
 <script id="mdfm-lib">${iife}</script>
+${skinsTag}
 <script id="meddev-receiver-js">${receiverJs}</script>
 <script id="mdfm-skin-js">${mdfmSkinJs}</script>
 <script id="mdfm-radio-wire">${read("skin/radio-wire.js")}</script>

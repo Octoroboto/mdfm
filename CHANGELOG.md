@@ -2,6 +2,15 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.7.1 (2026-10-10, Rob)
+- MedDev Receiver 1.1.1: the VOLUME knob's numbers no longer float out of place on iPhone.
+
+## 1.7.0 (2026-10-10, Rob)
+- **Skins**, from MedDev Receiver 1.1.0. There's a Skin dropdown on the radio page (Settings), the hub page's receiver, and MD Hub's Settings. "House default" follows whatever MedDev picks. Each person's own pick wins.
+- Pages carry the skins in `<script id="meddev-skins" type="application/json">`.
+- MDFM Radio app 0.2.6 and MD Hub 0.1.2 remember the choice. MD Hub's steel frame and hub page follow the same choice. New skins and house-default changes arrive live with the receiver.
+- Default looks exactly as before.
+
 ## 1.6.0 (2026-10-10, Rob)
 - The shared look and controls moved to their own repo, **MedDev Receiver** (`Octoroboto/meddev-receiver`, 1.0.0). It has the steel, LCDs, LEDs, buttons, knobs, VU meters, LED EQ, light knobs, flies and spray, badge plates, the MedDev badging and the receiver controls. Update it there once, and everything that points to it follows.
 - mdfm ships a checked copy in `vendor/meddev-receiver/` as the built-in fallback. Refresh it with `npm run receiver:sync` (it needs `../meddev-receiver` next to mdfm).

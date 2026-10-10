@@ -17,6 +17,7 @@ if (isFrame && /(^|\.)(claudeusercontent\.com|claude\.ai|claude\.site|claude\.co
     coords: (lat, lon) => ipcRenderer.send("hub:coords", { lat: +lat, lon: +lon }),
     geoError: msg => ipcRenderer.send("hub:geoError", String(msg || "")),
     tts: spec => ipcRenderer.invoke("hub:tts", spec),
+    skins: () => ipcRenderer.sendSync("hub:skins"),
     settings: { get: () => ipcRenderer.sendSync("hub:settings:get"), set: s => ipcRenderer.invoke("hub:settings:set", s),
       onChange: f => { if (typeof f === "function") ipcRenderer.on("hub:settings:changed", (e, s) => f(s)); } },
   });

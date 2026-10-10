@@ -1,0 +1,1 @@
+{"version":"1.1.1","default":"default","skins":[{"id":"default","name":"Default","description":"The original: brushed steel, green LCDs, red LEDs, cream VU meters. Winamp-style.","css":"/* Default skin: no overrides. The Default values live in src/receiver.css (the \"Skin settings\" block at the end). */\n"}]}

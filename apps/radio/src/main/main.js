@@ -82,7 +82,8 @@ app.whenReady().then(() => {
   setTimeout(refreshLive, 4000); setInterval(refreshLive, 15 * 60e3);
   ipcMain.on("settings:get", e => { e.returnValue = settings; });
   ipcMain.handle("settings:set", (e, s) => {
-    const before = settings; settings = { ...settings, ...pick(s, ["contentUpdates", "useBundled", "city", "units", "slackNews", "slackChannels", "nameFixes", "types"]) };
+    const before = settings; settings = { ...settings, ...pick(s, ["contentUpdates", "useBundled", "city", "units", "slackNews", "slackChannels", "nameFixes", "types", "skin"]) };
+    settings.skin = /^[a-z0-9][a-z0-9-]{0,39}$/.test(String(settings.skin || "")) ? String(settings.skin) : "";
     { const t = {}; for (const k of ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "news"]) if (settings.types && k in settings.types) t[k] = !!settings.types[k]; settings.types = t; }
     settings.slackNews = !!settings.slackNews; settings.slackChannels = String(settings.slackChannels || "").slice(0, 500); settings.nameFixes = String(settings.nameFixes || "").slice(0, 4000);
     settingsStore.save(app, settings);

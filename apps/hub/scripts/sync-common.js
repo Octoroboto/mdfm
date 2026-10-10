@@ -8,4 +8,5 @@ const repo = path.join(__dirname, "../../..");
 require("child_process").execSync("node scripts/build.mjs", { cwd: repo, stdio: "ignore" });
 fs.copyFileSync(path.join(repo, "dist/skin.css"), path.join(__dirname, "../src/shell/skin.css"));
 fs.copyFileSync(path.join(repo, "skin/types.js"), path.join(__dirname, "../src/shell/types.js"));
+fs.copyFileSync(path.join(repo, "vendor/meddev-receiver/skins.json"), path.join(__dirname, "../src/shell/skins.json"));
 console.log("src/common and the skin synced");
