@@ -25,6 +25,10 @@ Pick a **Skin** in SETTINGS, or on the hub's MDFM receiver. Both follow the same
 - **How they arrive:** from version 0.1.2, MD Hub fetches new looks and skins by itself. They show from the next launch or a hub reload (Cmd+R).
 - **What a skin can change:** it can restyle everything, but every control, the glass and the lights always work the same.
 
+## Slack news
+
+**Connect Slack** in SETTINGS opens Slack's sign-in in a small app window that closes itself when you're connected. It works once MedDev has switched Slack on (the mdfm repo's `config/slack.json`), with no app update. In a copy run from source, **Set up Slack for everyone** runs the one-time setup.
+
 ## Safety
 
 - **Bouncer, the app's own requests (enforced):** the app may only read weather, location, scoreboards, Slack news (read-only), this repo's releases, and the receiver look and skins (rules v2). Everything else is blocked. Rules are in `src/main/bouncer/policy.cedar`.

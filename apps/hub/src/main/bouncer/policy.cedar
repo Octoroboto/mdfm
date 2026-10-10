@@ -68,6 +68,11 @@ when { context.path == "/api/auth.revoke" && context.sameToday < 20 };
 permit (principal == Caller::"app", action == Action::"GET", resource == Host::"raw.githubusercontent.com")
 when { context.path like "/Octoroboto/meddev-receiver/main/dist/*" && context.sameToday < 100 };
 
+@id("slack-switch")
+@description("See whether Slack sign-in has been switched on (the mdfm repo's config/slack.json)")
+permit (principal == Caller::"app", action == Action::"GET", resource == Host::"raw.githubusercontent.com")
+when { context.path == "/Octoroboto/mdfm/main/config/slack.json" && context.sameToday < 50 };
+
 @id("app-releases")
 @description("See whether a newer MD Hub app is out (mdfm releases)")
 permit (principal == Caller::"app", action == Action::"GET", resource == Host::"api.github.com")

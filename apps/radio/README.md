@@ -30,6 +30,10 @@ Needs macOS 13 or newer.
 
 The look comes from **MedDev Receiver**, a separate repo (`Octoroboto/meddev-receiver`) shared with the hub page and MD Hub. The app has a copy built in, and from version 0.2.6 it also follows newer looks and skins live: they're checked against the receiver's manifest and show from the next launch (or Cmd+R). "Get new MDFM content and looks automatically" in Settings turns this on and off, and "Use the version that came with the app" goes back to the built-in look.
 
+## Slack news
+
+**Connect Slack** (Settings) opens Slack's sign-in in a small app window. It can only go to Slack, Google or Apple sign-in and MDFM's helper, and it closes itself when you're connected. The button works once MedDev has switched Slack on (the mdfm repo's `config/slack.json`); no app update is needed for that. In a copy run from source, **Set up Slack for everyone** runs the one-time setup (see `apps/slack-relay/README.md`).
+
 ## What keeps it safe and current
 
 - **Bouncer** (`kit/bouncer`, rules in `src/main/bouncer/policy.cedar`): every request the app makes is checked by Cedar

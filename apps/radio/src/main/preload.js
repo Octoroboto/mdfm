@@ -18,6 +18,6 @@ contextBridge.exposeInMainWorld("mdfmApp", {
     onFullScreen: f => { if (typeof f === "function") ipcRenderer.on("win:fullscreen", (e, v) => f(!!v)); },
   },
   showBouncerLog: () => ipcRenderer.invoke("bouncer:showLog"),
-  slack: { connect: () => ipcRenderer.invoke("slack:connect"), disconnect: () => ipcRenderer.invoke("slack:disconnect") },
+  slack: { connect: () => ipcRenderer.invoke("slack:connect"), disconnect: () => ipcRenderer.invoke("slack:disconnect"), setup: () => ipcRenderer.invoke("slack:setup") },
   autoplay: false,
 });

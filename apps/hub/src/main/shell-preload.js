@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld("mdhub", {
   getStatus: () => ipcRenderer.invoke("status:get"),
   onStatus: f => { if (typeof f === "function") listeners.push(f); },
   checkNow: () => ipcRenderer.invoke("update:check"),
-  slack: { connect: () => ipcRenderer.invoke("slack:connect"), disconnect: () => ipcRenderer.invoke("slack:disconnect") },
+  slack: { connect: () => ipcRenderer.invoke("slack:connect"), disconnect: () => ipcRenderer.invoke("slack:disconnect"), setup: () => ipcRenderer.invoke("slack:setup") },
   skins: () => ipcRenderer.invoke("skins:list"),
   bouncerDetails: () => ipcRenderer.invoke("bouncer:details"),
   showBouncerLog: which => ipcRenderer.invoke("bouncer:showLog", which === "hub" ? "hub" : "app"),

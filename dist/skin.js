@@ -696,7 +696,7 @@ window.MDFM_receiver=function(radio,{app=null}={}){
 
 window.MedDevReceiver={version:"1.1.1",mountBadges:()=>window.MDFM_mountBadges(),mountControls:(radio,o)=>window.MDFM_receiver(radio,o||{})};
 
-/* MDFM 1.7.1: content types for the receiver controls */
+/* MDFM 1.7.2: content types for the receiver controls */
 /* What plays between songs: the talk types people can switch off (music always plays). Shared by every MDFM receiver and the MD Hub settings. */
 window.MDFM_TYPES=[["ids","Station IDs"],["stingers","Voice drops between songs"],["ads","Ads"],["interviews","Interviews"],["callers","Call-ins"],
   ["weather","Weather with Tabitha"],["sports","Sports with Chip"],["plays","Golden Age radio plays"],["arts","Arts and Culture"],["news","Company news from Slack"]];

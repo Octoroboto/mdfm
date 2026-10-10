@@ -5,6 +5,9 @@ const security = require("./security");
 const settingsStore = require("./settings");
 const { createLive } = require("../common/live");
 const { createSlack } = require("../common/slack");
+const { createSlackConfig } = require("../common/slack-config");
+const { openSignInWindow } = require("../common/signin");
+const { startSlackSetup, setupAvailable } = require("../common/slack-setup");
 const pkg = require("../../package.json");
 const { createUpdater, validateEngine, inlineScripts } = require("./updater");
 const { startFutureproofer } = require("./futureproof");
@@ -20,7 +23,7 @@ const bouncer = security.startBouncer({ notify: p => sendStatus(`Bouncer stopped
 const bundledDir = path.join(__dirname, "../../vendor");
 const getSettings = () => settings;
 const live = createLive(getSettings);
-let slack = null;   // optional company news; created once the app is ready (needs userData + keychain)
+let slack = null, slackCfg = null;   // optional company news; created once the app is ready (needs userData + keychain)
 const updater = createUpdater({ app, getSettings, bundledDir, appVersion: app.getVersion(),
   onStatus: () => sendStatus(), onEngine: () => sendStatus("New MDFM content is ready. It plays from the next launch, or press Cmd+R now.") });
 
@@ -30,7 +33,7 @@ const bundledLook = () => { try { const h = fs.readFileSync(path.join(bundledDir
 const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, o), bundled: bundledLook, enabled: lookOn,
   onChange: s => sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or press Cmd+R now.`) });
 
-function status(note) { return { ...updater.status, engine: servedEngine || updater.status.engine, live: { ...live.status }, bouncer: bouncerSummary(), futureproofer: fp ? fpSummary() : null, slack: slack ? { ...slack.status, ready: !!(pkg.mdfm && pkg.mdfm.slackRelay) } : null, note: note || null, appVersion: app.getVersion() }; }
+function status(note) { return { ...updater.status, engine: servedEngine || updater.status.engine, live: { ...live.status }, bouncer: bouncerSummary(), futureproofer: fp ? fpSummary() : null, slack: slack ? { ...slack.status, ready: slack.ready, builder: !!setupAvailable({ app }) } : null, note: note || null, appVersion: app.getVersion() }; }
 function bouncerSummary() { const b = bouncer.status(); return { level: b.level, label: b.label, mode: b.mode, healthy: b.healthy, blocked: b.counts.blocked, problem: b.problems[0] || null, rules: b.policy.version }; }
 function fpSummary() { const f = fp.status(); return { level: f.level, label: f.label, results: f.results.map(r => ({ id: r.id, title: r.title, level: r.level, summary: r.summary, action: r.action || null })) }; }
 function sendStatus(note) { if (win && !win.isDestroyed()) win.webContents.send("status", status(note)); }
@@ -68,9 +71,19 @@ function createWindow() {
 
 app.whenReady().then(() => {
   settings = settingsStore.load(app);
-  const relayUrl = (pkg.mdfm && pkg.mdfm.slackRelay) || "";
-  slack = createSlack({ dataDir: app.getPath("userData"), safeStorage, relayUrl, getSettings,
-    openExternal: url => { if (relayUrl && url.startsWith(relayUrl.replace(/\/$/, "") + "/start?")) shell.openExternal(url); } });
+  // Slack: the sign-in helper's address (this Mac's setting, the app, or the mdfm repo's config/slack.json),
+  // sign-in in an app window that closes itself, and the builder's one-time setup wizard.
+  slackCfg = createSlackConfig({ dataDir: app.getPath("userData"), getJSON: (u, o) => require("../common/net").getJSON(u, o),
+    packaged: (pkg.mdfm && pkg.mdfm.slackRelay) || "", getOverride: () => settings && settings.slackRelay });
+  slack = createSlack({ dataDir: app.getPath("userData"), safeStorage, relayUrl: () => slackCfg.relay(), getSettings,
+    openExternal: url => { const r = slackCfg.relay(); if (r && url.startsWith(r + "/start?")) shell.openExternal(url); },
+    openSignIn: (url, onClosed) => { const u = new URL(url); return openSignInWindow(url, { parent: win, title: "Connect Slack to MDFM",
+      extraHosts: [u.hostname], localPorts: [+u.searchParams.get("port")], onClosed }); } });
+  const refreshSlackCfg = () => slackCfg.refresh().then(() => sendStatus()).catch(() => {});
+  setTimeout(refreshSlackCfg, 6000); setInterval(refreshSlackCfg, 6 * 3600e3);
+  const openSlackSetup = () => startSlackSetup({ app, parent: win,
+    saveOverride: v => { settings = { ...settings, slackRelay: v }; settingsStore.save(app, settings); sendStatus(); },
+    onDone: () => sendStatus("Slack is switched on for this Mac. Push config/slack.json to switch it on for everyone.") });
   protocol.handle("mdfm", () => { const html = pageToServe(); return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": csp(html) } }); });
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(perm === "geolocation"));
   session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === "geolocation");
@@ -92,6 +105,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("slack:connect", async () => { try { await slack.connect(); if (!settings.slackNews) { settings = { ...settings, slackNews: true }; settingsStore.save(app, settings); } sendStatus("Slack connected. Company news plays at the top of the hour."); return true; }
     catch (e) { sendStatus(e.message); return false; } });
+  ipcMain.handle("slack:setup", () => { if (setupAvailable({ app })) openSlackSetup(); return !!setupAvailable({ app }); });
   ipcMain.handle("slack:disconnect", async () => { await slack.disconnect(); sendStatus("Slack disconnected. The app no longer has access."); return true; });
   ipcMain.handle("update:check", async () => { await fp.run({ force: true }); return status(); });
   ipcMain.handle("status:get", () => status());
@@ -121,7 +135,8 @@ app.whenReady().then(() => {
     { role: "appMenu" }, { role: "editMenu" },
     { label: "View", submenu: [{ role: "reload", label: "Reload (applies new content)" }, { type: "separator" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" }] },
     { role: "windowMenu" },
-    { role: "help", submenu: [{ label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") }] },
+    { role: "help", submenu: [{ label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") },
+      ...(setupAvailable({ app }) ? [{ type: "separator" }, { label: "Set up Slack for MDFM…", click: () => openSlackSetup() }] : [])] },
   ]));
   createWindow(); updater.start();
   fp = startFutureproofer({ updater, look, enginePackageVersion: bouncer.status().enginePackageVersion, onChange: () => sendStatus() });

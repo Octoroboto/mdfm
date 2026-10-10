@@ -2,6 +2,11 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.7.2 (2026-10-10, Rob)
+- **Connect Slack** (MDFM Radio app 0.2.7, MD Hub 0.1.3) opens Slack's sign-in in an app window. The window can only go to Slack, Google or Apple sign-in, the MDFM helper, and the app's own one-time return address. It closes itself when Slack hands the token back and drops you back in the app. Closing it early cancels cleanly.
+- **Set up Slack for everyone:** a one-time wizard, shown only in a copy run from source next to `apps/slack-relay`. It runs Cloudflare's tool to sign in and deploy the helper, opens Slack with the MDFM app pre-filled, reads RentVision's team id from Slack, sets the helper's secrets, and writes `config/slack.json`. Pushing that file switches Slack on for every installed app without an app release (MD Hub gets a read-only Bouncer rule for it: rules v3).
+- Before Slack is switched on, the apps say so instead of "isn't set up for this copy".
+
 ## 1.7.1 (2026-10-10, Rob)
 - MedDev Receiver 1.1.1: the VOLUME knob's numbers no longer float out of place on iPhone.
 

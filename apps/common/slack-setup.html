@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:">
+<title>Set up Slack for MDFM</title>
+<link rel="stylesheet" href="slack-setup.css">
+</head><body>
+<main>
+  <h1>Set up Slack for MDFM</h1>
+  <p class="lede">Once, for everyone at RentVision. This puts MDFM's small sign-in helper on Cloudflare (free), creates the MDFM Slack app, and switches on <b>Connect Slack</b> in every MDFM app. Each step opens the right page in a window and closes it when it's done.</p>
+  <ol class="steps">
+    <li id="s1"><div class="hd"><i class="led"></i><b>Sign in to Cloudflare</b></div>
+      <p>Sign in (or make a free account) in the window that opens. It closes by itself.</p>
+      <button type="button" data-step="cloudflare">Sign in to Cloudflare</button><span class="note"></span></li>
+    <li id="s2"><div class="hd"><i class="led"></i><b>Put the sign-in helper online</b></div>
+      <p>Deploys the helper and gets its address. If Cloudflare asks for a workers.dev name first, pick one and press Deploy again.</p>
+      <button type="button" data-step="deploy">Deploy</button><span class="note"></span><p class="addr" id="addr"></p></li>
+    <li id="s3"><div class="hd"><i class="led"></i><b>Create the MDFM Slack app</b></div>
+      <p>Slack opens with the app already filled in: pick <b>RentVision</b>, press <b>Next</b>, then <b>Create</b>. The window then shows the app's <b>Basic Information</b>. Copy the Client ID and Client Secret (press Show) into here.</p>
+      <button type="button" data-step="slackApp">Open Slack</button><span class="note"></span>
+      <label>Client ID <input id="clientId" autocomplete="off" spellcheck="false" placeholder="1234567890.1234567890"></label>
+      <label>Client Secret <input id="clientSecret" type="password" autocomplete="off" spellcheck="false" placeholder="32 letters and numbers"></label></li>
+    <li id="s4"><div class="hd"><i class="led"></i><b>Find RentVision's team id</b></div>
+      <p>Opens Slack and reads the team id from it. Sign in if asked and pick RentVision.</p>
+      <button type="button" data-step="team">Find it</button><span class="note"></span>
+      <label>Team id <input id="teamId" autocomplete="off" spellcheck="false" placeholder="T0..."></label></li>
+    <li id="s5"><div class="hd"><i class="led"></i><b>Give the helper its secrets</b></div>
+      <p>Stores the Client ID, Client Secret, team id and a random key in Cloudflare, where only the helper can read them. They never go into the repo.</p>
+      <button type="button" data-step="secrets">Set the secrets</button><span class="note"></span></li>
+    <li id="s6"><div class="hd"><i class="led"></i><b>Switch it on</b></div>
+      <p>Saves the helper's address for this Mac and in the mdfm repo (<code>config/slack.json</code>). Push that file and every MDFM app can Connect Slack, no app update needed.</p>
+      <button type="button" data-step="save">Switch it on</button><span class="note"></span>
+      <pre class="push" id="push" hidden></pre></li>
+  </ol>
+  <p class="fine">If Slack says the app needs approval, a RentVision Slack admin approves it once. The helper only ever reads public channels, and only for people who connect.</p>
+  <details class="logbox"><summary>Log</summary><pre id="log"></pre></details>
+</main>
+<script src="slack-setup-ui.js"></script>
+</body></html>

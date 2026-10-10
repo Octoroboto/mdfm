@@ -7,6 +7,9 @@ const security = require("./security");
 const settingsStore = require("./settings");
 const { createLive } = require("../common/live");
 const { createSlack } = require("../common/slack");
+const { createSlackConfig } = require("../common/slack-config");
+const { openSignInWindow } = require("../common/signin");
+const { startSlackSetup, setupAvailable } = require("../common/slack-setup");
 const { startFutureproofer } = require("./futureproof");
 const tts = require("./tts");
 const pkg = require("../../package.json");
@@ -30,6 +33,7 @@ function currentSkin() { const b = skinsBundle(), want = settings && settings.sk
 const TYPE_KEYS = ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "news"];
 const HUB_HOSTS = /(^|\.)(claude\.ai|claudeusercontent\.com|claude\.site|claude\.com|anthropic\.com)$/;
 const LOGIN_HOSTS = /(^|\.)(accounts\.google\.com|appleid\.apple\.com)$/;
+let slackCfg = null;
 let win = null, view = null, settings = null, fp = null, slack = null, settingsOpen = false;
 
 const { appB, viewB, enginePackageVersion } = security.startBouncers({ notify: p => sendStatus(`Bouncer stopped a request: ${p.body}`) });
@@ -42,7 +46,7 @@ function status(note) {
   const f = fp && fp.status();
   return { appVersion: app.getVersion(), live: { ...live.status }, bouncer: summary(appB), hubBouncer: summary(viewB),
     futureproofer: f ? { level: f.level, label: f.label, results: f.results.map(r => ({ id: r.id, title: r.title, level: r.level, summary: r.summary, action: r.action || null })) } : null,
-    slack: slack ? { ...slack.status, ready: !!(pkg.mdfm && pkg.mdfm.slackRelay) } : null, note: note || null };
+    slack: slack ? { ...slack.status, ready: slack.ready, builder: !!setupAvailable({ app }) } : null, note: note || null };
 }
 function sendStatus(note) { if (win && !win.isDestroyed()) win.webContents.send("status", status(note)); }
 
@@ -90,9 +94,19 @@ function chromeUA(ses) { ses.setUserAgent(ses.getUserAgent().replace(/\s(Electro
 
 app.whenReady().then(() => {
   settings = settingsStore.load(app);
-  const relayUrl = (pkg.mdfm && pkg.mdfm.slackRelay) || "";
-  slack = createSlack({ dataDir: app.getPath("userData"), safeStorage, relayUrl, getSettings,
-    openExternal: url => { if (relayUrl && url.startsWith(relayUrl.replace(/\/$/, "") + "/start?")) shell.openExternal(url); } });
+  // Slack: the sign-in helper's address (this Mac's setting, the app, or the mdfm repo's config/slack.json),
+  // sign-in in an app window that closes itself, and the builder's one-time setup wizard.
+  slackCfg = createSlackConfig({ dataDir: app.getPath("userData"), getJSON: (u, o) => require("../common/net").getJSON(u, o),
+    packaged: (pkg.mdfm && pkg.mdfm.slackRelay) || "", getOverride: () => settings && settings.slackRelay });
+  slack = createSlack({ dataDir: app.getPath("userData"), safeStorage, relayUrl: () => slackCfg.relay(), getSettings,
+    openExternal: url => { const r = slackCfg.relay(); if (r && url.startsWith(r + "/start?")) shell.openExternal(url); },
+    openSignIn: (url, onClosed) => { const u = new URL(url); return openSignInWindow(url, { parent: win, title: "Connect Slack to MDFM",
+      extraHosts: [u.hostname], localPorts: [+u.searchParams.get("port")], onClosed }); } });
+  const refreshSlackCfg = () => slackCfg.refresh().then(() => sendStatus()).catch(() => {});
+  setTimeout(refreshSlackCfg, 6000); setInterval(refreshSlackCfg, 6 * 3600e3);
+  const openSlackSetup = () => startSlackSetup({ app, parent: win,
+    saveOverride: v => { saveSettings({ slackRelay: v }); sendStatus(); },
+    onDone: () => sendStatus("Slack is switched on for this Mac. Push config/slack.json to switch it on for everyone.") });
 
   protocol.handle("mdhub", req => {
     const name = new URL(req.url).pathname.replace(/^\//, "") || "shell.html", body = name === "skin.css" ? look.active().css : name === "theme.css" ? (currentSkin() || {}).css || "" : /^[a-z-]+\.(html|css|js)$/.test(name) ? shellPage(name) : null;
@@ -154,6 +168,7 @@ app.whenReady().then(() => {
     return { houseDefault: b.default, choice: settings.skin || "", current: cur ? cur.id : "default", skins: b.skins.map(({ id, name, description }) => ({ id, name, description })) }; });
   ipcMain.handle("status:get", e => fromShell(e) ? status() : null);
   ipcMain.handle("update:check", async e => { if (fromShell(e)) await fp.run({ force: true }); return status(); });
+  ipcMain.handle("slack:setup", e => { if (!fromShell(e)) return false; if (setupAvailable({ app })) openSlackSetup(); return !!setupAvailable({ app }); });
   ipcMain.handle("slack:connect", async e => { if (!fromShell(e)) return false; try { await slack.connect(); saveSettings({ slackNews: true }); sendStatus("Slack connected. Company news plays at the top of the hour."); return true; } catch (err) { sendStatus(err.message); return false; } });
   ipcMain.handle("slack:disconnect", async e => { if (!fromShell(e)) return false; await slack.disconnect(); sendStatus("Slack disconnected."); return true; });
   ipcMain.handle("bouncer:details", e => { if (!fromShell(e)) return null; const d = b => ({ status: b.status(), recent: b.recent(30) }); return { app: d(appB), hub: d(viewB) }; });
@@ -169,7 +184,8 @@ app.whenReady().then(() => {
       { type: "separator" }, { role: "togglefullscreen" }] },
     { role: "windowMenu" },
     { role: "help", submenu: [{ label: "Check for updates", click: () => fp && fp.run({ force: true }).then(() => sendStatus()) },
-      { label: "Open the hub in your browser", click: () => shell.openExternal(settings.hubUrl) }, { label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") }] },
+      { label: "Open the hub in your browser", click: () => shell.openExternal(settings.hubUrl) }, { label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") },
+      ...(setupAvailable({ app }) ? [{ type: "separator" }, { label: "Set up Slack for MDFM…", click: () => openSlackSetup() }] : [])] },
   ]));
   createWindow();
   fp = startFutureproofer({ look, getWindow: () => win, getSettings, saveSettings, enginePackageVersion, onChange: () => sendStatus() });

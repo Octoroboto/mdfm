@@ -44,5 +44,5 @@ test("token is kept encrypted and removed on disconnect", async () => {
   const s = createSlack({ dataDir: dir, safeStorage: fake, openExternal() {}, relayUrl: "", getSettings: () => ({ slackNews: true }) });
   assert.equal(s.connected, true); assert.ok(!fs.readFileSync(path.join(dir, "slack.token"), "utf8").startsWith("xoxp"));
   await s.disconnect(true); assert.equal(s.connected, false); assert.equal(fs.existsSync(path.join(dir, "slack.token")), false);
-  await assert.rejects(s.connect(), /isn't set up/);
+  await assert.rejects(s.connect(), /isn't switched on/);
 });

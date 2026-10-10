@@ -1,12 +1,15 @@
 // Optional Slack company news for MDFM. Runs in the main process. Read-only user token (channels:history, channels:read, users:read),
 // stored encrypted by the OS keychain (Electron safeStorage). Connecting goes through a small sign-in helper (apps/slack-relay)
 // that keeps the Slack app's secret out of this public repo; the token comes back to this Mac over 127.0.0.1 only.
+// Sign-in opens in an app window (openSignIn) that closes itself when Slack hands the token back; without one it uses the browser.
+// relayUrl can be a string or a function (the address can arrive later, from the mdfm repo's config/slack.json).
 const http = require("http"), crypto = require("crypto"), fs = require("fs"), path = require("path");
 const { getJSON } = require("./net");
 const { personFromProfile, toItems, parseFixes, KIND_BY_NAME, parseChannelList } = require("./slack-parse");
 const DEFAULT_CHANNELS = ["general", "littlevisionaries", "animal-pics"];
 
-function createSlack({ dataDir, safeStorage, openExternal, relayUrl, getSettings, now = () => Date.now() }) {
+function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl, getSettings, now = () => Date.now() }) {
+  const relay = () => String((typeof relayUrl === "function" ? relayUrl() : relayUrl) || "");
   const tokenFile = path.join(dataDir, "slack.token");
   let token = null, channels = null, channelsAt = 0, users = {}, usersAt = {}, news = null, newsAt = 0, readIds = new Set();
   const status = { connected: false, team: null, news: "off", note: null };
@@ -64,23 +67,36 @@ function createSlack({ dataDir, safeStorage, openExternal, relayUrl, getSettings
     for (const x of items) readIds.add(x.id);
     return items.length ? { items } : null;
   }
+  let pending = null;   // only one sign-in at a time
   function connect() {
-    return new Promise((resolve, reject) => {
-      if (!relayUrl) return reject(new Error("Slack isn't set up for this copy of the app yet (no sign-in helper address)."));
+    if (pending) { if (pending.win && pending.win.focus) pending.win.focus(); return pending.promise; }
+    const p = { win: null };
+    p.promise = new Promise((resolve, reject) => {
+      const relayBase = relay().replace(/\/$/, "");
+      if (!relayBase) return reject(new Error("Slack isn't switched on for MDFM yet (no sign-in helper address)."));
       const nonce = crypto.randomBytes(24).toString("base64url");
+      let done = false;
+      const finish = (err, val) => { if (done) return; done = true; clearTimeout(timer); try { srv.close(); } catch {} pending = null;
+        if (p.win) setTimeout(() => { try { p.win.close(); } catch {} }, err ? 0 : 1200);
+        err ? reject(err) : resolve(val); };
       const srv = http.createServer((req, res) => {
         if (req.method !== "POST" || req.url !== "/slack") { res.writeHead(404).end(); return; }
         let body = ""; req.on("data", d => { body += d; if (body.length > 8192) req.destroy(); });
         req.on("end", () => {
           const f = new URLSearchParams(body), ok = f.get("nonce") === nonce && /^xoxp-/.test(f.get("token") || "");
           res.writeHead(ok ? 200 : 400, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
-            .end(`<!doctype html><meta charset="utf-8"><title>MDFM Radio</title><body style="font:16px system-ui;background:#111;color:#eee;padding:40px">${ok ? "Slack is connected to MDFM Radio. You can close this tab." : "That didn't work. Try Connect Slack again from the app."}</body>`);
-          if (ok) { saveToken(f.get("token")); status.team = f.get("team") || null; news = null; clearTimeout(timer); srv.close(); resolve(true); }
+            .end(`<!doctype html><meta charset="utf-8"><title>MDFM</title><body style="font:16px system-ui;background:#111;color:#eee;padding:40px">${ok ? "Slack is connected. Taking you back to MDFM..." : "That didn't work. Try Connect Slack again from the app."}</body>`);
+          if (ok) { saveToken(f.get("token")); status.team = f.get("team") || null; news = null; finish(null, true); }
         });
       });
-      const timer = setTimeout(() => { srv.close(); reject(new Error("Slack sign-in timed out.")); }, 5 * 60e3);
-      srv.listen(0, "127.0.0.1", () => openExternal(`${relayUrl.replace(/\/$/, "")}/start?port=${srv.address().port}&nonce=${nonce}`));
+      const timer = setTimeout(() => finish(new Error("Slack sign-in timed out.")), 5 * 60e3);
+      srv.listen(0, "127.0.0.1", () => {
+        const url = `${relayBase}/start?port=${srv.address().port}&nonce=${nonce}`;
+        if (openSignIn) { p.win = openSignIn(url, () => finish(new Error("Slack sign-in was closed before it finished."))); }
+        else openExternal(url);
+      });
     });
+    pending = p; return p.promise;
   }
   async function disconnect(silent) {
     if (token && !silent) { try { await getJSON(`https://slack.com/api/auth.revoke`, { token }); } catch {} }
@@ -88,7 +104,7 @@ function createSlack({ dataDir, safeStorage, openExternal, relayUrl, getSettings
     status.connected = false; status.team = null; status.news = "not connected";
   }
   loadToken();
-  return { fetchNews, connect, disconnect, status, get connected() { return !!token; } };
+  return { fetchNews, connect, disconnect, status, get connected() { return !!token; }, get ready() { return !!relay(); } };
 }
 module.exports = { createSlack, DEFAULT_CHANNELS };
 const { budgetPick } = require("./slack-parse");

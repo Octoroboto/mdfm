@@ -31,6 +31,7 @@ const ALLOW = [
   "https://slack.com/api/users.info?user=U123", "https://slack.com/api/auth.revoke",
   "https://api.github.com/repos/Octoroboto/mdfm/releases?per_page=30",
   "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/manifest.json",
+  "https://raw.githubusercontent.com/Octoroboto/mdfm/main/config/slack.json",
   "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/receiver.css",
   "https://registry.npmjs.org/@cedar-policy/cedar-wasm/latest",
   "https://registry.npmjs.org/-/package/electron/dist-tags",

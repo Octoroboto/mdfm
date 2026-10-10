@@ -53,7 +53,7 @@
           <fieldset class="apponly slackset" id="slackSet">
             <legend>Company news from Slack (optional)</legend>
             <p class="hint" id="slackState">Not connected. When connected, the radio reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour (two minutes at most). Read-only.</p>
-            <div class="row"><button type="button" class="btn" id="slackConnect">Connect Slack</button><button type="button" class="btn" id="slackDisconnect" hidden>Disconnect</button></div>
+            <div class="row"><button type="button" class="btn" id="slackConnect">Connect Slack</button><button type="button" class="btn" id="slackDisconnect" hidden>Disconnect</button><button type="button" class="btn" id="slackSetup" hidden title="One-time setup for everyone (only in a copy run from source)">Set up Slack for everyone</button></div>
             <label class="fld">More channels (optional) <input type="text" id="setSlackChannels" placeholder="#media-wins, #kudos"></label>
             <label class="fld">Name pronunciation fixes, one per line <textarea id="setNameFixes" rows="3" placeholder="Siobhan = Shiv-awn"></textarea><small class="hint">People can also set "Name pronunciation" in their Slack profile. That's used automatically.</small></label>
           </fieldset>

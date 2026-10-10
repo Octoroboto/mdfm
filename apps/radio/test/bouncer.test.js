@@ -28,6 +28,7 @@ const ALLOW = [
   ["app", "https://raw.githubusercontent.com/Octoroboto/mdfm/main/package.json"],
   ["app", "https://raw.githubusercontent.com/Octoroboto/mdfm/main/dist/radio.html"],
   ["app", "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/manifest.json"],
+  ["app", "https://raw.githubusercontent.com/Octoroboto/mdfm/main/config/slack.json"],
   ["app", "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/receiver.js"],
   ["app", "https://api.github.com/repos/Octoroboto/mdfm/releases?per_page=20"],
   ["app", "https://registry.npmjs.org/@cedar-policy/cedar-wasm/latest"],

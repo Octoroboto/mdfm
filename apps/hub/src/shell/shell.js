@@ -37,7 +37,8 @@
   if(h.settings.onTypes) h.settings.onTypes(st=>{ showTypes(st); skins(); });
   const save=()=>h.settings.set({city:$("setCity").value.trim(),units:$("setUnits").value,slackChannels:$("setSlackChannels").value.trim(),nameFixes:$("setNameFixes").value});
   for(const id of ["setCity","setUnits","setSlackChannels","setNameFixes"]) $(id).addEventListener("change",save);
-  $("slackConnect").onclick=()=>{ $("slackState").textContent="Finish signing in to Slack in your browser…"; h.slack.connect(); };
+  $("slackConnect").onclick=()=>{ $("slackState").textContent="Sign in to Slack in the window that opened. It closes by itself when you're done."; h.slack.connect(); };
+  if(h.slack.setup) $("slackSetup").onclick=()=>h.slack.setup();
   $("slackDisconnect").onclick=()=>h.slack.disconnect();
   $("checkNow").onclick=()=>h.checkNow().then(paint);
   $("logApp").onclick=()=>h.showBouncerLog("app"); $("logHub").onclick=()=>h.showBouncerLog("hub"); $("reloadHub").onclick=()=>{ h.reloadHub(); show(false); };
@@ -73,8 +74,8 @@
         const i=document.createElement("i"), t=document.createElement("b"), sp=document.createElement("span"); t.textContent=r.title+":"; sp.textContent=r.summary||""; li.append(i,t,sp);
         if(r.action&&r.action.url){ const bt=document.createElement("button"); bt.type="button"; bt.className="btn"; bt.textContent=r.action.label||"Open"; bt.onclick=()=>h.open(r.action.url); li.append(bt); }
         ul.append(li); } }
-    const sl=st.slack; if(sl){ $("slackConnect").hidden=sl.connected; $("slackDisconnect").hidden=!sl.connected; $("slackConnect").disabled=!sl.ready;
-      $("slackState").textContent=!sl.ready?"Slack news isn't set up for this copy of the app yet.":sl.connected?`Connected. News: ${sl.news}.`:"Not connected. When connected, MDFM reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour (two minutes at most). Read-only."; }
+    const sl=st.slack; if(sl){ $("slackConnect").hidden=sl.connected; $("slackDisconnect").hidden=!sl.connected; $("slackConnect").disabled=!sl.ready; $("slackSetup").hidden=!sl.builder;
+      $("slackState").textContent=!sl.ready?"Slack news isn't switched on for RentVision yet. When MedDev switches it on, Connect Slack works here without an update.":sl.connected?`Connected. News: ${sl.news}.`:"Not connected. When connected, MDFM reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour (two minutes at most). Read-only."; }
   }
   h.onStatus(paint); h.getStatus().then(paint);
 })();

@@ -43,8 +43,9 @@
   const save=()=>app.settings.set({contentUpdates:$("#setUpdates").checked,useBundled:$("#setBundled").checked,city:$("#setCity").value.trim(),units:$("#setUnits").value,
     slackChannels:$("#setSlackChannels").value.trim(),nameFixes:$("#setNameFixes").value});
   for(const id of ["#setUpdates","#setBundled","#setUnits","#setSlackChannels","#setNameFixes"]) $(id).addEventListener("change",save);
-  $("#slackConnect").addEventListener("click",()=>{ $("#slackState").textContent="Finish signing in to Slack in your browser..."; app.slack.connect().then(ok=>{ if(ok){ $("#setSlackNews").checked=true; radio.setTypes({news:true}); } }); });
+  $("#slackConnect").addEventListener("click",()=>{ $("#slackState").textContent="Sign in to Slack in the window that opened. It closes by itself when you're done."; app.slack.connect().then(ok=>{ if(ok){ $("#setSlackNews").checked=true; radio.setTypes({news:true}); } }); });
   $("#slackDisconnect").addEventListener("click",()=>app.slack.disconnect());
+  if($("#slackSetup")&&app.slack.setup) $("#slackSetup").addEventListener("click",()=>app.slack.setup());
   $("#setCity").addEventListener("change",save);
   $("#checkNow").addEventListener("click",()=>app.checkNow());
   $("#bouncerLog").addEventListener("click",()=>app.showBouncerLog&&app.showBouncerLog());
@@ -58,8 +59,8 @@
         const dot=document.createElement("i"); dot.className="dot"; const b=document.createElement("b"); b.textContent=r.title+":"; const sp=document.createElement("span"); sp.textContent=r.summary||"";
         li.append(dot,b,sp); if(r.action&&r.action.url){ const btn=document.createElement("button"); btn.type="button"; btn.className="btn"; btn.textContent=r.action.label||"Open"; btn.onclick=()=>app.open(r.action.url); li.append(btn); }
         ul.append(li); } }
-    const sl=st.slack; if(sl){ $("#slackConnect").hidden=sl.connected; $("#slackDisconnect").hidden=!sl.connected; $("#slackConnect").disabled=!sl.ready;
-      $("#slackState").textContent=!sl.ready?"Slack news isn't set up for this copy of the app yet.":sl.connected?`Connected. News: ${sl.news}.`:"Not connected. When connected, the radio reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour (two minutes at most). Read-only."; }
+    const sl=st.slack; if(sl){ $("#slackConnect").hidden=sl.connected; $("#slackDisconnect").hidden=!sl.connected; $("#slackConnect").disabled=!sl.ready; if($("#slackSetup")) $("#slackSetup").hidden=!sl.builder;
+      $("#slackState").textContent=!sl.ready?"Slack news isn't switched on for RentVision yet. When MedDev switches it on, Connect Slack works here without an update.":sl.connected?`Connected. News: ${sl.news}.`:"Not connected. When connected, the radio reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour (two minutes at most). Read-only."; }
     $("#stUpd").textContent=`New content: ${st.result}${st.lastCheck?` · checked ${new Date(st.lastCheck).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}`:""}`+(st.appUpdate?` · App ${st.appUpdate.version} is available`:"");
     const b=$("#appUpd"); b.hidden=!st.appUpdate; b.onclick=()=>st.appUpdate&&app.open(st.appUpdate.download||st.appUpdate.url);
   };

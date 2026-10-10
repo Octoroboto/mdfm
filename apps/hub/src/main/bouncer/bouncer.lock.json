@@ -1,7 +1,7 @@
 {
-  "policySha256": "aee7988b898834a497edf99e99d05d01e4805dd0b3e537a77f770acf9c5afe25",
-  "configSha256": "ce132927a3adfee56ba89bfd521e2896f6205c9b5f60c8d00f1af2f03c613069",
-  "lockedAt": "2026-10-10T18:16:14.143Z",
+  "policySha256": "c3d87c964a5e84e55311447d4591e0ed7065c97501fa502271670f30182a5582",
+  "configSha256": "31b3c664418ca287123d3e63d497016fbaeb55d3515f36ee57d5218136d170c4",
+  "lockedAt": "2026-10-10T21:01:48.358Z",
   "mode": "enforce",
-  "policyVersion": 2
+  "policyVersion": 3
 }

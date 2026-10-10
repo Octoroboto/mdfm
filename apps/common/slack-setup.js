@@ -1,0 +1,128 @@
+// "Set up Slack for MDFM": the builder's one-time wizard (only in a copy run from source, next to apps/slack-relay).
+// It signs in to Cloudflare in an app window, deploys the sign-in helper, opens Slack with the MDFM app pre-filled, reads
+// RentVision's team id, sets the helper's secrets, and saves the helper's address for this Mac and in config/slack.json.
+// Pushing config/slack.json switches Slack on for everyone's apps (no app release). Runs Cloudflare's own tool (wrangler)
+// through npx, the same commands as apps/slack-relay/README.md.
+const fs = require("fs"), path = require("path"), crypto = require("crypto"), { spawn } = require("child_process");
+const { openSignInWindow, CLOUDFLARE_HOSTS, SLACK_HOSTS } = require("./signin");
+const { validRelay } = require("./slack-config");
+
+// ---- pure helpers (tested) ----
+const findLoginUrl = out => (/(https:\/\/dash\.cloudflare\.com\/oauth2\/auth\?[^\s"'<>]+)/.exec(out) || [])[1] || null;
+const findWorkerUrl = out => (/(https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev)\b/i.exec(out) || [])[1] || null;
+const needsSubdomain = out => /register a workers\.dev subdomain|workers\.dev subdomain/i.test(out);
+const loggedIn = out => /You are logged in|associated with the email/i.test(out) && !/not authenticated/i.test(out);
+const findTeamId = url => (/app\.slack\.com\/client\/(T[A-Z0-9]{6,})/.exec(url || "") || [])[1] || null;
+const findAppId = url => (/api\.slack\.com\/apps\/(A[A-Z0-9]{6,})/.exec(url || "") || [])[1] || null;
+const validClientId = v => /^\d{6,}\.\d{6,}$/.test(String(v || "").trim());
+const validSecret = v => /^[a-f0-9]{32}$/i.test(String(v || "").trim());
+const validTeam = v => /^T[A-Z0-9]{6,}$/.test(String(v || "").trim());
+function manifestFor(relay, base) {
+  const m = JSON.parse(JSON.stringify(base)); m.oauth_config.redirect_urls = [`${relay.replace(/\/$/, "")}/callback`]; return m;
+}
+const slackCreateUrl = manifest => `https://api.slack.com/apps?new_app=1&manifest_json=${encodeURIComponent(JSON.stringify(manifest))}`;
+
+function setupAvailable({ app }) {
+  if (app.isPackaged) return null;
+  const repo = path.resolve(app.getAppPath(), "../.."), relayDir = path.join(repo, "apps/slack-relay");
+  return fs.existsSync(path.join(relayDir, "wrangler.toml")) ? { repo, relayDir } : null;
+}
+
+function startSlackSetup({ app, parent, saveOverride, onDone }) {
+  const where = setupAvailable({ app }); if (!where) return null;
+  const { BrowserWindow, ipcMain } = require("electron");
+  const win = new BrowserWindow({ width: 760, height: 820, title: "Set up Slack for MDFM", parent: parent && !parent.isDestroyed() ? parent : undefined,
+    backgroundColor: "#15161c", autoHideMenuBar: true,
+    webPreferences: { preload: path.join(__dirname, "slack-setup-preload.js"), sandbox: true, contextIsolation: true, nodeIntegration: false } });
+  const mine = e => e.sender === win.webContents;
+  const log = t => { if (!win.isDestroyed()) win.webContents.send("slackSetup:log", String(t).slice(0, 2000)); };
+  const st = { relay: "", appId: "", teamId: "" };
+  const PARTITION = "persist:mdfm-setup";
+  const env = { ...process.env, PATH: `${process.env.PATH || ""}:/opt/homebrew/bin:/usr/local/bin`, BROWSER: "none", WRANGLER_SEND_METRICS: "false", CI: "" };
+  function run(args, { input, onOut } = {}) {
+    return new Promise(resolve => {
+      log(`$ npx wrangler ${args.filter(a => a !== "--yes").join(" ")}`);
+      const p = spawn("npx", ["--yes", "wrangler", ...args], { cwd: where.relayDir, env });
+      let out = ""; const take = d => { const s = d.toString(); out += s; log(s.replace(/[\u001b]\[[0-9;]*m/g, "").trim()); onOut && onOut(out, p); };
+      p.stdout.on("data", take); p.stderr.on("data", take);
+      p.on("error", e => { out += e.message; resolve({ code: 1, out }); });
+      p.on("close", code => resolve({ code, out }));
+      if (input != null) { p.stdin.write(input); p.stdin.end(); }
+    });
+  }
+  const handlers = {
+    async state() {
+      const cfg = (() => { try { return JSON.parse(fs.readFileSync(path.join(where.repo, "config/slack.json"), "utf8")); } catch { return {}; } })();
+      if (!st.relay && validRelay(cfg.relay)) st.relay = cfg.relay;
+      return { ...st, repo: where.repo };
+    },
+    async cloudflare() {
+      const who = await run(["whoami"]);
+      if (who.code === 0 && loggedIn(who.out)) return { ok: true, note: "Already signed in to Cloudflare." };
+      let signWin = null;
+      const r = await run(["login", "--browser=false"], { onOut: (out, proc) => {
+        const url = findLoginUrl(out);
+        if (url && !signWin) signWin = openSignInWindow(url, { parent: win, title: "Sign in to Cloudflare", hosts: CLOUDFLARE_HOSTS, localPorts: [8976], partition: PARTITION,
+          onClosed: () => { try { proc.kill(); } catch {} } });
+      } });
+      if (signWin && !signWin.isDestroyed()) signWin.close();
+      return r.code === 0 ? { ok: true, note: "Signed in to Cloudflare." } : { ok: false, note: "Cloudflare sign-in didn't finish. Try again." };
+    },
+    async deploy() {
+      const r = await run(["deploy"]);
+      const url = findWorkerUrl(r.out);
+      if (r.code === 0 && url) { st.relay = url; return { ok: true, relay: url }; }
+      if (needsSubdomain(r.out)) {
+        openSignInWindow("https://dash.cloudflare.com/?to=/:account/workers/onboarding", { parent: win, title: "Pick your workers.dev name", hosts: CLOUDFLARE_HOSTS, partition: PARTITION });
+        return { ok: false, note: "Cloudflare needs a workers.dev name first. Pick one in the window that opened, then press Deploy again." };
+      }
+      return { ok: false, note: "The deploy didn't work. The log below says why." };
+    },
+    async slackApp() {
+      if (!st.relay) return { ok: false, note: "Deploy the helper first." };
+      const base = JSON.parse(fs.readFileSync(path.join(where.relayDir, "slack-app-manifest.json"), "utf8"));
+      openSignInWindow(slackCreateUrl(manifestFor(st.relay, base)), { parent: win, title: "Create the MDFM Slack app", hosts: SLACK_HOSTS, partition: PARTITION, width: 1000, height: 820,
+        onNavigate: (u, w) => { const id = findAppId(u); if (id && id !== st.appId) { st.appId = id; log(`Slack app created: ${id}`);
+          if (!/\/general/.test(u)) setTimeout(() => { if (!w.isDestroyed()) w.loadURL(`https://api.slack.com/apps/${id}/general`); }, 800);
+          if (!win.isDestroyed()) win.webContents.send("slackSetup:appId", id); } } });
+      return { ok: true, note: "Finish creating the app in the Slack window, then copy the Client ID and Client Secret from its Basic Information page." };
+    },
+    async team() {
+      return new Promise(resolve => {
+        let done = false;
+        const w = openSignInWindow("https://app.slack.com/client", { parent: win, title: "Open the RentVision Slack", hosts: SLACK_HOSTS, partition: PARTITION,
+          onNavigate: (u, ww) => { const t = findTeamId(u); if (t && !done) { done = true; st.teamId = t; log(`RentVision team id: ${t}`); setTimeout(() => ww.close(), 400); resolve({ ok: true, teamId: t }); } },
+          onClosed: () => { if (!done) { done = true; resolve({ ok: false, note: "Closed before Slack opened. Sign in and pick RentVision, or type the team id." }); } } });
+        return w;
+      });
+    },
+    async secrets(f) {
+      const id = String(f && f.clientId || "").trim(), secret = String(f && f.clientSecret || "").trim(), team = String(f && f.teamId || st.teamId || "").trim();
+      if (!validClientId(id)) return { ok: false, note: "That Client ID doesn't look right (numbers, a dot, numbers)." };
+      if (!validSecret(secret)) return { ok: false, note: "That Client Secret doesn't look right (32 letters and numbers)." };
+      if (!validTeam(team)) return { ok: false, note: "That team id doesn't look right (starts with T)." };
+      const stateKey = crypto.randomBytes(32).toString("base64");
+      for (const [name, value] of [["SLACK_CLIENT_ID", id], ["SLACK_CLIENT_SECRET", secret], ["STATE_KEY", stateKey], ["TEAM_ID", team]]) {
+        const r = await run(["secret", "put", name], { input: value + "\n" });
+        if (r.code !== 0) return { ok: false, note: `Setting ${name} didn't work. The log below says why.` };
+      }
+      st.teamId = team; return { ok: true, note: "The helper has its secrets." };
+    },
+    async save() {
+      if (!validRelay(st.relay)) return { ok: false, note: "Deploy the helper first." };
+      saveOverride(st.relay);
+      fs.mkdirSync(path.join(where.repo, "config"), { recursive: true });
+      fs.writeFileSync(path.join(where.repo, "config/slack.json"), JSON.stringify({ relay: st.relay }, null, 2) + "\n");
+      onDone && onDone(st.relay);
+      return { ok: true, relay: st.relay, push: `cd ${where.repo.replace(require("os").homedir(), "~")} && git add config/slack.json && git commit -m "Switch on Slack sign-in" && git push` };
+    },
+  };
+  const channels = Object.keys(handlers).map(k => `slackSetup:${k}`);
+  channels.forEach(ch => ipcMain.removeHandler(ch));
+  for (const k of Object.keys(handlers)) ipcMain.handle(`slackSetup:${k}`, async (e, a) => { if (!mine(e)) return { ok: false }; try { return await handlers[k](a); } catch (err) { log(err.message); return { ok: false, note: err.message }; } });
+  win.on("closed", () => channels.forEach(ch => ipcMain.removeHandler(ch)));
+  win.loadFile(path.join(__dirname, "slack-setup.html"));
+  return win;
+}
+
+module.exports = { startSlackSetup, setupAvailable, findLoginUrl, findWorkerUrl, needsSubdomain, loggedIn, findTeamId, findAppId, validClientId, validSecret, validTeam, manifestFor, slackCreateUrl };
