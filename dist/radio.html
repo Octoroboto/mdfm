@@ -633,8 +633,10 @@ html.appwin,html.appwin body{background:transparent!important}
 html.appwin body{padding:10px 74px 14px 10px;min-height:100vh;box-sizing:border-box}
 html.appwin .wrap{border-radius:14px;padding:14px;background:linear-gradient(180deg,#30323d,#17181e);border:2px solid;border-color:#6a6d80 #050507 #050507 #6a6d80;
   box-shadow:0 18px 40px rgba(0,0,0,.55),0 4px 10px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);-webkit-app-region:drag}
-html.appwin .wrap :is(button,input,select,textarea,label,a,summary,details,[role=slider],[tabindex],canvas,.lcd,.rdeck,.vu,.settings,.faceplate){-webkit-app-region:no-drag}
-html.appwin .canlayer,html.appwin .canlayer *{-webkit-app-region:no-drag}
+html.appwin .wrap :is(button,input,select,textarea,label,a,summary,[role=slider],[tabindex],.rd-btn,.rd-k,.vu-m,.settings[open] .setgrid){-webkit-app-region:no-drag}
+html.appwin header.top .wtitle,html.appwin .lcd{-webkit-app-region:drag}
+/* The can layer spans the window (it is where the can flies) but sets no region, so it never blocks dragging; only the can and swatter do. */
+html.appwin :is(#nozzle,.swatter){-webkit-app-region:no-drag}
 html.appwin.fullscreen,html.appwin.fullscreen body{background:var(--bg)!important}
 html.appwin.fullscreen body{padding:16px 74px 16px 16px}
 .wctl{display:inline-flex;align-items:center;gap:12px;margin-right:6px;letter-spacing:normal}

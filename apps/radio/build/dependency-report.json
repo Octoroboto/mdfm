@@ -1,0 +1,23 @@
+{
+  "createdAt": "2026-10-10T13:31:29.707Z",
+  "appVersion": "0.2.0",
+  "node": "v26.10.0",
+  "electron": "44.5.1",
+  "audit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 8,
+    "high": 0,
+    "critical": 0,
+    "total": 8
+  },
+  "shippedVulnerabilities": [],
+  "outdated": [
+    {
+      "name": "electron",
+      "current": "44.5.1",
+      "wanted": "44.5.1",
+      "latest": "44.7.0"
+    }
+  ]
+}
