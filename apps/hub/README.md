@@ -12,13 +12,22 @@ The Media Development Hub as a Mac app. It opens the live hub page from claude.a
 ## Using it
 
 - **POWER / MIN / FULL** on the top strip close, minimize and go full screen. Drag the window by the metal strip. Double-click the strip to zoom.
-- **SETTINGS:** set a city if weather or sports can't find you, choose units, connect Slack news, see what's out of date, and open the Bouncer logs.
-- **Lamps:** BOUNCER is green when it's guarding. UPDATES turns amber when something should be updated.
+- **SETTINGS:** pick a skin, choose what plays between songs, set a city if weather or sports can't find you, choose units, connect Slack news, see what's out of date, and open the Bouncer logs.
+- **Badges:** the BOUNCER and FUTUREPROOFER plates on the strip are always on show. Green means all good, amber means something to look at, and red blinks. Click one for the details.
 - **Cmd+R** reloads the hub.
+
+## Skins
+
+Pick a **Skin** in SETTINGS, or on the hub's MDFM receiver. Both follow the same choice, and the steel frame changes with them.
+
+- **House default** follows whatever MedDev picks. Your own pick wins.
+- **Where skins come from:** they live in **MedDev Receiver** (`Octoroboto/meddev-receiver`).
+- **How they arrive:** from version 0.1.2, MD Hub fetches new looks and skins by itself. They show from the next launch or a hub reload (Cmd+R).
+- **What a skin can change:** it can restyle everything, but every control, the glass and the lights always work the same.
 
 ## Safety
 
-- **Bouncer, the app's own requests (enforced):** the app may only read weather, location, scoreboards, Slack news (read-only), and this repo's releases. Everything else is blocked. Rules are in `src/main/bouncer/policy.cedar`.
+- **Bouncer, the app's own requests (enforced):** the app may only read weather, location, scoreboards, Slack news (read-only), this repo's releases, and the receiver look and skins (rules v2). Everything else is blocked. Rules are in `src/main/bouncer/policy.cedar`.
 - **Bouncer, the hub page (observe):** claude.ai is watched, and anything unusual is logged. Nothing is blocked, because blocking a site's own calls can break it. Rules are in `view-policy.cedar`. Switch it to enforce once the log has been quiet for a while.
 - Only the hub artifact's own frame gets the radio bridge, and the app re-checks every call.
 
