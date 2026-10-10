@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld("mdfmApp", {
   open: url => ipcRenderer.invoke("open:url", String(url)),
   win: {
     close: () => ipcRenderer.send("win:close"), minimize: () => ipcRenderer.send("win:min"), toggleFullScreen: () => ipcRenderer.send("win:full"),
-    zoom: () => ipcRenderer.send("win:zoom"), fit: h => ipcRenderer.send("win:fit", +h),
+    zoom: () => ipcRenderer.send("win:zoom"), dragStart: () => ipcRenderer.send("win:dragStart"), dragEnd: () => ipcRenderer.send("win:dragEnd"), fit: h => ipcRenderer.send("win:fit", +h),
     onFullScreen: f => { if (typeof f === "function") ipcRenderer.on("win:fullscreen", (e, v) => f(!!v)); },
   },
   showBouncerLog: () => ipcRenderer.invoke("bouncer:showLog"),

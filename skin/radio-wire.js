@@ -10,6 +10,12 @@
     $("#wFull").addEventListener("click",()=>app.win.toggleFullScreen());
     document.querySelector("header.top .wtitle").addEventListener("dblclick",e=>{ if(!e.target.closest("button")) app.win.zoom(); });
     app.win.onFullScreen(fs=>document.documentElement.classList.toggle("fullscreen",!!fs));
+    // Drag by the metal: a press anywhere that isn't a control moves the window (works even where CSS drag regions don't).
+    if(app.win.dragStart){ const CONTROL="button,input,select,textarea,label,a,summary,[role=slider],[tabindex],.rd-btn,.rd-k,.settings[open] .setgrid,#nozzle,.swatter";
+      let dragging=false; const end=()=>{ if(dragging){ dragging=false; app.win.dragEnd(); document.documentElement.classList.remove("dragging"); } };
+      document.addEventListener("mousedown",e=>{ if(e.button!==0||e.detail>1||document.documentElement.classList.contains("fullscreen")||e.target.closest(CONTROL)) return;
+        if(!e.target.closest(".wrap")) return; dragging=true; document.documentElement.classList.add("dragging"); app.win.dragStart(); e.preventDefault(); });
+      addEventListener("mouseup",end); addEventListener("blur",end); }
     const fit=()=>app.win.fit(Math.ceil(document.documentElement.scrollHeight)); setTimeout(fit,400); }
   if(app) radio.setProviders({weather:()=>app.live("weather"),sports:()=>app.live("sports"),news:()=>app.live("news"),cannedFallback:false});
   const np=$("#np"), cap=$("#cap"); let capT=0;

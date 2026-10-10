@@ -55,3 +55,4 @@ header.top .wctl{position:absolute;left:8px;top:50%;transform:translateY(-50%);m
 .fplist button{font-size:.8rem;padding:2px 8px}
 .fxbtns{align-self:center;display:flex;gap:14px}
 .fxbtns small{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;color:rgba(226,229,238,.82);text-shadow:0 1px 0 rgba(0,0,0,.65);white-space:nowrap}
+html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-select:none!important}
