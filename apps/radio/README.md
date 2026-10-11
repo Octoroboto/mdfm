@@ -17,7 +17,7 @@ Needs macOS 13 or newer.
 ## Using it
 
 - **Window:** POWER, MIN and FULL are on the steel. Drag the receiver by its metal.
-- **Speaker:** press it to tune in. **Next song** and **Station break** do what they say.
+- **SOUND:** press it to tune in. **Next song** and **Station break** do what they say.
 - **Mixer:** the big **VOLUME** knob and **LOW / MID / HIGH** (a real 3-band EQ) shape everything, the voices included. Drag, scroll or use the arrow keys; double-click resets a knob.
 - **Modes:** **LET IT RIDE** keeps each song going about two minutes. **UNDERWATER** makes everything muffled and drifting.
 - **Lights:** **METER** turns the VU lamps on or off. **EQ** turns the LED equalizer on or off. The light knobs recolour everything that's lit.

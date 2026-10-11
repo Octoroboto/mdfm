@@ -24,7 +24,7 @@
   radio.on("nowplaying",s=>{ np.textContent=`Now playing: “${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`; });
   radio.on("caption",c=>{ cap.textContent=`${c.who}: ${c.text}`; clearTimeout(capT); capT=setTimeout(()=>{ cap.textContent=""; },14000); });
   const box=$("#sndOn"); box.checked=false;
-  box.addEventListener("change",()=>{ box.checked?radio.start():radio.stop(); if(!box.checked) np.textContent="Press the speaker to tune in."; });
+  box.addEventListener("change",()=>{ box.checked?radio.start():radio.stop(); if(!box.checked) np.textContent="Press the SOUND button to tune in."; });
   $("#skipBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); } else radio.skip(); });
   $("#spotBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); setTimeout(()=>radio.spotNow(),1200); } else radio.spotNow(); });
   $("#stEngine").textContent=`v${MDFM.VERSION}`;
