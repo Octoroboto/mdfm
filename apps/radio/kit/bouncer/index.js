@@ -167,7 +167,10 @@ function createBouncer({
       }
       const caller = callerFor(details);
       // net requests were already counted by the app-side check; don't count twice.
-      const r = check({ url: details.url, method: details.method, body }, caller, { count: details.webContentsId != null });
+      // The callback must always be called, or the request hangs: an error fails closed when enforcing.
+      let r;
+      try { r = check({ url: details.url, method: details.method, body }, caller, { count: details.webContentsId != null }); }
+      catch (e) { r = { allow: mode !== 'enforce' }; }
       callback({ cancel: !r.allow });
     });
   }

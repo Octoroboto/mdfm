@@ -89,3 +89,14 @@ test("only common/net.js sends requests", () => {
   roots.forEach(walk);
   assert.deepStrictEqual(bad, [], "these files send requests without going through Bouncer");
 });
+
+test("a URL with a broken %-escape is judged (unreadable, fails closed), never throws out of the hook", () => {
+  const { requestFacts } = require("../kit/bouncer/facts");
+  assert.strictEqual(requestFacts({ url: "https://ipwho.is/50%off" }).ok, false);
+  assert.strictEqual(requestFacts({ url: "file:///Users/x/100%.wav" }).ok, true, "local files are not judged");
+  const b = make();
+  assert.throws(() => b.assert({ url: "https://ipwho.is/a%E0%A4%A", method: "GET" }, "app"), e => e.code === "BOUNCED");
+  let handler; b.attachSession({ webRequest: { onBeforeRequest: (_f, h) => { handler = h; } } });
+  let out = null; handler({ url: "https://fonts.gstatic.com/50%off", method: "GET", webContentsId: 3 }, r => { out = r; });
+  assert.deepStrictEqual(out, { cancel: true });
+});

@@ -112,3 +112,15 @@ test("sign-in windows' rules are locked and enforcing here too", () => {
   assert.strictEqual(b.check({ url: "https://slack.com/oauth/v2/authorize", method: "GET" }, "slack-signin").decision, "allow");
   assert.strictEqual(b.check({ url: "https://claude.ai/", method: "GET" }, "slack-signin").allow, false);
 });
+
+test("a URL with a broken %-escape is judged, never throws out of the request hook", () => {
+  const app = make(APP);
+  assert.throws(() => app.assert({ url: "https://ipwho.is/50%off", method: "GET" }, "app"), e => e.code === "BOUNCED");
+  let handler; app.attachSession({ webRequest: { onBeforeRequest: (_f, h) => { handler = h; } } });
+  let out = null; handler({ url: "https://ipwho.is/50%off", method: "GET", webContentsId: 3 }, r => { out = r; });
+  assert.deepStrictEqual(out, { cancel: true }, "enforced: blocked");
+  const view = make(VIEW, "MD Hub (hub page)");
+  view.attachSession({ webRequest: { onBeforeRequest: (_f, h) => { handler = h; } } });
+  out = null; handler({ url: "https://claude.ai/search/50%off", method: "GET", webContentsId: 4 }, r => { out = r; });
+  assert.deepStrictEqual(out, { cancel: false }, "observe: logged, not blocked");
+});

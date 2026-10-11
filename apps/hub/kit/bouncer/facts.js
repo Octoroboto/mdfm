@@ -90,12 +90,19 @@ function requestFacts(req) {
   const body = parseBody(req.body, req.contentType);
   if (Array.isArray(req.formFields)) req.formFields.forEach((k) => { if (!body.fields.includes(k)) body.fields.push(k); });
   if (req.formValues) Object.entries(req.formValues).forEach(([k, v]) => { if (!(k in body.form)) body.form[k] = cut(v); });
+  // A path with a broken %-escape (e.g. "/50%off") can't be decoded: treat a network one as an
+  // unreadable address (denied when enforcing) instead of throwing out of the request hook.
+  let decodedPath;
+  try { decodedPath = decodeURIComponent(u.pathname || '/'); } catch {
+    if (NETWORK_SCHEMES.has(scheme)) return { ok: false, error: 'bad path encoding', url: String(req.url) };
+    decodedPath = u.pathname || '/';
+  }
   return {
     ok: true,
     scheme,
     method,
     host: u.hostname.toLowerCase(),
-    path: decodeURIComponent(u.pathname || '/'),
+    path: decodedPath,
     search: u.search || '',
     fields: body.fields,
     form: body.form,
