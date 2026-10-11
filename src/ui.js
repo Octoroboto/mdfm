@@ -9,7 +9,8 @@ export function mountEQ(canvas, radio, opts = {}) {
   let W = 1, H = 1, dpr = 1, raf = 0, last = 0, enabled = true;
   const fit = () => { const r = canvas.getBoundingClientRect(); dpr = Math.min(2, devicePixelRatio || 1); W = Math.max(1, Math.round(r.width * dpr)); H = Math.max(1, Math.round(r.height * dpr)); canvas.width = W; canvas.height = H; };
   const ro = new ResizeObserver(fit); ro.observe(canvas); fit();
-  function idle(t) { const o = new Float32Array(N); for (let i = 0; i < N; i++) o[i] = .08 + .06 * Math.sin(t * 1.3 + i * .7) + .04 * Math.sin(t * 2.9 + i * 1.9); return o; }
+  const idleBuf = new Float32Array(N), zero = new Float32Array(N);
+  function idle(t) { const o = idleBuf; for (let i = 0; i < N; i++) o[i] = .08 + .06 * Math.sin(t * 1.3 + i * .7) + .04 * Math.sin(t * 2.9 + i * 1.9); return o; }
   function draw() {
     ctx.clearRect(0, 0, W, H);
     const bw = W / N, seg = SEG * dpr, gap = GAP * dpr, rows = Math.floor(H / (seg + gap));
@@ -26,7 +27,7 @@ export function mountEQ(canvas, radio, opts = {}) {
     raf = requestAnimationFrame(step);
     if (document.hidden || now - last < 16) return;
     const dt = Math.min(.1, (now - last) / 1000); last = now;
-    const tg = (radio && radio.getSpectrum()) || (opts.idle === false ? new Float32Array(N) : idle(now / 1000));
+    const tg = (radio && radio.getSpectrum()) || (opts.idle === false ? zero : idle(now / 1000));
     for (let i = 0; i < N; i++) {
       lvl[i] = tg[i] > lvl[i] ? tg[i] : Math.max(tg[i], lvl[i] - dt * 2.6);
       if (lvl[i] >= peak[i]) { peak[i] = lvl[i]; pv[i] = 0; hold[i] = .35; } else if (hold[i] > 0) hold[i] -= dt; else { pv[i] += dt * 1.8; peak[i] = Math.max(0, peak[i] - pv[i] * dt); }
