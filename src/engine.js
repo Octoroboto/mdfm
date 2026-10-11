@@ -528,6 +528,7 @@ function tick(){
         startSong(tH,3);
         const wait=Math.max(0,(tH-ctx.currentTime)*1000);
         if(newsDue()) setTimeout(()=>spot("news"),wait+300);   // company news at the top of the hour, when Slack is connected
+        else if(techDue()) setTimeout(()=>spot("technews"),wait+300);   // MedDev tech news on the half hour, when the page can read the hub
         else if(ctx.currentTime-lastSpot>nextGap){ setTimeout(()=>spot(),wait+300); }
         else if(R()<.55&&!speaking) setTimeout(()=>{ if(on&&!speaking){ if(TYPES.stingers&&VSTING.length&&R()<.6) voiceSting(); else pick(STINGS)(ctx.currentTime+.05); } },wait+200);
       }
@@ -619,25 +620,70 @@ async function newsLines(){
   if(NEWS.outro.length) lines.push(["host",pick(NEWS.outro)]);
   return lines;
 }
-let lastNewsHour=-1;
+let lastNewsHour=-1, lastTechHour=-1;
+/* MedDev tech news on the :30s: what changed in the hub's automations in the past week, one item per automation, about a minute. */
+const TECH={intro:cat2("technews","intro"),outro:cat2("technews","outro"),lead:{},react:cat2("technews","react")};
+packs.forEach(p=>{ const l=p.technews&&p.technews.lead; if(l) for(const k in l) (TECH.lead[k]=TECH.lead[k]||[]).push(...l[k]); });
+const TECHV={accent:"british",names:["Daniel","Arthur","Oliver","Google UK English Male","Microsoft Ryan","Microsoft George"],pitch:1,rate:1.02};
+function techDue(){ if(typeof opts.techNews!=="function"||!spotsOn||!TYPES.technews) return false; const d=new Date(), key=d.getDate()*24+d.getHours(); const m=d.getMinutes(); if(m<30||m>=38||key===lastTechHour) return false; lastTechHour=key; return true; }
+async function techLines(){
+  let d=null; try{ d=await Promise.race([opts.techNews(),new Promise(r=>setTimeout(()=>r(null),8000))]); }catch(e){}
+  const week=Date.now()-7*864e5, all=(d&&d.items||[]).filter(x=>x&&x.title&&(x.when||0)>=week); if(!all.length) return null;
+  const by={}; for(const x of all) (by[x.automation||"Other"]=by[x.automation||"Other"]||[]).push(x);
+  const groups=Object.values(by).map(g=>g.sort((a,b)=>(b.when||0)-(a.when||0))); for(let i=groups.length-1;i>0;i--){ const j=ri(0,i); [groups[i],groups[j]]=[groups[j],groups[i]]; }
+  const time=new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}).replace(/^0/,"");
+  const lines=[["tech",fill(pick(TECH.intro.length?TECH.intro:["It's {time}. MedDev Tech News."]),{time,n:String(all.length)})]]; let words=12;
+  for(const g of groups){ const x=g[ri(0,Math.min(2,g.length-1))], kind=x.event||x.kind||"other";
+    const lead=fill(pick(TECH.lead[kind]||TECH.lead.other||["In {app}:"]),{app:x.app||x.automation||"the hub",name:x.who||"someone",status:x.status||""});
+    const body=`${lead} ${x.title}.${x.summary&&words<90?" "+String(x.summary).split(/(?<=[.!?])\s/)[0]:""}`;
+    const w=body.split(/\s+/).length; if(words+w>150) break; words+=w; lines.push(["tech",body]);
+    if(TECH.react.length&&R()<.35&&words<130){ const r=pick(TECH.react); words+=r.split(/\s+/).length; lines.push(["host",r]); } }
+  if(TECH.outro.length) lines.push(["tech",pick(TECH.outro)]);
+  return lines;
+}
 function newsDue(){ if(typeof opts.news!=="function"||!spotsOn||!TYPES.news) return false; const d=new Date(), key=d.getDate()*24+d.getHours(); if(d.getMinutes()>=8||key===lastNewsHour) return false; lastNewsHour=key; return true; }
-const PLAYS=cat("plays"), ARTS=cat("arts"); const PLQ=[], ARQ=[];
+const PLAYS=cat("plays"), ARTS=cat("arts"), PODS=cat("podcasts"), COOKS=cat("cooking"); const PLQ=[], ARQ=[], POQ=[], COQ=[];
 const fromQ=(q,src)=>{ if(!q.length){ const a=[...src]; for(let i=a.length-1;i>0;i--){ const j=ri(0,i); [a[i],a[j]]=[a[j],a[i]]; } q.push(...a); } return q.shift(); };
-function showSpot(kind){ if(kind==="play"&&PLAYS.length) return {kind,...fromQ(PLQ,PLAYS)}; if(kind==="arts"&&ARTS.length) return {kind,...fromQ(ARQ,ARTS)}; return null; }
+function showSpot(kind){ if(kind==="play"&&PLAYS.length) return {kind,...fromQ(PLQ,PLAYS)}; if(kind==="arts"&&ARTS.length) return {kind,...fromQ(ARQ,ARTS)};
+  if(kind==="podcast"&&PODS.length) return {kind,...fromQ(POQ,PODS)}; if(kind==="cooking"&&COOKS.length) return {kind,...fromQ(COQ,COOKS)}; if(kind==="funnelball"&&FB.cities.length) return {kind}; return null; }
+/* Funnelball: a made-up sport. Every broadcast is generated: teams, players, plays, scores and commentary. */
+const FB={cities:[],mascots:[],first:[],last:[],venues:[],intro:[],plays:[],color:[],close:[],final:[],outro:[]};
+packs.forEach(p=>{ const f=p.funnelball; if(f) for(const k in FB) FB[k].push(...(f[k]||[])); });
+const FB_PBP={accent:"american",names:["Tom","Aaron","Evan","Microsoft Guy","Google US English"],pitch:.9,rate:1.12};
+const FB_COLOR={accent:"southafrican",names:["Tessa","Karen","Moira","Microsoft Leah","Google UK English Female"],pitch:1.05,rate:1.02};
+function funnelballLines(){
+  const team=()=>{ const city=pick(FB.cities); let m=pick(FB.mascots); return {city,m,name:`${city} ${m}`}; };
+  const a=team(); let b=team(); for(let i=0;i<6&&(b.city===a.city||b.m===a.m);i++) b=team();
+  const plr=()=>`${pick(FB.first)} ${pick(FB.last)}`, roster={[a.name]:[plr(),plr(),plr()],[b.name]:[plr(),plr(),plr()]};
+  const sc={[a.name]:0,[b.name]:0}, f=(s,x)=>s.replace(/\{(\w+)\}/g,(m,k)=>x[k]!=null?x[k]:m);
+  const L=[["pbp",f(pick(FB.intro),{a:a.name,b:b.name,venue:pick(FB.venues),q:pick(["second","third","fourth","final"])})]];
+  const n=ri(3,5);
+  for(let i=0;i<n;i++){ const t=R()<.5?a:b, o=t===a?b:a, pl=pick(FB.plays), pts=pl.pts??ri(1,3); sc[t.name]+=pts;
+    const x={p:pick(roster[t.name]),p2:pick(roster[o.name]),t:t.m,o:o.m,n:pts,s:sc[t.name],os:sc[o.name]};
+    L.push(["pbp",f(pl.text,x)]); L.push(["pbp",`That's ${pts===1?"one":pts} for ${t.m}. ${t.m} ${sc[t.name]}, ${o.m} ${sc[o.name]}.`]);
+    if(R()<.75) L.push(["color",f(pick(FB.color),x)]); }
+  const lead=sc[a.name]===sc[b.name]?null:(sc[a.name]>sc[b.name]?a:b), lose=lead===a?b:a;
+  if(!lead){ const t=R()<.5?a:b; sc[t.name]+=1; L.push(["pbp",f(pick(FB.close),{t:t.m,p:pick(roster[t.name])})]); }
+  const w=sc[a.name]>sc[b.name]?a:b, l=w===a?b:a;
+  L.push(["pbp",f(pick(FB.final),{w:w.name,l:l.name,ws:sc[w.name],ls:sc[l.name]})]);
+  L.push(["color",pick(FB.outro)]); return L;
+}
 const part=k=>packs.flatMap(p=>(p.adParts&&p.adParts[k])||[]);
 const AP={owner:part("owner"),kind:part("kind"),pitch:part("pitch"),turn:part("turn"),backdown:part("backdown")};
 function genAd(){ if(!AP.owner.length||!AP.kind.length) return pick(ADS); const b=`${pick(AP.owner)} ${pick(AP.kind)}`; return `${b}. ${pick(AP.pitch)}, ${pick(AP.turn)}. ${pick(AP.backdown)}. ${b}.`; }
 const QUEUE=[]; const refill=()=>{ const a=[...ADS]; for(let i=a.length-1;i>0;i--){ const j=ri(0,i); [a[i],a[j]]=[a[j],a[i]]; } QUEUE.push(...a); };
 /* Content types listeners can switch off (music always plays). */
-const TYPE_KEYS=["ids","stingers","ads","interviews","callers","weather","sports","plays","arts","news"];
+const TYPE_KEYS=["ids","stingers","ads","interviews","callers","weather","sports","plays","arts","podcast","cooking","funnelball","technews","news"];
 const TYPES={}; for(const k of TYPE_KEYS) TYPES[k]=!(opts.types&&opts.types[k]===false);
-const KIND_TYPE={id:"ids",ad:"ads",interview:"interviews",caller:"callers",weather:"weather",sports:"sports",play:"plays",arts:"arts",news:"news"};
+const KIND_TYPE={id:"ids",ad:"ads",interview:"interviews",caller:"callers",weather:"weather",sports:"sports",play:"plays",arts:"arts",podcast:"podcast",cooking:"cooking",funnelball:"funnelball",technews:"technews",news:"news"};
 function nextSpot(){ spotCount++;
   if(TYPES.ids&&LATE.length&&spotCount>2&&R()<.12) return {kind:"id",late:1,text:say(pick(LATE))};
   const showOk=spotCount>1&&ctx&&ctx.currentTime-lastShow>720;   // at most one play or arts piece every 12 minutes
   if(showOk&&TYPES.plays&&R()<.14&&PLAYS.length) return showSpot("play");
   if(showOk&&TYPES.arts&&R()<.16&&ARTS.length) return showSpot("arts");
-  const opts2=[["interviews",.17,INTERVIEWS.length],["callers",.07,CALLERS.open.length],["weather",.10,WX.time.length||TAB.noData.length],["sports",.09,CHIP.noData.length],["ids",.15,IDS.length],["ads",.42,ADS.length||AP.owner.length]]
+  if(showOk&&TYPES.podcast&&R()<.14&&PODS.length) return showSpot("podcast");
+  if(showOk&&TYPES.cooking&&R()<.14&&COOKS.length) return showSpot("cooking");
+  const opts2=[["interviews",.17,INTERVIEWS.length],["callers",.07,CALLERS.open.length],["weather",.10,WX.time.length||TAB.noData.length],["sports",.09,CHIP.noData.length],["funnelball",.06,FB.cities.length],["ids",.15,IDS.length],["ads",.42,ADS.length||AP.owner.length]]
     .filter(([k,w,n])=>TYPES[k]&&n);
   if(!opts2.length) return null;   // everything switched off: just music
   let r=R()*opts2.reduce((a,o)=>a+o[1],0), k=opts2[0][0]; for(const o of opts2){ if((r-=o[1])<=0){ k=o[0]; break; } }
@@ -645,6 +691,7 @@ function nextSpot(){ spotCount++;
   if(k==="interviews"){ if(!IVQ.length) ivRefill(); const iv=IVQ.shift(); return {kind:"interview",title:iv.title,guest:iv.guest,guest2:iv.guest2,lines:iv.lines}; }
   if(k==="weather") return {kind:"weather"};
   if(k==="sports") return {kind:"sports"};
+  if(k==="funnelball") return {kind:"funnelball"};
   if(k==="ids") return {kind:"id",text:say(pick(IDS))};
   if(!ADS.length||(R()<.3&&AP.owner.length)) return {kind:"ad",text:genAd()};
   if(!QUEUE.length) refill(); return {kind:"ad",text:QUEUE.shift()}; }
@@ -739,12 +786,12 @@ function spot(force){
   if(force&&KIND_TYPE[force]&&!TYPES[KIND_TYPE[force]]) return;   // switched off in Settings
   const sp=force?(showSpot(force)||{kind:force}):nextSpot(); if(!sp) return;
   speaking=true; lastSpot=ctx.currentTime;
-  const show=sp.kind==="play"||sp.kind==="arts", ad=sp.kind==="ad", iv=sp.kind==="interview"||sp.kind==="weather"||sp.kind==="sports"||sp.kind==="news"||show, t=ctx.currentTime+.05; emit("spot",sp);
+  const show=sp.kind==="play"||sp.kind==="arts"||sp.kind==="podcast"||sp.kind==="cooking", ad=sp.kind==="ad", iv=sp.kind==="interview"||sp.kind==="weather"||sp.kind==="sports"||sp.kind==="news"||sp.kind==="technews"||sp.kind==="funnelball"||show, t=ctx.currentTime+.05; emit("spot",sp);
   fadeTo(musicDuck.gain,show?.0001:ad||iv?.02:.2,ad||iv?1.2:.6,t);
   const st0=ad||iv?.9:.25, len=pick(STINGS)(t+st0);
   let lead=st0+len*.75+(sp.late?rr(3.2,4.5):0);
   if(ad){ bed=startBed(t+st0+len*.65); lead+=.7; }
-  if(iv){ bed=startBed(t+st0+len*.65,sp.kind==="play"?"organ":sp.kind==="arts"?"arts":true); lead+=.5; }
+  if(iv){ bed=startBed(t+st0+len*.65,sp.kind==="play"?"organ":sp.kind==="arts"||sp.kind==="cooking"?"arts":true); lead+=.5; }
   const t0spot=ctx.currentTime; if(show) lastShow=t0spot;
   const after=()=>{ lastSpot=ctx.currentTime; const talk=lastSpot-t0spot;   // music-weighted: ~2 songs after a short break, 3-4 after a long one
     nextGap=talk>40?rr(160,240)+talk*.5:rr(100,170);
@@ -758,6 +805,8 @@ function spot(force){
         if(!lines){ after(); return; }   // nothing new in Slack: straight back to the music
         sp.lines=lines; sp.text=lines.map(l=>typeof l[1]==="object"?l[1].show:l[1]).join(" "); emit("spot",sp); const host=hostCast();
         speakLines(lines,{host,news:guestCast(NEWSV,host),names:{host:"DJ",news:"Company News"}},after); }); return; }
+    if(sp.kind==="technews"){ techLines().then(lines=>{ if(!on){ speaking=false; return; } if(!lines){ after(); return; }
+        sp.lines=lines; sp.text=lines.map(l=>l[1]).join(" "); emit("spot",sp); const host=hostCast(); speakLines(lines,{host,tech:guestCast(TECHV,host),names:{host:"DJ",tech:"MedDev Tech News"}},after); }); return; }
     if(sp.kind==="weather"||sp.kind==="sports"){ (sp.kind==="weather"?weatherLines():sportsLines()).then(lines=>{ if(!on){ speaking=false; return; }
         if(!lines){ if(!TYPES.ids){ after(); return; } const id={kind:"id",text:say(pick(IDS))}; emit("spot",id); speak(id.text,after); return; }
         sp.lines=lines; sp.text=lines.map(l=>l[1]).join(" "); emit("spot",sp); const host=hostCast();
@@ -768,6 +817,14 @@ function spot(force){
     if(sp.kind==="arts"){ const host=hostCast(), wren=guestCast(ARTS_HOST,host), cast={host:wren,dj:host,names:{host:"Wren Applewhite-Dunst",dj:"DJ"}};
       for(const k of ["reporter","subject","subject2"]) if(sp[k]){ cast[k]=guestCast(sp[k],wren); cast.names[k]=(k==="reporter"?sp[k].name:sp[k].name)||k; }
       speakLines([["dj","M D F M Arts and Culture. Here's Wren."],["host",`This is M D F M Arts and Culture. I'm Wren Applewhite-Dunst.`],["pause",700],...sp.lines,["host",pick(["This is M D F M Arts. Thank you for listening slowly.","For M D F M Arts and Culture, I'm Wren Applewhite-Dunst. Breathe in. Okay, that's enough.","I'm Wren Applewhite-Dunst. Art is everywhere. Mostly in the way."])]],cast,after); return; }
+    if(sp.kind==="funnelball"){ const lines=funnelballLines(); sp.lines=lines; sp.text=lines.map(l=>l[1]).join(" "); emit("spot",sp); const host=hostCast();
+      speakLines([["host",pick(["Time for Funnelball on M D F M.","It's Funnelball time. I still don't know the rules.","M D F M Funnelball, presented by nobody."])],...lines],{host,pbp:guestCast(FB_PBP,host),color:guestCast(FB_COLOR,host),names:{host:"DJ",pbp:"Duke Ransom",color:"Lorna Pike"}},after); return; }
+    if(sp.kind==="podcast"||sp.kind==="cooking"){ const host=hostCast(), cast={dj:host,names:{dj:"DJ"}};
+      for(const [k,c] of Object.entries(sp.cast||{})){ cast[k]=guestCast(c,host); cast.names[k]=c.name||k; }
+      cast.host=cast[Object.keys(sp.cast||{})[0]]||host;
+      const open=sp.kind==="podcast"?[["dj",`M D F M presents a podcast we did not ask for. ${sp.show}. ${sp.title}.`]]:[["dj",`And now, from M D F M Public Radio, ${sp.show}.`],["pause",600]];
+      const close=sp.kind==="podcast"?pick(["That was a podcast. We're legally required to say it was a podcast.","Like, subscribe, and please stop sending us protein powder.","M D F M does not endorse the grindset. Back to the music."]):pick(["Simmer Down is made possible by listeners like you, and by butter.","That was Simmer Down. Please don't call in about the recipes.","Simmer Down, everybody. Back to the beats."]);
+      speakLines([...open,...sp.lines,["dj",close]],cast,after); return; }
     if(iv){ const host=hostCast(); speakLines(sp.title==="Caller"?sp.lines:[["host",`M D F M interview. Today: ${sp.title}.`],...sp.lines],{host,guest:{...guestCast(sp.guest,host),phone:sp.title==="Caller"},guest2:guestCast(sp.guest2||{accent:"british"},host),names:{host:"DJ",guest:sp.title,guest2:"Guest"}},after); }
     else speak(sp.text,after); }, lead*1000);
 }
@@ -828,8 +885,9 @@ return {
   /* underwater: muffled, resonant, slowly drifting low-pass with a slight pitch wobble on the music (the voice is the system's speech, so it stays dry) */
   setUnderwater(v){ applyUnderwater(v); },
   isUnderwater(){ return underwater; },
-  setTypes(t){ for(const k of TYPE_KEYS) if(t&&k in t) TYPES[k]=!!t[k]; },   // {ids, stingers, ads, interviews, callers, weather, sports, plays, arts, news}: false switches a kind off
+  setTypes(t){ for(const k of TYPE_KEYS) if(t&&k in t) TYPES[k]=!!t[k]; },   // {ids, stingers, ads, interviews, callers, weather, sports, plays, arts, podcast, cooking, funnelball, technews, news}: false switches a kind off
   getTypes(){ return {...TYPES}; },
+  sampleLines(kind){ if(kind==="funnelball") return funnelballLines(); if(kind==="technews") return techLines(); const s=showSpot(kind); return s&&s.lines; },   // for tests and previews
   setVolume(v){ opts.volume=v; if(ctx&&on) fadeTo(master.gain,v*VOL,.2,ctx.currentTime); },
   nowPlaying(){ return nowPlaying; },
   getSpectrum,

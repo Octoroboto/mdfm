@@ -2,6 +2,14 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.8.0 (2026-10-11, Rob)
+- **New shows** (each can be switched off under "What plays between songs"):
+  - **The Apex Grind with Brayden Kolt:** a hustle-bro podcast where Brayden commits to a bit and will not let it go. Five episodes.
+  - **Simmer Down:** a very calm public-radio cooking show whose guests' recipes have unfortunate names. Five episodes.
+  - **Funnelball:** sportscasts for a made-up sport. Every broadcast is generated: teams, players, plays, scores and commentary.
+- **MedDev Tech News on the half hour:** about a minute on what changed in the hub's automations in the past week, one item per automation. It plays wherever the radio can read the hub (the hub page and MD Hub). Pages pass `techNews: async () => ({ items })`.
+- Receiver 1.4.0 built in (Mulchmaster, Barnaclava and Analyze Pics skins).
+
 ## 1.7.3 (2026-10-10, Rob)
 - The receiver screen now says "Press the SOUND button to tune in." (it used to say "Press the speaker").
 

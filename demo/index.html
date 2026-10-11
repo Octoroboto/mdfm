@@ -10,7 +10,7 @@
 <script type="module">
 import { createMDFM, mountEQ } from "../dist/mdfm.mjs";
 import examplePack from "../packs/example-pack.js";
-const radio = createMDFM({ packs: [examplePack] });
+const radio = createMDFM({ packs: [examplePack], techNews: async () => ({ items: [{automation:"PICS",app:"Analyze Pics",kind:"suggestion",title:"Auto-post the Dropbox comparison folder to Slack after each run",summary:"When a comparison finishes, Slack gets the folder link.",when:Date.now()-864e5},{automation:"TATEY",app:"Lil Tatey",event:"done",title:"Removal detector retrained",when:Date.now()-2*864e5},{automation:"SPUD",app:"Spudmuffin",kind:"problem",title:"Old item",when:Date.now()-30*864e5}] }) });
 window.radio = radio;
 mountEQ(document.getElementById("eq"), radio);
 radio.on("nowplaying", s => document.getElementById("np").textContent = `Now playing: “${s.title}” (${s.style}, ${s.bpm} BPM)`);

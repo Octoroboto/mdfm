@@ -30,7 +30,7 @@ const SKIN_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 function skinsBundle() { const a = look.active(); if (a.source === "updated" && a.skins && Array.isArray(a.skins.skins)) return a.skins;
   try { return JSON.parse(fs.readFileSync(SHELL_SKINS, "utf8")); } catch { return { version: "0.0.0", default: "default", skins: [{ id: "default", name: "Default", description: "", css: "" }] }; } }
 function currentSkin() { const b = skinsBundle(), want = settings && settings.skin; return b.skins.find(k => k.id === want) || b.skins.find(k => k.id === b.default) || b.skins[0]; }
-const TYPE_KEYS = ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "news"];
+const TYPE_KEYS = ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "funnelball", "technews", "news"];
 const HUB_HOSTS = /(^|\.)(claude\.ai|claudeusercontent\.com|claude\.site|claude\.com|anthropic\.com)$/;
 const LOGIN_HOSTS = /(^|\.)(accounts\.google\.com|appleid\.apple\.com)$/;
 let slackCfg = null;

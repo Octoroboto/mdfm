@@ -97,7 +97,7 @@ app.whenReady().then(() => {
   ipcMain.handle("settings:set", (e, s) => {
     const before = settings; settings = { ...settings, ...pick(s, ["contentUpdates", "useBundled", "city", "units", "slackNews", "slackChannels", "nameFixes", "types", "skin"]) };
     settings.skin = /^[a-z0-9][a-z0-9-]{0,39}$/.test(String(settings.skin || "")) ? String(settings.skin) : "";
-    { const t = {}; for (const k of ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "news"]) if (settings.types && k in settings.types) t[k] = !!settings.types[k]; settings.types = t; }
+    { const t = {}; for (const k of ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "funnelball", "technews", "news"]) if (settings.types && k in settings.types) t[k] = !!settings.types[k]; settings.types = t; }
     settings.slackNews = !!settings.slackNews; settings.slackChannels = String(settings.slackChannels || "").slice(0, 500); settings.nameFixes = String(settings.nameFixes || "").slice(0, 4000);
     settingsStore.save(app, settings);
     if (before.city !== settings.city || before.units !== settings.units) { live.reset(); setTimeout(() => live.weather().then(() => live.sports()).then(() => sendStatus()), 200); }
