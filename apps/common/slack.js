@@ -70,10 +70,11 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
   let pending = null;   // only one sign-in at a time
   function connect() {
     if (pending) { if (pending.win && pending.win.focus) pending.win.focus(); return pending.promise; }
+    // Checked before a sign-in is "pending": a refusal here must not stick once the helper's address arrives.
+    const relayBase = relay().replace(/\/$/, "");
+    if (!relayBase) return Promise.reject(new Error("Slack isn't switched on for MDFM yet (no sign-in helper address)."));
     const p = { win: null };
     p.promise = new Promise((resolve, reject) => {
-      const relayBase = relay().replace(/\/$/, "");
-      if (!relayBase) return reject(new Error("Slack isn't switched on for MDFM yet (no sign-in helper address)."));
       const nonce = crypto.randomBytes(24).toString("base64url");
       let done = false;
       const finish = (err, val) => { if (done) return; done = true; clearTimeout(timer); try { srv.close(); } catch {} pending = null;
@@ -92,8 +93,8 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
       const timer = setTimeout(() => finish(new Error("Slack sign-in timed out.")), 5 * 60e3);
       srv.listen(0, "127.0.0.1", () => {
         const url = `${relayBase}/start?port=${srv.address().port}&nonce=${nonce}`;
-        if (openSignIn) { p.win = openSignIn(url, () => finish(new Error("Slack sign-in was closed before it finished."))); }
-        else openExternal(url);
+        try { if (openSignIn) { p.win = openSignIn(url, () => finish(new Error("Slack sign-in was closed before it finished."))); }
+        else openExternal(url); } catch (e) { finish(e); }
       });
     });
     pending = p; return p.promise;
