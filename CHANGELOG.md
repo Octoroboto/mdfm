@@ -2,6 +2,9 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.9.5 (2026-10-11, Rob)
+- MedDev Receiver 1.10.4 built in: the light-colour knobs only re-colour Clara Stamford's embroidered screens instead of blacking them out, Clara's props are redrawn, and House of Spoons has no half spoons.
+
 ## 1.9.4 (2026-10-11, Rob)
 - **Scrolling no longer gets stuck in MDFM Radio** (mostly seen in the Default skin). Default still marked the receiver, its title bar and its screens as macOS drag regions, which swallow scrolling and sometimes the mouse-up, so the window could stay stuck to the cursor until you clicked a few times. No skin uses CSS drag regions now; the receiver is dragged by its metal in `skin/radio-wire.js`, and any mouse move or scroll with the button up ends a drag. Reaches installed apps as a content update.
 - **Top of the receiver cut off:** if the receiver fits its window it is never left scrolled part-way down (checked on resize, focus and when the window is shown again). Content update.
