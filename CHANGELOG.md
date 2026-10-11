@@ -2,6 +2,11 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.9.2 (2026-10-11, Rob)
+- **Bug-hunt fixes** (details in the project doc `claude/mdfm-bughunt-2026-10-11.md`). MedDev Receiver 1.10.2 built in.
+- **Engine:** a failed weather, sports or news lookup can no longer leave the station music-only for good; stop/quick start during a break no longer leaves the old break talking; the hourly news isn't skipped when a long break runs over the hour; voice drops play when every other talk type is off; noise bursts loop, so risers, crashes and play sound effects run their full length; no more "undefined"/"NaN" spoken in edge cases.
+- **MDFM Radio 0.3.1 / MD Hub 0.2.2:** Bouncer no longer hangs on addresses with a broken %-escape; a refused Connect Slack no longer sticks; the 15-minute weather refresh really runs every 15 minutes; one drag listener instead of one per drag; closing an older Slack setup wizard no longer breaks a newer one; content-update versions must be plain x.y.z.
+
 ## 1.9.1 (2026-10-11, Rob)
 - **MD Hub 0.2.1:** the hub page inside MD Hub now gets every skin and the newest look the app has, built in or downloaded. Before, it only got them after a download, so a fresh install showed Business Lightning and House of Spoons as Default until the hub artifact was republished. The page still takes a look only when it's newer than its own.
 

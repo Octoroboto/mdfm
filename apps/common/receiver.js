@@ -3,7 +3,7 @@
 // app's own folder, and hands back the newest good copy. The app keeps a bundled copy as the fallback, so nothing breaks
 // offline. Never forced: the app decides when to use it (e.g. next launch or reload) and can turn it off.
 //
-//   const r = createReceiverUpdater({ dir, getJSON, bundled: { version, css, js }, enabled: () => true, onChange });
+//   const r = createReceiverUpdater({ dir, getJSON, bundled: { version, css, js }, enabled: () => true, onChange, timeoutMs: 60000 });
 //   await r.check();        // at launch and every few hours
 //   r.active()              // -> { version, css, js, skins, source: "bundled" | "updated" }   (skins: the parsed skins.json)
 //   r.status                // -> { version, source, lastCheck, result }
@@ -72,34 +72,57 @@ function applyToPage(html, rx) {
   return out;
 }
 
-function createReceiverUpdater({ dir, getJSON, bundled, enabled = () => true, onChange, base = RAW }) {
+function createReceiverUpdater({ dir, getJSON, bundled, enabled = () => true, onChange, base = RAW, timeoutMs = 60000 }) {
   const status = { version: null, source: "bundled", lastCheck: null, result: "not checked yet" };
   const b = () => (typeof bundled === "function" ? bundled() : bundled);
   function cached() {
     try { return fs.readdirSync(dir).filter(v => /^\d+\.\d+\.\d+$/.test(v) && fs.existsSync(path.join(dir, v, "receiver.js"))).sort(cmp).reverse(); } catch { return []; }
   }
+  const seen = new Map();   // version -> { stamp, copy }: a kept copy is re-checked only when its files change
   function load(v) {
+    let stamp; try { stamp = ["receiver.css", "receiver.js", "skins.json", "manifest.json"].map(n => { try { const st = fs.statSync(path.join(dir, v, n)); return st.size + ":" + st.mtimeMs; } catch { return "-"; } }).join("|"); } catch { stamp = null; }
+    const hit = seen.get(v); if (hit && hit.stamp === stamp) return hit.copy;
+    const copy = read(v); seen.set(v, { stamp, copy }); return copy;
+  }
+  function read(v) {
     try { const css = fs.readFileSync(path.join(dir, v, "receiver.css"), "utf8"), js = fs.readFileSync(path.join(dir, v, "receiver.js"), "utf8");
       let skinsText = null, skins = null; try { skinsText = fs.readFileSync(path.join(dir, v, "skins.json"), "utf8"); skins = JSON.parse(skinsText); } catch {}
-      return versionOf(css) === v && versionOf(js) === v ? { version: v, css, js, skins, skinsText, source: "updated" } : null; } catch { return null; }
+      if (versionOf(css) !== v || versionOf(js) !== v) return null;
+      // Copies kept by this updater carry their manifest: check them again, so a damaged file on disk is never used.
+      // (Copies kept by older updaters have none and are used as before.)
+      let m = null; try { m = JSON.parse(fs.readFileSync(path.join(dir, v, "manifest.json"), "utf8")); } catch (e) { if (e.code !== "ENOENT") return null; }
+      if (m && validate({ manifest: m, css, js, skins: m.files && m.files["skins.json"] ? (skinsText == null ? "" : skinsText) : undefined })) return null;
+      return { version: v, css, js, skins, skinsText, source: "updated" }; } catch { return null; }
   }
   function active() {
     const bb = { ...b(), source: "bundled" };
     if (enabled()) for (const v of cached()) { if (cmp(v, bb.version) <= 0) break; const c = load(v); if (c) { Object.assign(status, { version: c.version, source: c.source }); return c; } }
     Object.assign(status, { version: bb.version, source: "bundled" }); return bb;
   }
-  async function check() {
+  // One check at a time (a second call while one is running gets the same answer), and no request waits forever.
+  let running = null;
+  const fetchOne = (url, o) => { let t; return Promise.race([Promise.resolve().then(() => getJSON(url, o)),
+    new Promise((_, no) => { t = setTimeout(() => no(new Error(`timed out after ${timeoutMs / 1000}s`)), timeoutMs); })]).finally(() => clearTimeout(t)); };
+  function check() { if (!running) running = doCheck().finally(() => { running = null; }); return running; }
+  async function doCheck() {
     if (!enabled()) { status.result = "off"; return status; }
     status.lastCheck = new Date().toISOString();
     try {
-      const manifest = await getJSON(base + "manifest.json"), cur = active();
+      const manifest = await fetchOne(base + "manifest.json"), cur = active();
       if (!manifest || cmp(manifest.version, cur.version) <= 0) { status.result = `up to date (${cur.version})`; return status; }
-      const css = await getJSON(base + "receiver.css", { text: true }), js = await getJSON(base + "receiver.js", { text: true });
-      const skins = manifest.files && manifest.files["skins.json"] ? await getJSON(base + "skins.json", { text: true }) : undefined;
+      const css = await fetchOne(base + "receiver.css", { text: true }), js = await fetchOne(base + "receiver.js", { text: true });
+      const skins = manifest.files && manifest.files["skins.json"] ? await fetchOne(base + "skins.json", { text: true }) : undefined;
       const bad = validate({ manifest, css, js, skins });
       if (bad) { status.result = `skipped ${manifest.version}: ${bad}`; return status; }
-      const d = path.join(dir, manifest.version); fs.mkdirSync(d, { recursive: true });
-      for (const [n, s] of [["receiver.css", css], ["receiver.js", js], ...(skins ? [["skins.json", skins]] : [])]) { fs.writeFileSync(path.join(d, n + ".tmp"), s); fs.renameSync(path.join(d, n + ".tmp"), path.join(d, n)); }
+      // Write the whole copy into a side folder, then move it into place in one step: a crash or full disk part-way
+      // never leaves a half-written version where active() would pick it up.
+      const d = path.join(dir, manifest.version), tmp = path.join(dir, `.${manifest.version}.${process.pid}.${Date.now()}.tmp`);
+      fs.mkdirSync(tmp, { recursive: true });
+      try {
+        for (const [n, s] of [["receiver.css", css], ["receiver.js", js], ...(skins !== undefined ? [["skins.json", skins]] : []), ["manifest.json", JSON.stringify(manifest)]]) fs.writeFileSync(path.join(tmp, n), s);
+        if (fs.existsSync(d)) { const old = d + `.${Date.now()}.old`; fs.renameSync(d, old); try { fs.rmSync(old, { recursive: true, force: true }); } catch {} }
+        fs.renameSync(tmp, d);
+      } catch (e) { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} throw e; }
       status.result = `got ${manifest.version}`; active(); onChange && onChange(status);
     } catch (e) { status.result = "check failed: " + e.message; }
     return status;
