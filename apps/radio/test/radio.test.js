@@ -54,3 +54,18 @@ test("a newer receiver look is swapped into the radio page, and nothing else cha
   for (const id of ["mdfm-lib", "mdfm-skin-js", "mdfm-radio-wire"]) assert.strictEqual(/<script id="X">([\s\S]*?)<\/script>/.source && out.match(new RegExp(`<script id="${id}">([\\s\\S]*?)</script>`))[1], html.match(new RegExp(`<script id="${id}">([\\s\\S]*?)</script>`))[1]);
   assert.strictEqual(applyToPage(html, { version: cur, css, js }), html, "same or older look: page untouched");
 });
+
+test("content updates: a version that isn't plain x.y.z is never used as a folder name", async () => {
+  const os = require("os"), net = require("../src/common/net"), real = net.getJSON;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "mdfm-upd-")), ud = path.join(home, "a", "b", "userData");
+  const html = fs.readFileSync(path.join(__dirname, "../vendor/radio.html"), "utf8");
+  const v = JSON.parse(fs.readFileSync(path.join(__dirname, "../vendor/version.json"), "utf8")).version, evil = `../../../99.0.0`;
+  net.getJSON = async url => url.endsWith("package.json") ? { version: evil } : html.split(`content="${v}"`).join(`content="${evil}"`).split(`MDFM ${v}:`).join(`MDFM ${evil}:`);
+  delete require.cache[require.resolve("../src/main/updater")];
+  try {
+    const { createUpdater } = require("../src/main/updater");
+    const u = createUpdater({ app: { getPath: () => ud }, getSettings: () => ({ contentUpdates: true }), bundledDir: path.join(__dirname, "../vendor"), appVersion: "0.3.0" });
+    await u.checkContent();
+    assert.match(u.status.result, /up to date/); assert.ok(!fs.existsSync(path.join(home, "a", "99.0.0")), "nothing written outside the app's folder");
+  } finally { net.getJSON = real; delete require.cache[require.resolve("../src/main/updater")]; }
+});

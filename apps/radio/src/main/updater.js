@@ -39,7 +39,7 @@ function createUpdater({ app, getSettings, bundledDir, appVersion, onEngine, onS
     status.lastCheck = new Date().toISOString();
     try {
       const pkg = await getJSON(RAW + "package.json"), cur = active();
-      if (!pkg.version || cmpVersion(pkg.version, cur.version) <= 0) { status.result = `up to date (${cur.version})`; say(); return; }
+      if (!/^\d+\.\d+\.\d+$/.test(String(pkg.version || "")) || cmpVersion(pkg.version, cur.version) <= 0) { status.result = `up to date (${cur.version})`; say(); return; }
       const code = await getJSON(RAW + "dist/radio.html", { text: true, timeout: 30000 });
       const bad = validateEngine(code, pkg.version);
       if (bad) { status.result = `skipped ${pkg.version}: ${bad}`; say(); return; }
