@@ -11,7 +11,8 @@
     document.querySelector("header.top .wtitle").addEventListener("dblclick",e=>{ if(!e.target.closest("button")) app.win.zoom(); });
     app.win.onFullScreen(fs=>document.documentElement.classList.toggle("fullscreen",!!fs));
     // Drag by the metal: a press anywhere that isn't a control moves the window (works even where CSS drag regions don't).
-    if(app.win.dragStart){ const CONTROL="button,input,select,textarea,label,a,summary,[role=slider],[tabindex],.rd-btn,.rd-k,.settings[open] .setgrid,#nozzle,.swatter";
+    // tabindex="-1" isn't a control: AXMOD puts it on .wrap as the skip-link target, which made every press look like a control.
+    if(app.win.dragStart){ const CONTROL="button,input,select,textarea,label,a,summary,[role=slider],[tabindex]:not([tabindex^=\"-\"]),.rd-btn,.rd-k,.settings[open] .setgrid,#nozzle,.swatter";
       let dragging=false; const end=()=>{ if(dragging){ dragging=false; app.win.dragEnd(); document.documentElement.classList.remove("dragging"); } };
       document.addEventListener("mousedown",e=>{ if(e.button!==0||e.detail>1||document.documentElement.classList.contains("fullscreen")||e.target.closest(CONTROL)) return;
         if(!e.target.closest(".wrap")) return; dragging=true; document.documentElement.classList.add("dragging"); app.win.dragStart(); e.preventDefault(); });

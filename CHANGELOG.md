@@ -2,6 +2,9 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.9.3 (2026-10-11, Rob)
+- **Drag by the metal works again in MDFM Radio.** Since 1.9.0, AXMOD gives the receiver `tabindex="-1"` (the skip-link target), and the drag check counted anything with a tabindex as a control, so no press could start a drag. Elements with a negative tabindex no longer count as controls. Reaches installed apps as a content update.
+
 ## 1.9.2 (2026-10-11, Rob)
 - **Bug-hunt fixes** (details in the project doc `claude/mdfm-bughunt-2026-10-11.md`). MedDev Receiver 1.10.2 built in.
 - **Engine:** a failed weather, sports or news lookup can no longer leave the station music-only for good; stop/quick start during a break no longer leaves the old break talking; the hourly news isn't skipped when a long break runs over the hour; voice drops play when every other talk type is off; noise bursts loop, so risers, crashes and play sound effects run their full length; no more "undefined"/"NaN" spoken in edge cases.
