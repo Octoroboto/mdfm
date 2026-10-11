@@ -118,6 +118,14 @@ test("getSpectrum stays finite at a 16 kHz output rate; setVolume ignores junk",
   await run(1); r.stop(); await run(1); done();
 });
 
+test("noise bursts longer than the noise buffer don't run out early", async () => {
+  const { r, ctx, run } = sim({}); r.start(); await run(120);
+  const noise = ctx.sources.filter(s => s.buffer && Math.abs(s.buffer.duration - 2) < 1e-9 && s.stopT != null);
+  assert.ok(noise.length > 100);
+  for (const s of noise) assert.ok(s.loop || s.off + (s.stopT - s.startT) <= 2 + 1e-9, `noise source runs out: offset ${s.off} for ${s.stopT - s.startT}s`);
+  r.stop(); await run(1); done();
+});
+
 test("renderOffline while the radio is playing doesn't disturb the live scheduler", async () => {
   const { r, run, ctx } = sim({}); r.start(); await run(5);
   const p = r.renderOffline("song", 4), n0 = ctx.nodes;

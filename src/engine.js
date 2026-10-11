@@ -19,7 +19,7 @@ function filt(type,f,q){const b=ctx.createBiquadFilter();b.type=type;b.frequency
 function osc(type,f){const o=ctx.createOscillator();o.type=type;o.frequency.value=f;return o;}
 function G(v){const g=ctx.createGain();g.gain.value=v;return g;}
 function env(g,t,a,peak,dec){g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(peak,.0002),t+a);g.gain.exponentialRampToValueAtTime(.0001,t+a+dec);}
-function nz(t,dur){const s=ctx.createBufferSource();s.buffer=noiseBuf;s.start(t,R()*1.4);s.stop(t+dur);return s;}
+function nz(t,dur){const s=ctx.createBufferSource();s.buffer=noiseBuf;s.loop=true;s.start(t,R()*1.4);s.stop(t+dur);return s;}
 function pan(p){if(!ctx.createStereoPanner)return G(1);const n=ctx.createStereoPanner();n.pan.value=p;return n;}
 function to(node,s,amt){if(amt>0){const g=G(amt);node.connect(g);g.connect(s.rv);}}
 function makeIR(c,sec,decay){const len=Math.floor(c.sampleRate*sec),b=c.createBuffer(2,len,c.sampleRate);for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<len;i++){const tt=i/c.sampleRate;d[i]=(R()*2-1)*Math.exp(-tt*decay)*(tt<.01?tt/.01:1)*(1-i/len);}}return b;}
