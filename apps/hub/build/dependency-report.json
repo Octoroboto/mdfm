@@ -1,6 +1,6 @@
 {
-  "createdAt": "2026-10-11T14:33:43.617Z",
-  "appVersion": "0.2.0",
+  "createdAt": "2026-10-11T14:41:52.176Z",
+  "appVersion": "0.2.1",
   "node": "v26.10.0",
   "electron": "44.5.1",
   "audit": {
