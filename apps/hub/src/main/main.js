@@ -139,9 +139,10 @@ app.whenReady().then(() => {
     if (win && !win.isDestroyed()) win.webContents.send("settings:types", s);
     if (view) for (const f of view.webContents.mainFrame.framesInSubtree) { try { if (f !== view.webContents.mainFrame && HUB_HOSTS.test(new URL(f.url).hostname)) f.send("hub:settings:changed", s); } catch {} } };
   // A newer look for the hub page's own styling (the preload compares it with the page's version and only ever adds a newer one).
-  ipcMain.on("hub:look", e => { const a = look.active(); e.returnValue = fromHub(e) && a.source === "updated" ? { version: a.version, css: a.css } : null; });
+  // The app's look, bundled or updated: the page only takes it when it's newer than its own copy (the hub artifact can lag behind).
+  ipcMain.on("hub:look", e => { const a = look.active(); e.returnValue = fromHub(e) && a.css ? { version: a.version, css: a.css } : null; });
   ipcMain.on("hub:settings:get", e => { e.returnValue = fromHub(e) ? { types: settings.types, slackNews: settings.slackNews, skin: settings.skin || "", axmod: cleanAxmod(settings.axmod) } : {}; });
-  ipcMain.on("hub:skins", e => { const a = look.active(); e.returnValue = fromHub(e) && a.source === "updated" && a.skins ? a.skins : null; });
+  ipcMain.on("hub:skins", e => { e.returnValue = fromHub(e) ? skinsBundle() : null; });   // every skin the app knows, so new skins work before the artifact is republished
   ipcMain.handle("hub:settings:set", (e, s) => { if (!fromHub(e)) return null; const t = {};
     for (const k of TYPE_KEYS) if (s && s.types && k in s.types) t[k] = !!s.types[k];
     const patch = { ...(s && s.types ? { types: t } : {}), ...(s && "slackNews" in s ? { slackNews: !!s.slackNews } : {}) };

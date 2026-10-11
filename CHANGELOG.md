@@ -2,6 +2,9 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.9.1 (2026-10-11, Rob)
+- **MD Hub 0.2.1:** the hub page inside MD Hub now gets every skin and the newest look the app has, built in or downloaded. Before, it only got them after a download, so a fresh install showed Business Lightning and House of Spoons as Default until the hub artifact was republished. The page still takes a look only when it's newer than its own.
+
 ## 1.9.0 (2026-10-11, Rob)
 - **AXMOD accessibility in every MDFM receiver** (MedDev Receiver 1.7.1 built in). The radio page's Settings has an ACCESSIBILITY button, and Cmd+Option+A opens it anywhere. The AXMOD drawer is styled by the current skin.
   - The radio is wired to it: sound captions for every voice and song, text versions of the EQ and VU meters, and Calm mode mutes the voice drops between songs.
