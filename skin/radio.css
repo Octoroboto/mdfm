@@ -9,23 +9,25 @@ header.top .lcd.viz{min-height:110px}
 .strow{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-start}
 .strow .rdeck{margin-left:0}
 .lcd.status{flex:1 1 280px;min-width:0;font:1.05rem/1.35 var(--f-mono);padding:10px 12px}
-.settings summary{cursor:pointer;font-weight:700;color:#cfd2de;text-shadow:var(--engrave)}
+.settings summary{cursor:pointer;font-weight:700;color:var(--label,#cfd2de);text-shadow:var(--engrave)}
 .setgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 18px;margin-top:10px}
-.setgrid .opt{display:flex;gap:8px;align-items:center;color:#e6e6ee}
-.setgrid .fld{display:flex;flex-direction:column;gap:4px;color:#cfd2de;font-size:.9rem}
+.setgrid .opt{display:flex;gap:8px;align-items:center;color:var(--label,#e6e6ee)}
+.setgrid .fld{display:flex;flex-direction:column;gap:4px;color:var(--label,#cfd2de);font-size:.9rem}
 #skipBtn,#spotBtn{font-size:.85rem}
-.slackset{grid-column:1/-1;border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:10px 12px;display:grid;gap:8px;color:#e6e6ee}
-.slackset legend{font-weight:700;color:#cfd2de;text-shadow:var(--engrave);padding:0 6px}
-.slackset .hint{margin:0;font-size:.85rem;color:#b9bdc9}
+.slackset{grid-column:1/-1;border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:10px 12px;display:grid;gap:8px;color:var(--label,#e6e6ee)}
+.slackset legend{font-weight:700;color:var(--label,#cfd2de);text-shadow:var(--engrave);padding:0 6px}
+.slackset .hint{margin:0;font-size:.85rem;color:var(--hint,#b9bdc9)}
 .slackset textarea{font:inherit;min-height:3.6em;resize:vertical}
 
 /* ===== App mode: no macOS window frame. The receiver sits on the desktop with its own controls. ===== */
 html.appwin,html.appwin body{background:transparent!important}
 html.appwin body{padding:10px 74px 14px 10px;min-height:100vh;box-sizing:border-box}
 html.appwin .wrap{border-radius:14px;padding:14px;background:linear-gradient(180deg,#30323d,#17181e);border:2px solid;border-color:#6a6d80 #050507 #050507 #6a6d80;
-  box-shadow:0 18px 40px rgba(0,0,0,.55),0 4px 10px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);-webkit-app-region:drag}
+  box-shadow:0 18px 40px rgba(0,0,0,.55),0 4px 10px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);-webkit-app-region:no-drag}
 html.appwin .wrap :is(button,input,select,textarea,label,a,summary,[role=slider],[tabindex],.rd-btn,.rd-k,.vu-m,.settings[open] .setgrid){-webkit-app-region:no-drag}
-html.appwin header.top .wtitle,html.appwin .lcd{-webkit-app-region:drag}
+/* No CSS drag regions, in any skin: macOS swallows scrolling (and sometimes the mouse-up) over them. The receiver is
+   dragged by its metal in skin/radio-wire.js instead. */
+html.appwin header.top .wtitle,html.appwin .lcd{-webkit-app-region:no-drag}
 /* The can layer spans the window (it is where the can flies) but sets no region, so it never blocks dragging; only the can and swatter do. */
 html.appwin :is(#nozzle,.swatter){-webkit-app-region:no-drag}
 html.appwin.fullscreen,html.appwin.fullscreen body{background:var(--bg)!important}
@@ -38,7 +40,7 @@ html.appwin.fullscreen body{padding:16px 74px 16px 16px}
 .wbtn button:hover{background:radial-gradient(circle at 35% 30%,#9a9db0,#3a3c47 60%,#121318)}
 .wbtn button:active{box-shadow:inset 0 1px 3px #000}
 #wClose:hover{background:radial-gradient(circle at 35% 30%,#ff9a8f,#a3261c 60%,#3a0b07)}
-.wbtn small{font:700 .5rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;color:rgba(226,229,238,.8);text-shadow:0 1px 0 rgba(0,0,0,.65)}
+.wbtn small{font:700 .5rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;color:var(--etch,rgba(226,229,238,.8));text-shadow:0 1px 0 rgba(0,0,0,.65)}
 .wbtn .rd-led{width:5px;height:5px}
 header.top .wtitle{position:relative}
 header.top .wctl{position:absolute;left:8px;top:50%;transform:translateY(-50%);margin:0;padding:0 10px 0 4px;height:16px;background:linear-gradient(180deg,#22232c,#14151b);z-index:1}
@@ -47,7 +49,7 @@ header.top .wctl{position:absolute;left:8px;top:50%;transform:translateY(-50%);m
 .fplist li{display:flex;gap:8px;align-items:baseline}
 .fplist .dot{width:8px;height:8px;border-radius:50%;flex:none;background:#8a8f9c;animation:none;transform:translateY(-1px)}
 .fplist .ok .dot{background:#44e044}.fplist .warn .dot{background:#ffd23f}.fplist .bad .dot{background:#ff6a5f}
-.fplist b{color:#e6e6ee;font-weight:700}.fplist span{color:#b9bdc9}
+.fplist b{color:var(--label,#e6e6ee);font-weight:700}.fplist span{color:var(--hint,#b9bdc9)}
 .fplist button{font-size:.8rem;padding:2px 8px}
 html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-select:none!important}
 

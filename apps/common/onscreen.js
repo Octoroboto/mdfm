@@ -16,8 +16,11 @@ function keepOnScreen(screen, win) {
   if (!win || win.isDestroyed() || win.isFullScreen()) return;
   const b = win.getBounds(), visible = screen.getAllDisplays().some(d => { const a = d.workArea;
     return b.x + b.width - KEEP_X >= a.x && b.x + KEEP_X <= a.x + a.width && b.y >= a.y - 1 && b.y + KEEP_Y <= a.y + a.height; });
-  if (visible) return;
-  const p = clampPoint(b, areaFor(screen, b)); win.setPosition(Math.round(p.x), Math.round(p.y));
+  const wa = areaFor(screen, b);
+  if (visible && b.height <= wa.height) return;
+  // Taller than the screen it landed on (a smaller display, or the Dock grew): shrink it so its top stays reachable.
+  const height = Math.min(b.height, wa.height), p = clampPoint({ ...b, height }, wa);
+  win.setBounds({ x: Math.round(p.x), y: Math.round(p.y), width: b.width, height });
 }
 function center(screen, win) {
   if (!win || win.isDestroyed()) return; if (win.isFullScreen()) win.setFullScreen(false);

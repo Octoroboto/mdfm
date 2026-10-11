@@ -90,6 +90,8 @@ function createWindow() {
   win.once("ready-to-show", () => { layout(); onscreen.keepOnScreen(screen, win); win.show(); });
   win.on("moved", () => onscreen.keepOnScreen(screen, win));
   screen.on("display-removed", () => onscreen.keepOnScreen(screen, win));
+  for (const ev of ["display-added", "display-metrics-changed"]) screen.on(ev, () => onscreen.keepOnScreen(screen, win));
+  win.on("show", () => onscreen.keepOnScreen(screen, win));
   win.on("closed", () => { win = null; view = null; });
 }
 

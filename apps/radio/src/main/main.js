@@ -66,6 +66,8 @@ function createWindow() {
   win.once("ready-to-show", () => { onscreen.keepOnScreen(require("electron").screen, win); win.show(); });
   win.on("moved", () => onscreen.keepOnScreen(require("electron").screen, win));
   require("electron").screen.on("display-removed", () => onscreen.keepOnScreen(require("electron").screen, win));
+  for (const ev of ["display-added", "display-metrics-changed"]) require("electron").screen.on(ev, () => onscreen.keepOnScreen(require("electron").screen, win));
+  win.on("show", () => onscreen.keepOnScreen(require("electron").screen, win));
   const fsSend = v => { if (!win.isDestroyed()) win.webContents.send("win:fullscreen", v); };
   win.on("enter-full-screen", () => fsSend(true)); win.on("leave-full-screen", () => fsSend(false));
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\/github\.com\/Octoroboto\//.test(url)) shell.openExternal(url); return { action: "deny" }; });

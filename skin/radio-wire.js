@@ -16,8 +16,13 @@
       let dragging=false; const end=()=>{ if(dragging){ dragging=false; app.win.dragEnd(); document.documentElement.classList.remove("dragging"); } };
       document.addEventListener("mousedown",e=>{ if(e.button!==0||e.detail>1||document.documentElement.classList.contains("fullscreen")||e.target.closest(CONTROL)) return;
         if(!e.target.closest(".wrap")) return; dragging=true; document.documentElement.classList.add("dragging"); app.win.dragStart(); e.preventDefault(); });
-      addEventListener("mouseup",end); addEventListener("blur",end); }
-    const fit=()=>app.win.fit(Math.ceil(document.documentElement.scrollHeight)); setTimeout(fit,400); }
+      addEventListener("mouseup",end); addEventListener("pointerup",end); addEventListener("blur",end);
+      // A lost mouse-up must never leave the window stuck to the cursor: any move or scroll with the button up ends the drag.
+      addEventListener("mousemove",e=>{ if(dragging&&!(e.buttons&1)) end(); }); addEventListener("wheel",end,{passive:true}); }
+    const fit=()=>app.win.fit(Math.ceil(document.documentElement.scrollHeight)); setTimeout(fit,400);
+    // If the whole receiver fits, it is never left scrolled part-way (which looked like the top being cut off).
+    const unscroll=()=>{ const se=document.scrollingElement; if(se&&se.scrollTop>0&&se.scrollHeight<=innerHeight+1) se.scrollTop=0; };
+    addEventListener("resize",unscroll); addEventListener("focus",unscroll); document.addEventListener("visibilitychange",unscroll); }
   if(app) radio.setProviders({weather:()=>app.live("weather"),sports:()=>app.live("sports"),news:()=>app.live("news"),cannedFallback:false});
   // Newer apps render the robot voices as audio, so the volume and LOW/MID/HIGH EQ apply to them too.
   if(app&&app.tts) radio.setProviders({tts:spec=>app.tts(spec)});

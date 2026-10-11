@@ -2,6 +2,12 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.9.4 (2026-10-11, Rob)
+- **Scrolling no longer gets stuck in MDFM Radio** (mostly seen in the Default skin). Default still marked the receiver, its title bar and its screens as macOS drag regions, which swallow scrolling and sometimes the mouse-up, so the window could stay stuck to the cursor until you clicked a few times. No skin uses CSS drag regions now; the receiver is dragged by its metal in `skin/radio-wire.js`, and any mouse move or scroll with the button up ends a drag. Reaches installed apps as a content update.
+- **Top of the receiver cut off:** if the receiver fits its window it is never left scrolled part-way down (checked on resize, focus and when the window is shown again). Content update.
+- **MDFM Radio 0.3.2 / MD Hub 0.2.3 (needs an app release):** a window that ends up taller than the screen it's on (a smaller display, the Dock growing) is shrunk so its top stays reachable, and the on-screen check also runs when a display is added or changes resolution and when the window is shown.
+- **Settings text follows the skin:** the settings labels, hints and window-button captions use the receiver's new `--label`, `--hint` and `--etch` settings, so light skins (Q3 Reconciliation, Clara Stamford) keep them readable. MedDev Receiver 1.10.3 built in.
+
 ## 1.9.3 (2026-10-11, Rob)
 - **Drag by the metal works again in MDFM Radio.** Since 1.9.0, AXMOD gives the receiver `tabindex="-1"` (the skip-link target), and the drag check counted anything with a tabindex as a control, so no press could start a drag. Elements with a negative tabindex no longer count as controls. Reaches installed apps as a content update.
 
