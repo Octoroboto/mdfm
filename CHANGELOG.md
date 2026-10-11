@@ -2,6 +2,12 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.8.1 (2026-10-11, Rob)
+- **Workplace pass on show content.** The silly names stay (Sweaty Buns, Moist Loaf, Thicke Gravy), but every line that pushed them into innuendo is gone.
+  - Simmer Down: the glaze bits in "Holiday baking" are out. "Snacks for the long winter" is now Fuddle's Forever Fudge, and "Party appetizers" is now Gus Gristle's Mystery Bites. "Comfort food" and "Breakfast" lost their suggestive closers.
+  - Funnelball: wet/damp double meanings and "two balls" swapped for soggy/ponchos. Surname list cleaned.
+  - The Apex Grind is unchanged.
+
 ## 1.8.0 (2026-10-11, Rob)
 - **New shows** (each can be switched off under "What plays between songs"):
   - **The Apex Grind with Brayden Kolt:** a hustle-bro podcast where Brayden commits to a bit and will not let it go. Five episodes.
