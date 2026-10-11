@@ -30,6 +30,10 @@ Needs macOS 13 or newer.
 
 The look comes from **MedDev Receiver**, a separate repo (`Octoroboto/meddev-receiver`) shared with the hub page and MD Hub. The app has a copy built in, and from version 0.2.6 it also follows newer looks and skins live: they're checked against the receiver's manifest and show from the next launch (or Cmd+R). "Get new MDFM content and looks automatically" in Settings turns this on and off, and "Use the version that came with the app" goes back to the built-in look.
 
+## Accessibility (AXMOD)
+
+Settings → **ACCESSIBILITY** (or Cmd+Option+A anywhere) slides out the AXMOD drawer, styled by whichever skin is on. It has text size up to 200%, high contrast, readable and dyslexia fonts, wider spacing, a reading ruler, read aloud, reduce motion, calm mode, no flashing, colourblind-safe colours, grayscale, a big cursor, sound captions for the voices and songs, text versions of the EQ and meters, and quick setups (Low vision, Motion sensitive, Dyslexia, Keyboard only). Choices are saved with the app's settings. AXMOD comes with MedDev Receiver 1.7+, so new options arrive with the look, without an app release.
+
 ## Slack news
 
 **Connect Slack** (Settings) opens Slack's sign-in in a small app window. It can only go to Slack, Google or Apple sign-in and MDFM's helper, and it closes itself when you're connected. The button works once MedDev has switched Slack on (the mdfm repo's `config/slack.json`); no app update is needed for that. In a copy run from source, **Set up Slack for everyone** runs the one-time setup (see `apps/slack-relay/README.md`).

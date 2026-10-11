@@ -69,3 +69,8 @@ html.dragging,html.dragging *{cursor:grabbing!important}
 .bcard code{font:.72rem ui-monospace,Menlo,monospace;word-break:break-all}
 .tag{flex:none;font:700 .6rem/1.5 Tahoma,Verdana,sans-serif;letter-spacing:.08em;padding:0 6px;border-radius:3px;height:fit-content;text-transform:uppercase}
 .tag.permit,.tag.allowed{background:#123d1c;color:#7dff8a}.tag.forbid,.tag.blocked{background:#4a1512;color:#ff9a90}.tag.would-block{background:#4a3a0c;color:#ffd23f}
+
+/* AXMOD box: the button sits under its hint */
+#boxAx{align-content:start}
+#boxAx .ax-host{padding-left:14px}
+#boxAx .ax-host-hint{display:none}

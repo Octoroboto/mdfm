@@ -1,8 +1,10 @@
 // MDFM Radio: the MDFM station in its own window. Plays with zero Claude credits.
 const { app, BrowserWindow, ipcMain, protocol, session, shell, Menu, safeStorage } = require("electron");
+const onscreen = require("../common/onscreen");
 const path = require("path"), fs = require("fs"), crypto = require("crypto");
 const security = require("./security");
 const settingsStore = require("./settings");
+const { cleanAxmod } = require("../common/axmod-settings");
 const { createLive } = require("../common/live");
 const { createSlack } = require("../common/slack");
 const { createSlackConfig } = require("../common/slack-config");
@@ -51,7 +53,7 @@ function pageToServe() {
 }
 function csp(html) {
   const hashes = inlineScripts(html).map(s => `'sha256-${crypto.createHash("sha256").update(s.code).digest("base64")}'`).join(" ");
-  return ["default-src 'none'", `script-src ${hashes}`, "style-src 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com",
+  return ["default-src 'none'", `script-src ${hashes}`, "style-src 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com data:",
     "img-src data:", "connect-src 'none'", "media-src 'none'", "object-src 'none'", "base-uri 'none'", "form-action 'none'"].join("; ");
 }
 
@@ -61,7 +63,9 @@ function createWindow() {
     fullscreenable: true, title: "MDFM Radio", show: false,
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, autoplayPolicy: "user-gesture-required", spellcheck: false } });
   bouncer.tag(win.webContents, "radio");   // the radio window may only load its fonts
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => { onscreen.keepOnScreen(require("electron").screen, win); win.show(); });
+  win.on("moved", () => onscreen.keepOnScreen(require("electron").screen, win));
+  require("electron").screen.on("display-removed", () => onscreen.keepOnScreen(require("electron").screen, win));
   const fsSend = v => { if (!win.isDestroyed()) win.webContents.send("win:fullscreen", v); };
   win.on("enter-full-screen", () => fsSend(true)); win.on("leave-full-screen", () => fsSend(false));
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\/github\.com\/Octoroboto\//.test(url)) shell.openExternal(url); return { action: "deny" }; });
@@ -96,6 +100,7 @@ app.whenReady().then(() => {
   ipcMain.on("settings:get", e => { e.returnValue = settings; });
   ipcMain.handle("settings:set", (e, s) => {
     const before = settings; settings = { ...settings, ...pick(s, ["contentUpdates", "useBundled", "city", "units", "slackNews", "slackChannels", "nameFixes", "types", "skin"]) };
+    if (s && "axmod" in s) settings.axmod = cleanAxmod(s.axmod);   // AXMOD accessibility settings (MedDev Receiver 1.7+)
     settings.skin = /^[a-z0-9][a-z0-9-]{0,39}$/.test(String(settings.skin || "")) ? String(settings.skin) : "";
     { const t = {}; for (const k of ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "funnelball", "technews", "news"]) if (settings.types && k in settings.types) t[k] = !!settings.types[k]; settings.types = t; }
     settings.slackNews = !!settings.slackNews; settings.slackChannels = String(settings.slackChannels || "").slice(0, 500); settings.nameFixes = String(settings.nameFixes || "").slice(0, 4000);
@@ -121,7 +126,7 @@ app.whenReady().then(() => {
     const c = screen.getCursorScreenPoint(), [x, y] = w.getPosition(); clearInterval(drag && drag.t);
     drag = { w, dx: c.x - x, dy: c.y - y, until: Date.now() + 60e3, t: setInterval(() => {
       if (w.isDestroyed() || Date.now() > drag.until) { clearInterval(drag.t); drag = null; return; }
-      const p = screen.getCursorScreenPoint(); w.setPosition(Math.round(p.x - drag.dx), Math.round(p.y - drag.dy)); }, 12) };
+      const p = screen.getCursorScreenPoint(), q = onscreen.clampedPosition(screen, w, p.x - drag.dx, p.y - drag.dy); w.setPosition(Math.round(q.x), Math.round(q.y)); }, 12) };
     w.once("blur", () => { if (drag) { clearInterval(drag.t); drag = null; } }); });
   ipcMain.on("win:dragEnd", () => { if (drag) { clearInterval(drag.t); drag = null; } });
   ipcMain.on("win:zoom", e => { const w = from(e); if (w) w.isMaximized() ? w.unmaximize() : w.maximize(); });
@@ -134,7 +139,7 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: "appMenu" }, { role: "editMenu" },
     { label: "View", submenu: [{ role: "reload", label: "Reload (applies new content)" }, { type: "separator" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" }] },
-    { role: "windowMenu" },
+    { label: "Window", submenu: [{ role: "minimize" }, { role: "zoom" }, { type: "separator" }, { label: "Bring Back to Center", accelerator: "CmdOrCtrl+Shift+0", click: () => onscreen.center(require("electron").screen, BrowserWindow.getAllWindows().find(x => !x.getParentWindow()) ) }, { type: "separator" }, { role: "front" }] },
     { role: "help", submenu: [{ label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") },
       ...(setupAvailable({ app }) ? [{ type: "separator" }, { label: "Set up Slack for MDFM…", click: () => openSlackSetup() }] : [])] },
   ]));

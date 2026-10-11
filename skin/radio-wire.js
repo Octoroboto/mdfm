@@ -29,6 +29,19 @@
   $("#spotBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); setTimeout(()=>radio.spotNow(),1200); } else radio.spotNow(); });
   $("#stEngine").textContent=`v${MDFM.VERSION}`;
   window.MDFM_receiver(radio,{app});
+  // AXMOD (accessibility, MedDev Receiver 1.7+): captions for voices and songs, text versions of the EQ and meters,
+  // and Calm mode mutes the voice drops between songs. Skipped quietly on an older receiver.
+  (A=>{ if(!A) return; A.hasSound=true;
+    radio.on("caption",c=>A.caption(c.text,{who:c.who}));
+    radio.on("nowplaying",s=>A.sound(`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
+    const band=(a,i,j)=>{ let m=0; for(let k=i;k<j;k++) m=Math.max(m,a[k]||0); return Math.round(m*100)+"%"; };
+    A.describe($("header.top .lcd.viz"),()=>{ if(!radio.isOn()) return "off"; const s=radio.getSpectrum&&radio.getSpectrum(); return s?`bass ${band(s,0,6)}, mids ${band(s,6,13)}, treble ${band(s,13,19)}`:"on"; },{label:"EQ"});
+    A.describe($(".vu"),()=>{ const l=radio.isOn()&&radio.getLevels?radio.getLevels():null; return l?`left ${Math.round(l[0]+14)} VU, right ${Math.round(l[1]+14)} VU`:"radio off"; },{label:"VU meters"});
+    const stingers=()=>{ const cb=document.querySelector('#typeList input[data-type="stingers"]'); return cb?cb.checked:true; };
+    A.on(v=>{ if(radio.setTypes) radio.setTypes({stingers:!v.calm&&stingers()}); });
+    if(A.get().calm&&radio.setTypes) radio.setTypes({stingers:false});
+    const tl=$("#typeList"); if(tl) tl.addEventListener("change",()=>{ if(A.get().calm&&radio.setTypes) radio.setTypes({stingers:false}); });
+  })(window.AXMOD);
   $("#settings").hidden=false;
   document.querySelectorAll(".apponly").forEach(el=>el.hidden=!app);
   if(!app) return;

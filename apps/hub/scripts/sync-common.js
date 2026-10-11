@@ -9,4 +9,5 @@ require("child_process").execSync("node scripts/build.mjs", { cwd: repo, stdio: 
 fs.copyFileSync(path.join(repo, "dist/skin.css"), path.join(__dirname, "../src/shell/skin.css"));
 fs.copyFileSync(path.join(repo, "skin/types.js"), path.join(__dirname, "../src/shell/types.js"));
 fs.copyFileSync(path.join(repo, "vendor/meddev-receiver/skins.json"), path.join(__dirname, "../src/shell/skins.json"));
+fs.copyFileSync(path.join(repo, "vendor/meddev-receiver/receiver.js"), path.join(__dirname, "../src/shell/receiver.js"));   // AXMOD and the receiver behaviour for the frame
 console.log("src/common and the skin synced");

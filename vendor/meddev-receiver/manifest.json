@@ -1,25 +1,27 @@
 {
   "name": "meddev-receiver",
-  "version": "1.4.0",
+  "version": "1.7.1",
   "files": {
     "receiver.css": {
-      "sha256": "ba05be3d7287c78221fdc1b17a2fdb76b3067e7126a9541e7b1374ca26e59623",
-      "bytes": 236841
+      "sha256": "0730b9e3dbb6f4f96bb8fd887929d1e8ae0515b27345914292ccec65658edf34",
+      "bytes": 297738
     },
     "receiver.js": {
-      "sha256": "fafe0f0adfafd0178caac2db18045357a0abaa4f881ff392c451ac122cfd7973",
-      "bytes": 71192
+      "sha256": "6c4520a4c4f0445f69e471ae4c3872cc2a9fb665fddac0e6b5a5530922eb4b42",
+      "bytes": 108085
     },
     "skins.json": {
-      "sha256": "d99bede79763cac59393d27f1d82654fb5705833a68fccefb410335e9aed9b69",
-      "bytes": 1484262
+      "sha256": "355a3a9d0087e04d70b1039350103f7da5e4fa1e08d4f3384d8cce4dbbedda0d",
+      "bytes": 2752839
     }
   },
   "skins": [
     "default",
     "mulchmaster",
     "barnaclava",
-    "analyze-pics"
+    "analyze-pics",
+    "business-lightning",
+    "house-of-spoons"
   ],
   "default": "default"
 }

@@ -25,6 +25,10 @@ Pick a **Skin** in SETTINGS, or on the hub's MDFM receiver. Both follow the same
 - **How they arrive:** from version 0.1.2, MD Hub fetches new looks and skins by itself. They show from the next launch or a hub reload (Cmd+R).
 - **What a skin can change:** it can restyle everything, but every control, the glass and the lights always work the same.
 
+## Accessibility (AXMOD)
+
+Settings → **Accessibility** (or Cmd+Option+A anywhere) slides out the AXMOD drawer, styled by the current skin: text size, high contrast, readable and dyslexia fonts, spacing, a reading ruler, read aloud, reduce motion, calm mode, colourblind-safe colours and more. The frame and the hub page share one set of choices, saved with the app's settings. The hub page applies them once it carries MedDev Receiver 1.7+ (when the hub artifact is republished).
+
 ## Slack news
 
 **Connect Slack** in SETTINGS opens Slack's sign-in in a small app window that closes itself when you're connected. It works once MedDev has switched Slack on (the mdfm repo's `config/slack.json`), with no app update. In a copy run from source, **Set up Slack for everyone** runs the one-time setup.

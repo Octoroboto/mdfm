@@ -34,7 +34,14 @@
     $("themeCss").href="theme.css?s="+encodeURIComponent(l.current)+"&t="+Date.now(); }
   skinSel.addEventListener("change",()=>h.settings.set({skin:skinSel.value}));
   skins();
-  if(h.settings.onTypes) h.settings.onTypes(st=>{ showTypes(st); skins(); });
+  // AXMOD (accessibility, MedDev Receiver 1.7+): saved with the app's settings, shared with the hub page.
+  const A=window.AXMOD, axStore={ get:()=>(h.settings.get()||{}).axmod, set:v=>h.settings.set({axmod:v}) };
+  if(A){ A.useStore(axStore);
+    const theme=$("themeCss"); A.on(v=>{ theme.disabled=!!v.contrast; }); theme.disabled=!!A.get().contrast;   // High contrast sets the skin aside
+    // The hub page is drawn over the frame: while the drawer is open, step it aside the way Settings does.
+    addEventListener("axmod:open",()=>{ if(panel.hidden) h.showSettings(true); });
+    addEventListener("axmod:close",()=>{ if(panel.hidden) h.showSettings(false); }); }
+  if(h.settings.onTypes) h.settings.onTypes(st=>{ showTypes(st); skins(); if(A&&st&&st.axmod) A.useStore(axStore); });
   const save=()=>h.settings.set({city:$("setCity").value.trim(),units:$("setUnits").value,slackChannels:$("setSlackChannels").value.trim(),nameFixes:$("setNameFixes").value});
   for(const id of ["setCity","setUnits","setSlackChannels","setNameFixes"]) $(id).addEventListener("change",save);
   $("slackConnect").onclick=()=>{ $("slackState").textContent="Sign in to Slack in the window that opened. It closes by itself when you're done."; h.slack.connect(); };

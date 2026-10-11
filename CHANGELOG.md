@@ -2,6 +2,13 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.9.0 (2026-10-11, Rob)
+- **AXMOD accessibility in every MDFM receiver** (MedDev Receiver 1.7.1 built in). The radio page's Settings has an ACCESSIBILITY button, and Cmd+Option+A opens it anywhere. The AXMOD drawer is styled by the current skin.
+  - The radio is wired to it: sound captions for every voice and song, text versions of the EQ and VU meters, and Calm mode mutes the voice drops between songs.
+- **MDFM Radio 0.3.0:** AXMOD choices are saved with the app's settings. The radio page allows AXMOD's built-in reading fonts. It also includes 0.2.9's keep-the-window-on-screen fix.
+- **MD Hub 0.2.0:** an Accessibility section in the frame's Settings. The frame now runs the receiver's code (with no flies or spray can on the frame). The hub page and the frame share one set of AXMOD choices through the app, and the hub page steps aside while the drawer is open. Includes 0.1.5's on-screen fix.
+- Shared `apps/common/axmod-settings.js` keeps only small, plain AXMOD values.
+
 ## 1.8.1 (2026-10-11, Rob)
 - **Workplace pass on show content.** The silly names stay (Sweaty Buns, Moist Loaf, Thicke Gravy), but every line that pushed them into innuendo is gone.
   - Simmer Down: the glaze bits in "Holiday baking" are out. "Snacks for the long winter" is now Fuddle's Forever Fudge, and "Party appetizers" is now Gus Gristle's Mystery Bites. "Comfort food" and "Breakfast" lost their suggestive closers.

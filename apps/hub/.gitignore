@@ -4,3 +4,4 @@ src/common/
 src/shell/skin.css
 src/shell/types.js
 src/shell/skins.json
+src/shell/receiver.js

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en" data-no-flies><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MD Hub</title>
 <link rel="stylesheet" href="skin.css">
 <link rel="stylesheet" href="theme.css" id="themeCss">
@@ -20,6 +20,10 @@
 <section class="settings deck" id="settings" hidden aria-label="Settings">
   <div class="wtitle"><span>Settings</span></div>
   <div class="setgrid">
+    <fieldset class="box" id="boxAx"><legend>Accessibility</legend>
+      <p class="hint">Text size, contrast, motion, read aloud and more, for this frame and the hub page. Cmd+Option+A opens it from anywhere.</p>
+      <div data-axmod></div>
+    </fieldset>
     <fieldset class="box" id="boxSkin"><legend>Skin</legend>
       <p class="hint">How the metal looks, here and on the hub's MDFM receiver. "House default" follows whatever MedDev picks.</p>
       <label class="fld">Skin <select id="setSkin"></select></label>
@@ -54,5 +58,6 @@
   <div class="row end"><button type="button" class="btn primary" id="closeSet">Back to the hub</button></div>
 </section>
 <script src="types.js"></script>
+<script src="receiver.js"></script>
 <script src="shell.js"></script>
 </body></html>

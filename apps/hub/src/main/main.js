@@ -2,6 +2,7 @@
 // live local weather, sports (local + obscure), optional Slack company news and robot voices rendered through the EQ.
 // Runs with zero Claude credits of its own; the hub page is the same artifact everyone else opens on claude.ai.
 const { app, BrowserWindow, WebContentsView, ipcMain, protocol, session, shell, Menu, safeStorage, screen, dialog } = require("electron");
+const onscreen = require("../common/onscreen");
 const path = require("path"), fs = require("fs"), crypto = require("crypto");
 const security = require("./security");
 const settingsStore = require("./settings");
@@ -21,9 +22,10 @@ const STRIP = 44;   // height of the steel top strip (POWER / MIN / FULL, title,
 const { createReceiverUpdater, versionOf } = require("../common/receiver");
 // The look (MedDev Receiver, its own repo). Newer versions are fetched quietly; the frame uses them from the next launch,
 // and the hub page gets the newer styling too (its controls' code updates when the hub artifact is republished).
-const SHELL_SKIN = path.join(__dirname, "../shell/skin.css");
+const SHELL_SKIN = path.join(__dirname, "../shell/skin.css"), SHELL_RX = path.join(__dirname, "../shell/receiver.js");
+const { cleanAxmod } = require("../common/axmod-settings");
 const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, o),
-  bundled: () => { try { const css = fs.readFileSync(SHELL_SKIN, "utf8"); return { version: versionOf(css) || "0.0.0", css, js: null }; } catch { return { version: "0.0.0" }; } },
+  bundled: () => { try { const css = fs.readFileSync(SHELL_SKIN, "utf8"); let js = null; try { js = fs.readFileSync(SHELL_RX, "utf8"); } catch {} return { version: versionOf(css) || "0.0.0", css, js }; } catch { return { version: "0.0.0" }; } },
   onChange: s => sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or reload the hub (Cmd+R).`) });
 const SHELL_SKINS = path.join(__dirname, "../shell/skins.json");
 const SKIN_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -85,7 +87,9 @@ function createWindow() {
   wc.loadURL(settings.hubUrl);
 
   win.on("resize", layout); win.on("enter-full-screen", () => { layout(); win.webContents.send("win:fullscreen", true); }); win.on("leave-full-screen", () => { layout(); win.webContents.send("win:fullscreen", false); });
-  win.once("ready-to-show", () => { layout(); win.show(); });
+  win.once("ready-to-show", () => { layout(); onscreen.keepOnScreen(screen, win); win.show(); });
+  win.on("moved", () => onscreen.keepOnScreen(screen, win));
+  screen.on("display-removed", () => onscreen.keepOnScreen(screen, win));
   win.on("closed", () => { win = null; view = null; });
 }
 
@@ -109,10 +113,10 @@ app.whenReady().then(() => {
     onDone: () => sendStatus("Slack is switched on for this Mac. Push config/slack.json to switch it on for everyone.") });
 
   protocol.handle("mdhub", req => {
-    const name = new URL(req.url).pathname.replace(/^\//, "") || "shell.html", body = name === "skin.css" ? look.active().css : name === "theme.css" ? (currentSkin() || {}).css || "" : /^[a-z-]+\.(html|css|js)$/.test(name) ? shellPage(name) : null;
+    const name = new URL(req.url).pathname.replace(/^\//, "") || "shell.html", body = name === "skin.css" ? look.active().css : name === "receiver.js" ? look.active().js || shellPage("receiver.js") : name === "theme.css" ? (currentSkin() || {}).css || "" : /^[a-z-]+\.(html|css|js)$/.test(name) ? shellPage(name) : null;
     if (body == null) return new Response("not found", { status: 404 });
     const type = name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : "text/javascript";
-    return new Response(body, { headers: { "content-type": type + "; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" } });
+    return new Response(body, { headers: { "content-type": type + "; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" } });
   });
   const hub = session.fromPartition("persist:mdhub");
   chromeUA(hub);
@@ -130,18 +134,19 @@ app.whenReady().then(() => {
   ipcMain.on("hub:geoError", (e, msg) => { if (!fromHub(e)) return; live.setGeoError(msg); sendStatus(); });
   ipcMain.handle("hub:tts", async (e, spec) => { if (!fromHub(e)) throw new Error("not allowed"); return tts.render({ text: String(spec && spec.text || ""), voice: spec && spec.voice ? String(spec.voice) : null, rate: +(spec && spec.rate) || 1, pitch: +(spec && spec.pitch) || 1 }); });
   // The content switches live in two places (the hub page's receiver and Settings): tell both when either changes.
-  const typesNow = () => ({ types: { ...settings.types }, slackNews: !!settings.slackNews, skin: settings.skin || "" });
+  const typesNow = () => ({ types: { ...settings.types }, slackNews: !!settings.slackNews, skin: settings.skin || "", axmod: cleanAxmod(settings.axmod) });
   const broadcastTypes = () => { const s = typesNow();
     if (win && !win.isDestroyed()) win.webContents.send("settings:types", s);
     if (view) for (const f of view.webContents.mainFrame.framesInSubtree) { try { if (f !== view.webContents.mainFrame && HUB_HOSTS.test(new URL(f.url).hostname)) f.send("hub:settings:changed", s); } catch {} } };
   // A newer look for the hub page's own styling (the preload compares it with the page's version and only ever adds a newer one).
   ipcMain.on("hub:look", e => { const a = look.active(); e.returnValue = fromHub(e) && a.source === "updated" ? { version: a.version, css: a.css } : null; });
-  ipcMain.on("hub:settings:get", e => { e.returnValue = fromHub(e) ? { types: settings.types, slackNews: settings.slackNews, skin: settings.skin || "" } : {}; });
+  ipcMain.on("hub:settings:get", e => { e.returnValue = fromHub(e) ? { types: settings.types, slackNews: settings.slackNews, skin: settings.skin || "", axmod: cleanAxmod(settings.axmod) } : {}; });
   ipcMain.on("hub:skins", e => { const a = look.active(); e.returnValue = fromHub(e) && a.source === "updated" && a.skins ? a.skins : null; });
   ipcMain.handle("hub:settings:set", (e, s) => { if (!fromHub(e)) return null; const t = {};
     for (const k of TYPE_KEYS) if (s && s.types && k in s.types) t[k] = !!s.types[k];
     const patch = { ...(s && s.types ? { types: t } : {}), ...(s && "slackNews" in s ? { slackNews: !!s.slackNews } : {}) };
     if (s && "skin" in s) patch.skin = SKIN_ID.test(String(s.skin || "")) ? String(s.skin) : "";
+    if (s && "axmod" in s) patch.axmod = cleanAxmod(s.axmod);   // AXMOD: the hub page and the frame share one set of accessibility settings
     saveSettings(patch); broadcastTypes(); return true; });
 
   // ---- the steel frame's controls ----
@@ -153,7 +158,7 @@ app.whenReady().then(() => {
   let drag = null;   // drag by the metal: the window follows the pointer until release
   ipcMain.on("win:dragStart", e => { if (!fromShell(e) || win.isFullScreen()) return; const c = screen.getCursorScreenPoint(), [x, y] = win.getPosition(); clearInterval(drag && drag.t);
     drag = { dx: c.x - x, dy: c.y - y, until: Date.now() + 60e3, t: setInterval(() => { if (!win || Date.now() > drag.until) { clearInterval(drag.t); drag = null; return; }
-      const p = screen.getCursorScreenPoint(); win.setPosition(Math.round(p.x - drag.dx), Math.round(p.y - drag.dy)); }, 12) };
+      const p = screen.getCursorScreenPoint(), q = onscreen.clampedPosition(screen, win, p.x - drag.dx, p.y - drag.dy); win.setPosition(Math.round(q.x), Math.round(q.y)); }, 12) };
     win.once("blur", () => { if (drag) { clearInterval(drag.t); drag = null; } }); });
   ipcMain.on("win:dragEnd", () => { if (drag) { clearInterval(drag.t); drag = null; } });
   ipcMain.on("shell:settings", (e, open) => { if (!fromShell(e)) return; settingsOpen = !!open; layout(); });
@@ -163,7 +168,8 @@ app.whenReady().then(() => {
     const patch = {}; for (const k of ["city", "units", "slackChannels", "nameFixes", "slackNews"]) if (s && k in s) patch[k] = k === "slackNews" ? !!s[k] : String(s[k]).slice(0, k === "nameFixes" ? 4000 : 500);
     if (s && s.types && typeof s.types === "object") { const t = {}; for (const k of TYPE_KEYS) if (k in s.types) t[k] = !!s.types[k]; patch.types = { ...settings.types, ...t }; if ("news" in t) patch.slackNews = t.news; }
     if (s && "skin" in s) patch.skin = SKIN_ID.test(String(s.skin || "")) ? String(s.skin) : "";
-    saveSettings(patch); if (patch.types || "slackNews" in patch || "skin" in patch) broadcastTypes(); if (before.city !== settings.city || before.units !== settings.units) { live.reset(); refreshLive(); } return settings; });
+    if (s && "axmod" in s) patch.axmod = cleanAxmod(s.axmod);
+    saveSettings(patch); if (patch.types || "slackNews" in patch || "skin" in patch || "axmod" in patch) broadcastTypes(); if (before.city !== settings.city || before.units !== settings.units) { live.reset(); refreshLive(); } return settings; });
   ipcMain.handle("skins:list", e => { if (!fromShell(e)) return null; const b = skinsBundle(), cur = currentSkin();
     return { houseDefault: b.default, choice: settings.skin || "", current: cur ? cur.id : "default", skins: b.skins.map(({ id, name, description }) => ({ id, name, description })) }; });
   ipcMain.handle("status:get", e => fromShell(e) ? status() : null);
@@ -182,7 +188,7 @@ app.whenReady().then(() => {
       { label: "Zoom In", accelerator: "CmdOrCtrl+Plus", click: () => view && view.webContents.setZoomLevel(view.webContents.getZoomLevel() + .5) },
       { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: () => view && view.webContents.setZoomLevel(view.webContents.getZoomLevel() - .5) },
       { type: "separator" }, { role: "togglefullscreen" }] },
-    { role: "windowMenu" },
+    { label: "Window", submenu: [{ role: "minimize" }, { role: "zoom" }, { type: "separator" }, { label: "Bring Back to Center", accelerator: "CmdOrCtrl+Shift+0", click: () => onscreen.center(require("electron").screen, BrowserWindow.getAllWindows().find(x => !x.getParentWindow()) ) }, { type: "separator" }, { role: "front" }] },
     { role: "help", submenu: [{ label: "Check for updates", click: () => fp && fp.run({ force: true }).then(() => sendStatus()) },
       { label: "Open the hub in your browser", click: () => shell.openExternal(settings.hubUrl) }, { label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") },
       ...(setupAvailable({ app }) ? [{ type: "separator" }, { label: "Set up Slack for MDFM…", click: () => openSlackSetup() }] : [])] },
