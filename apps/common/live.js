@@ -32,7 +32,7 @@ function createLive(getSettings) {
     return `${w.place} (approximate, from the network${geoError ? `; Mac location: ${geoError}` : ""}. Type your city in Settings for exact weather and teams)`;
   }
   async function weather() {
-    if (wx && Date.now() - wxAt < 15 * 60e3) return wx;
+    if (wx && Date.now() - wxAt < 14 * 60e3) return wx;   // under the 15-minute refresh, so each refresh really fetches
     try {
       const w = where || await locate(), u = getSettings().units === "c";
       const j = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${w.lat}&longitude=${w.lon}&current=temperature_2m,weather_code,wind_speed_10m&temperature_unit=${u ? "celsius" : "fahrenheit"}&wind_speed_unit=${u ? "kmh" : "mph"}`);

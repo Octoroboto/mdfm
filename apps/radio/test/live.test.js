@@ -38,3 +38,13 @@ test("sports: one local or big game plus one obscure one, from ESPN scoreboards"
   assert.strictEqual(g[1].obscure, true); assert.strictEqual(g[1].team, "Geelong Team"); assert.strictEqual(g[1].score, 91);   // told from the winner's side
   assert.match(live.status.sports, /Nebraska \(local\)/);
 });
+test("the 15-minute refresh really fetches new weather (the cache is shorter than the refresh)", async () => {
+  let calls = 0, t = 1e12; const realNow = Date.now; Date.now = () => t;
+  answers = { "geocoding-api": { results: [{ latitude: 39.74, longitude: -104.99, name: "Denver" }] },
+    get "open-meteo.com/v1/forecast"() { calls++; t += 800; return forecast; } };   // each fetch takes a moment
+  try {
+    const live = createLive(() => ({ units: "f", city: "Denver" }));
+    const start = t; await live.weather(); assert.strictEqual(calls, 1);
+    t = start + 15 * 60e3; await live.weather(); assert.strictEqual(calls, 2, "the next 15-minute tick fetches again");
+  } finally { Date.now = realNow; }
+});

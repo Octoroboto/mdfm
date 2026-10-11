@@ -157,11 +157,12 @@ app.whenReady().then(() => {
   ipcMain.on("win:full", e => fromShell(e) && win.setFullScreen(!win.isFullScreen()));
   ipcMain.on("win:zoom", e => fromShell(e) && (win.isMaximized() ? win.unmaximize() : win.maximize()));
   let drag = null;   // drag by the metal: the window follows the pointer until release
+  const stopDrag = () => { if (drag) { clearInterval(drag.t); drag = null; } };
   ipcMain.on("win:dragStart", e => { if (!fromShell(e) || win.isFullScreen()) return; const c = screen.getCursorScreenPoint(), [x, y] = win.getPosition(); clearInterval(drag && drag.t);
     drag = { dx: c.x - x, dy: c.y - y, until: Date.now() + 60e3, t: setInterval(() => { if (!win || Date.now() > drag.until) { clearInterval(drag.t); drag = null; return; }
       const p = screen.getCursorScreenPoint(), q = onscreen.clampedPosition(screen, win, p.x - drag.dx, p.y - drag.dy); win.setPosition(Math.round(q.x), Math.round(q.y)); }, 12) };
-    win.once("blur", () => { if (drag) { clearInterval(drag.t); drag = null; } }); });
-  ipcMain.on("win:dragEnd", () => { if (drag) { clearInterval(drag.t); drag = null; } });
+    win.removeListener("blur", stopDrag); win.once("blur", stopDrag); });   // one listener per window, not one per drag
+  ipcMain.on("win:dragEnd", stopDrag);
   ipcMain.on("shell:settings", (e, open) => { if (!fromShell(e)) return; settingsOpen = !!open; layout(); });
   ipcMain.on("shell:reload", e => { if (fromShell(e) && view) view.webContents.reload(); });
   ipcMain.on("settings:get", e => { e.returnValue = fromShell(e) ? settings : {}; });

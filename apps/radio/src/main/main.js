@@ -122,13 +122,14 @@ app.whenReady().then(() => {
   // Dragging the receiver by its metal. CSS drag regions alone proved unreliable on a frameless transparent window,
   // so the page also reports a press on bare metal and the window follows the pointer until the release.
   let drag = null;
+  const stopDrag = () => { if (drag) { clearInterval(drag.t); drag = null; } };
   ipcMain.on("win:dragStart", e => { const w = from(e); if (!w || w.isFullScreen()) return; const { screen } = require("electron");
     const c = screen.getCursorScreenPoint(), [x, y] = w.getPosition(); clearInterval(drag && drag.t);
     drag = { w, dx: c.x - x, dy: c.y - y, until: Date.now() + 60e3, t: setInterval(() => {
       if (w.isDestroyed() || Date.now() > drag.until) { clearInterval(drag.t); drag = null; return; }
       const p = screen.getCursorScreenPoint(), q = onscreen.clampedPosition(screen, w, p.x - drag.dx, p.y - drag.dy); w.setPosition(Math.round(q.x), Math.round(q.y)); }, 12) };
-    w.once("blur", () => { if (drag) { clearInterval(drag.t); drag = null; } }); });
-  ipcMain.on("win:dragEnd", () => { if (drag) { clearInterval(drag.t); drag = null; } });
+    w.removeListener("blur", stopDrag); w.once("blur", stopDrag); });   // one listener per window, not one per drag
+  ipcMain.on("win:dragEnd", stopDrag);
   ipcMain.on("win:zoom", e => { const w = from(e); if (w) w.isMaximized() ? w.unmaximize() : w.maximize(); });
   let fitted = false;   // first load only: make the window as tall as the receiver (within the screen); after that the person decides
   ipcMain.on("win:fit", (e, h) => { const w = from(e); if (!w || fitted || !(h > 200)) return; fitted = true;

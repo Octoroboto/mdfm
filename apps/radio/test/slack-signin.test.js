@@ -100,3 +100,17 @@ test("sign-in windows' Bouncer (real Cedar): Slack and its sign-in, the helper a
   ok("setup", "GET", "https://dash.cloudflare.com/oauth2/auth?x"); ok("setup", "POST", "https://api.slack.com/apps"); ok("background", "GET", "https://dash.cloudflare.com/api/v4/x");
   ok("setup", "GET", "https://some-sso.example.com/login");
 });
+
+test("connect: refused while Slack is off, then works once the helper's address arrives (no stuck sign-in)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "slk-")), safeStorage = { isEncryptionAvailable: () => true, encryptString: s => Buffer.from(s), decryptString: b => b.toString() };
+  let relay = "", opened = null, cancel;
+  const slack = createSlack({ dataDir: dir, safeStorage, getSettings: () => ({}), relayUrl: () => relay,
+    openSignIn: (url, onClosed) => { opened = url; cancel = onClosed; return { close() {}, focus() {} }; } });
+  await assert.rejects(slack.connect(), /isn't switched on/);
+  relay = "https://mdfm-slack.rv.workers.dev";
+  const p = slack.connect(); await new Promise(r => setTimeout(r, 50));
+  assert.ok(opened && opened.startsWith(relay + "/start?"), "the sign-in window opens"); cancel();
+  await assert.rejects(p, /closed before it finished/);
+  const boom = createSlack({ dataDir: dir, safeStorage, getSettings: () => ({}), relayUrl: () => relay, openSignIn: () => { throw new Error("no window"); } });
+  await assert.rejects(boom.connect(), /no window/, "a window that can't open fails the sign-in instead of leaving it hanging");
+});

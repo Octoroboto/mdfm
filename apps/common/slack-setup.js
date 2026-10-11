@@ -31,6 +31,7 @@ function setupAvailable({ app }) {
   return fs.existsSync(path.join(relayDir, "wrangler.toml")) ? { repo, relayDir } : null;
 }
 
+let owner = null;   // the wizard window whose handlers are registered (a second wizard takes them over)
 function startSlackSetup({ app, parent, saveOverride, onDone, bouncer }) {
   const where = setupAvailable({ app }); if (!where) return null;
   const { BrowserWindow, ipcMain } = require("electron");
@@ -135,7 +136,8 @@ function startSlackSetup({ app, parent, saveOverride, onDone, bouncer }) {
   const channels = Object.keys(handlers).map(k => `slackSetup:${k}`);
   channels.forEach(ch => ipcMain.removeHandler(ch));
   for (const k of Object.keys(handlers)) ipcMain.handle(`slackSetup:${k}`, async (e, a) => { if (!mine(e)) return { ok: false }; try { return await handlers[k](a); } catch (err) { log(err.message); return { ok: false, note: err.message }; } });
-  win.on("closed", () => channels.forEach(ch => ipcMain.removeHandler(ch)));
+  owner = win;
+  win.on("closed", () => { if (owner === win) { owner = null; channels.forEach(ch => ipcMain.removeHandler(ch)); } });   // an older wizard closing leaves a newer one working
   win.loadFile(path.join(__dirname, "slack-setup.html"));
   return win;
 }
