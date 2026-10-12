@@ -7,8 +7,10 @@
 //   2. assert(req) / guardFetch: called by the app's own code before Node requests
 //      (fetch, https) — those don't pass through Electron's hook.
 // Modes (from the app's bouncer.config.json, fixed at build time):
-//   "observe": nothing is blocked; anything the policy would block is logged as "would block".
-//   "enforce": blocked requests are cancelled before they leave the Mac.
+//   "observe": requests the rules don't allow still go through and are logged as "would block". Two things
+//              are stopped even in observe: everything, when the rules don't match their lock or the engine
+//              won't load (Bouncer is unhealthy); and nothing else. Use observe to try reviewed rules out.
+//   "enforce": requests the rules don't allow, and addresses Bouncer can't read, are cancelled before they leave the Mac.
 const crypto = require('crypto');
 const { requestFacts, NETWORK_SCHEMES } = require('./facts');
 const { createLog } = require('./log');
@@ -99,7 +101,9 @@ function createBouncer({
       try { result = engine.decide(caller, facts); } catch (e) { result = { decision: 'deny', reasons: [], errors: [e.message] }; }
     }
     const denied = result.decision !== 'allow';
-    const enforced = denied && mode === 'enforce';
+    // Rules that don't match their lock (or a broken engine) block in every mode: observe is for trying out
+    // reviewed rules, not for running unreviewed ones.
+    const enforced = denied && (mode === 'enforce' || !healthy());
     const why = denied
       ? (result.reasons.length ? `stopped by rule ${result.reasons.join(', ')}` : !healthy() ? 'Bouncer is not healthy' : 'no rule allows this')
       : `allowed by ${result.reasons.join(', ')}`;

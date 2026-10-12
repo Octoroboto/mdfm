@@ -2,6 +2,11 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.9.7 (2026-10-11, Rob)
+- **MDFM Radio 0.3.3 / MD Hub 0.2.4 are on the RentVision app kit 2.0.0** (needs an app release). Each app's `kit/` now holds Bouncer 2.0.0 and Futureproofer 2.0.0 installed by the kit's `install/add.mjs`, with exact versions in `kit/kit.lock.json`. Picks up Collin's review: `scheme`, `pathLower` and `searchLower` in the rule context, safe URL decoding, failed checks keep the last good check time and retry after 30 minutes, a cheaper log check, and a generic badge. Rules that don't match their lock now block in observe too (the hub page's observe Bouncer included). Rules and locks unchanged; Cedar stays pinned at 4.13.0.
+- `apps/common/axmod-settings.js` stays as the apps' copy of the kit's `axmod/settings.js` (same code). This repo is where the kit's `receiver`, `axmod` and `mdfm` modules come from, so those aren't installed back into the apps.
+- Includes the 1.9.4/1.9.6 app changes (window fits the screen, show switches remembered) if 0.3.2 / 0.2.3 weren't released.
+
 ## 1.9.6 (2026-10-11, Rob)
 - **Three new shows** (content update; each can be switched off in Settings):
   - **Show Ponies**, a fully generated serial. Each season is a made-up circuit with six ponies (names, owners, handlers, hometowns and a quirk each), three judges and five episodes: four classes picked from Halter, Trail, Costume, Pleasure Driving, Jumpers, Freestyle to Music and Showmanship, then a double-points Supreme Champion finale. Announcer Pembroke Vance and colour commentator Darlene Tuttle call each run, the judges score it, owners sometimes complain on air, points carry over, and each episode opens with a recap of the last one. The season is saved, so the story carries on between launches; after the finale a new season starts with new ponies.

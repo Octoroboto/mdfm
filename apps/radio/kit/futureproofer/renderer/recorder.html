@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>Re-demo</title>
+  <link rel="stylesheet" href="recorder.css">
+</head>
+<body>
+  <h1>Show the app how it's done</h1>
+  <p class="sub" id="title"></p>
+  <p class="note">Do each step in the big window, one click per step. The app records what you click.
+    <strong>Nothing is published:</strong> the Publish click is stopped and recorded.</p>
+  <ol id="steps"></ol>
+  <div class="row">
+    <button id="back">Back a step</button>
+    <button id="skip">Skip this step</button>
+  </div>
+  <div class="row">
+    <button id="finish" class="primary">Save recording</button>
+    <button id="cancel">Cancel</button>
+  </div>
+  <p class="hint"><a href="#" id="reload">Reload the page</a> if it got stuck. Then the app tests the new recording right away.</p>
+  <script src="recorder.js"></script>
+</body>
+</html>

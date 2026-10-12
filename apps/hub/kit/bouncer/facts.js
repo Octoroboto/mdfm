@@ -1,7 +1,7 @@
 // Bouncer: turns an outgoing HTTP request into plain "facts" the policy can judge.
 // Pure JavaScript (no Electron), so it is unit-tested on its own.
 //
-// facts = { scheme, method, host, path, search, fields: [form field names], form: {name: short value},
+// facts = { scheme, method, host, path, search, pathLower, searchLower, fields: [form field names], form: {name: short value},
 //           routeKey: "POST api.wistia.com /modern/folders/:id/subfolders" }
 
 const MAX_VALUE = 200; // form values longer than this are cut (file contents are never kept)
@@ -104,6 +104,10 @@ function requestFacts(req) {
     host: u.hostname.toLowerCase(),
     path: decodedPath,
     search: u.search || '',
+    // Lower-case copies so rules can match regardless of case (Cedar has no lower-case function):
+    // pathLower is the decoded path; searchLower is the query string, decoded where it can be.
+    pathLower: decodedPath.toLowerCase(),
+    searchLower: safeDecode(u.search || '').toLowerCase(),
     fields: body.fields,
     form: body.form,
     bodyKind: body.kind,
@@ -112,6 +116,8 @@ function requestFacts(req) {
     routeKey: `${method} ${u.hostname.toLowerCase()} ${normalizePath(u.pathname)}${/\/graphql$/.test(u.pathname) && body.form.operationName ? ' ' + body.form.operationName : ''}`,
   };
 }
+
+function safeDecode(v) { try { return decodeURIComponent(v); } catch { return v; } }
 
 // Schemes Bouncer judges. Others (file:, data:, blob:, devtools:, about:) never reach the network.
 const NETWORK_SCHEMES = new Set(['http', 'https', 'ws', 'wss']);

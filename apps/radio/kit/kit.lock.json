@@ -1,0 +1,39 @@
+{
+  "kit": "2.0.0",
+  "installedAt": "2026-10-12T01:43:31.331Z",
+  "source": "github.com/Octoroboto/rentvision-app-kit",
+  "modules": {
+    "bouncer": {
+      "version": "2.0.0",
+      "files": {
+        "README.md": "d4b502d72658931f0c04776c24d889b6eae64ef4bde627ba63a863dc2dca4325",
+        "index.js": "5dbcb7a935c15a515184ccfc194c2ec8efcf9852cee7ed7752e30e4487af4419",
+        "engine-cedar.js": "804b52b2b3add4daa3dbd9395f8b9425e0a4b1d6202839009a00439c521cb817",
+        "facts.js": "6bd9a72758b24ad31f3bddc2f569b789dc4a77a2fe30b07e0357eb79af0c8d67",
+        "log.js": "561dd1933897bfd2c40cf0b641ad28c09d7f450908077c166e07dbd1181619e6",
+        "renderer/badge.css": "771e7bcf8bcd36aabef021e4e8faba6e01c8fe741170c000fbf93787cbaab4e4",
+        "renderer/badge.js": "208185d148132f99f1ce1884165154ed94361665c5fcdc7331974fad2026086e",
+        "tools/lock.js": "86caff93c6e93a4b7fd1e12e8a899e7dadb0512cbaf26e29c83665a96929f976",
+        "templates/policy.cedar": "a4dbd056273337ab39dc9cb65624bf8b4765d152a16db06a9cf0d906bc09df56",
+        "templates/bouncer.config.json": "80f27d373d3b95bbe69ef5574d9f496ec11d49e58190db68df1e91206832936f",
+        "templates/egress.js": "2d959bb99abc0d547eb24710e78f8ad67b3b69f2adaf74a8204ef2af38884209"
+      }
+    },
+    "futureproofer": {
+      "version": "2.0.0",
+      "files": {
+        "README.md": "f3d80012b59633b3286727e8bc266d71791826d50b054b381c7e758a99dd75b8",
+        "index.js": "4b6930452a9e41c5710072d4365b4d10890d70f6b0094fc10f5976b99cc9d5f2",
+        "checks.js": "a20f049dbc401aaa343ab970b94e785a97097cb2123b3581a72ffa95c9ae3e6b",
+        "versions.js": "4f63c02369b5b8ed73b4acdd401d873d23ba83b582c46aeece94b1492c048191",
+        "recipes.js": "061d86f73406a5ccd3749956eca4e565d47c6f2e31aaa1c2f5d479ef97876cb1",
+        "recorder.js": "d27e620913c6db2fcd765a42ff066f193b497f3085d3c5f0c9bf54272bf74cc8",
+        "recorderPreload.js": "83cd663ab1150500ede026110a73333ae0943308ddd2d939a9f3bcc2bebe1a05",
+        "renderer/badge.js": "6714c71702752bd41a26396640a0b490cdf1577ff4e931fec296b370a35e0f36",
+        "renderer/recorder.css": "dddc233f826972305dd4b61afbe1eea476601f7b2b69ae053498b44300d8b150",
+        "renderer/recorder.html": "4ea58d448e63a925ada7bf5c24bd70d17e08ab4922570bd09a4e0645ad10f1ec",
+        "renderer/recorder.js": "93948509f9ccb95ab24c546394b2b7ed87c2545271798433963b3e5d8aad5f74"
+      }
+    }
+  }
+}
