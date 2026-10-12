@@ -2,6 +2,13 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.12.1 (2026-10-12, Rob)
+- **Layout fixes on the radio page:**
+  - The station panel lost its spacing in 1.11.0: the new button row reused the station row's class name, which pushed the station controls to the right and opened big gaps. Fixed.
+  - The station name stays on one line and sizes itself to the screen in every skin (some skins' fonts broke "MDFM 99.9 HD" over two lines).
+  - On narrow headers the switches, floppy, arrows and text buttons share one row, and the analyzer runs full width underneath.
+- MedDev Receiver 1.13.0 built in (the layout pass: LEDs beside their buttons, the header adapts to wide skin frames, the spray can rests beside the radio). Content update.
+
 ## 1.12.0 (2026-10-12, Rob)
 - **TUNE: a sound-tuning pop-out.** A TUNE button next to SOUND and EQ opens a skinned panel of knobs. Every knob at its start mark is MDFM exactly as it sounded before (checked sample for sample), so nothing changes until someone turns something:
   - **Realism:** speakers in a real room, a little glue, air and low-end tightening.

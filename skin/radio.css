@@ -1,6 +1,8 @@
 /* Radio-page layout on top of the shared skin. Medium window that also works full screen. */
 .wrap{max-width:1180px}
-header.top .lcd h1{font-size:clamp(2rem,6vw,4.2rem)}
+header.top .hrow>.lcd{container-type:inline-size}
+/* The station name always stays on one line and fills the screen, whatever font a skin uses. */
+header.top .lcd h1{font-size:clamp(1.5rem,min(6vw,10.5cqi),4.2rem);white-space:nowrap}
 header.top .lede.cap{color:var(--lcd);min-height:2.4em;font-size:1.05rem}
 header.top .lcd.viz{min-height:110px}
 @media (min-width:1100px){header.top .lcd.viz{min-height:160px}}
@@ -62,13 +64,15 @@ html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-selec
 /* No scroll bar on the desktop receiver (it still scrolls with the trackpad or wheel when the window is short). */
 html.appwin,html.appwin body{scrollbar-width:none}
 html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;width:0;height:0}
-.strow{display:flex;flex:1 0 100%;flex-wrap:wrap;justify-content:flex-end;gap:8px;align-items:center}
+.btnrow{display:flex;flex:1 0 100%;flex-wrap:wrap;justify-content:flex-end;gap:8px;align-items:center}
+@container hrow (max-width:830px){.btnrow{flex:0 1 auto}}
 .stbtns{display:inline-flex;gap:6px}
 .stbtns[hidden]{display:none}
 .stbtn{width:34px;min-width:34px;height:34px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
 .stbtn svg{width:16px;height:16px;display:block;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
 /* TUNE: the sound-tuning pop-out */
 header.top .deck{position:relative}
+.tunepop[hidden]{display:none!important}
 .tunepop{position:absolute;right:12px;top:calc(100% - 10px);z-index:70;width:min(720px,calc(100% - 24px));padding:14px;display:flex;flex-direction:column;gap:12px;border-left-width:2px}
 .tunepop .wtitle{margin:-14px -14px 2px}
 .tunerow{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
