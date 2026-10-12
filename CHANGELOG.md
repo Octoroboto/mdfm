@@ -2,6 +2,19 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.10.0 (2026-10-11, Rob)
+- **Five new genres in the mix** (17 in all), each with its own new sounds:
+  - **Gothic Dance Pop:** four on the floor, a church organ and a dark choir, a pumping octave bass, huge snares and a crash every other bar in the hook.
+  - **Pop Ballad:** slow, with broken piano chords, strings and a sung lead. The drums only come in for the hooks. Ballads come up about half as often as other genres.
+  - **Alt Dance Pop:** syncopated four on the floor, plucked arpeggios, snaps, an eighth-note bass and a sung lead.
+  - **Emo Dance Pop:** about 150 BPM, distorted guitar power chords (palm-muted in the verses, open in the hooks), crashes and a sung lead.
+  - **Avant DJ Set:** a four-minute continuous mix. Two "tracks" blend in the middle (a filter sweep, a riser and a new groove a fourth or fifth away), with vocal chops, stutters, reversed swells and echo throws. In MDFM Radio and MD Hub it also chops up real words the Mac's voices say ("synergy", "per my last email", "show pony"), pitched like a sampler.
+- **New instruments:** a sung synth voice (vowel formants and vibrato, used as a lead in the pop genres), vocal chops, and a distorted guitar with one amp per song so busy parts stay light. Each new genre was checked for CPU (about the same as the hip-hop genres) and level.
+- Content update; no app release needed.
+
+## 1.9.8 (2026-10-11, Rob)
+- **Voices work on iPhone and iPad.** Safari there only lets a page start speech from a tap, so the voices never played in the browser version. Pressing SOUND now speaks one silent line, which unlocks speech for the rest of the visit, and the engine no longer cancels speech right before each line (iPhone dropped the line when it did). Content update; the desktop apps use their own voices and aren't affected.
+
 ## 1.9.7 (2026-10-11, Rob)
 - **MDFM Radio 0.3.3 / MD Hub 0.2.4 are on the RentVision app kit 2.0.0** (needs an app release). Each app's `kit/` now holds Bouncer 2.0.0 and Futureproofer 2.0.0 installed by the kit's `install/add.mjs`, with exact versions in `kit/kit.lock.json`. Picks up Collin's review: `scheme`, `pathLower` and `searchLower` in the rule context, safe URL decoding, failed checks keep the last good check time and retry after 30 minutes, a cheaper log check, and a generic badge. Rules that don't match their lock now block in observe too (the hub page's observe Bouncer included). Rules and locks unchanged; Cedar stays pinned at 4.13.0.
 - `apps/common/axmod-settings.js` stays as the apps' copy of the kit's `axmod/settings.js` (same code). This repo is where the kit's `receiver`, `axmod` and `mdfm` modules come from, so those aren't installed back into the apps.

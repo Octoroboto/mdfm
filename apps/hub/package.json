@@ -17,7 +17,8 @@
     "report": "node scripts/dependency-report.js",
     "build:mac": "bash scripts/build-mac.sh",
     "install:mac": "bash scripts/build-mac.sh --install",
-    "release": "bash scripts/release.sh"
+    "release": "bash scripts/release.sh",
+    "download-links": "bash scripts/download-links.sh"
   },
   "dependencies": {
     "@cedar-policy/cedar-wasm": "4.13.0"
