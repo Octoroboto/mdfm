@@ -2,6 +2,9 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.10.3 (2026-10-12, Rob)
+- **Drag the apps by a skin's top too:** in MDFM Radio, pressing on the parts a skin draws above or beside the receiver (Slouch from the Dead's theatre, Clara Stamford's cabinets) moves the window, like the metal does. Before, only presses inside the receiver did. Content update.
+
 ## 1.10.2 (2026-10-11, Rob)
 - **MDFM Radio 0.3.4 / MD Hub 0.2.5: a restart is all it takes** (needs an app release). At every launch the apps check for new MDFM content and a new receiver look before the window opens (up to 5 seconds), so new skins and shows appear on that launch. Before, the check ran 25 seconds in and at most every 6 hours, and what it found only showed after another launch or Cmd+R. Anything that arrives in the first 90 seconds reloads the window by itself; later in a session it still waits for the next launch, so music that's playing isn't cut off. The look's downloads get 30 seconds instead of 8 (skins.json is ~6 MB).
 
