@@ -1,6 +1,6 @@
 {
-  "kit": "2.0.0",
-  "installedAt": "2026-10-12T01:43:31.331Z",
+  "kit": "2.1.0",
+  "installedAt": "2026-10-12T15:12:08.740Z",
   "source": "github.com/Octoroboto/rentvision-app-kit",
   "modules": {
     "bouncer": {
@@ -33,6 +33,15 @@
         "renderer/recorder.css": "dddc233f826972305dd4b61afbe1eea476601f7b2b69ae053498b44300d8b150",
         "renderer/recorder.html": "4ea58d448e63a925ada7bf5c24bd70d17e08ab4922570bd09a4e0645ad10f1ec",
         "renderer/recorder.js": "93948509f9ccb95ab24c546394b2b7ed87c2545271798433963b3e5d8aad5f74"
+      }
+    },
+    "save-file": {
+      "version": "1.0.0",
+      "files": {
+        "README.md": "0aa2ffd7e226e69f7e2537aeb505a963d73825d68ce3302506e6723413e31c52",
+        "main.js": "572d95213feab16b91b8351f528a40ee524851dcbdf957acbb22116d824277f5",
+        "preload.js": "062c3cdbeef31f70611e69f8c0434deea1800e48e068889b2ea3e2d6b74996d1",
+        "renderer/save-button.js": "6ef3d1d7f372591c9a018a4389684988e67587b9d3e9ae0e514f00dc17252926"
       }
     }
   }

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("mdfmApp", {
   getStatus: () => ipcRenderer.invoke("status:get"),
   onStatus: f => { if (typeof f === "function") listeners.push(f); },
   open: url => ipcRenderer.invoke("open:url", String(url)),
+  saveFile: (bytes, name) => ipcRenderer.invoke("kit:save-file", { bytes, name: String(name || "") }),   // app kit save-file: the floppy's MP3
   win: {
     close: () => ipcRenderer.send("win:close"), minimize: () => ipcRenderer.send("win:min"), toggleFullScreen: () => ipcRenderer.send("win:full"),
     zoom: () => ipcRenderer.send("win:zoom"), dragStart: () => ipcRenderer.send("win:dragStart"), dragEnd: () => ipcRenderer.send("win:dragEnd"), fit: h => ipcRenderer.send("win:fit", +h),

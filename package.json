@@ -1,6 +1,6 @@
 {
   "name": "mdfm",
-  "version": "1.10.4",
+  "version": "1.10.5",
   "description": "MDFM 99.9 HD: a procedural hip-hop radio station (beats, stingers, robo-voice ads) synthesized live with Web Audio. No files, no network.",
   "type": "module",
   "main": "./dist/mdfm.mjs",
@@ -31,5 +31,8 @@
     "prepare": "node scripts/build.mjs"
   },
   "license": "UNLICENSED",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "lamejs": "1.2.1"
+  }
 }

@@ -34,6 +34,15 @@
   box.addEventListener("change",()=>{ box.checked?radio.start():radio.stop(); if(!box.checked) np.textContent="Press the SOUND button to tune in."; });
   $("#skipBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); } else radio.skip(); });
   $("#spotBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); setTimeout(()=>radio.spotNow(),1200); } else radio.spotNow(); });
+  // Save song: renders the song on air again from the top (off the live audio, so it keeps playing) and saves it as an MP3.
+  const saveBtn=$("#saveBtn");   // the floppy: renders the song on air again from the top and saves it as an MP3
+  if(saveBtn) saveBtn.addEventListener("click",async()=>{
+    if(saveBtn.getAttribute("aria-busy")==="true") return;
+    if(!radio.isOn()||!radio.nowPlaying()){ cap.textContent="Tune in first, then press the floppy to save the song that's playing."; return; }
+    saveBtn.setAttribute("aria-busy","true"); clearTimeout(capT); const say=t=>{ cap.textContent=t; };
+    try{ const r=await MDFM.saveSong(radio,{app,onStatus:say}); cap.textContent=r.via==="claude"?`Saved “${r.title}” (the MP3 is inside ${r.name}).`:`Saved “${r.title}” as an MP3.`; }
+    catch(e){ cap.textContent=e&&e.code==="declined"?"Not saved.":`Couldn't save the song: ${(e&&e.message)||e}`; }
+    finally{ saveBtn.removeAttribute("aria-busy"); capT=setTimeout(()=>{ cap.textContent=""; },9000); } });
   $("#stEngine").textContent=`v${MDFM.VERSION}`;
   window.MDFM_receiver(radio,{app});
   // AXMOD (accessibility, MedDev Receiver 1.7+): captions for voices and songs, text versions of the EQ and meters,

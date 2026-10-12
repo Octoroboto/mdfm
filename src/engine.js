@@ -525,7 +525,8 @@ function setupSong(s,t,fadeBars){
   s.step=0; s.next=t; s.done=false; s.handed=false; return s;
 }
 function startSong(t,fadeBars){
-  const s=setupSong(makeSong(),t,fadeBars); songs.push(s); if(ride) rideOn(s);
+  const made=makeSong(), recipe={...made};   // the song as written, kept so "Save song" can render it again from the top
+  const s=setupSong(made,t,fadeBars); s.recipe=recipe; songs.push(s); if(ride) rideOn(s);
   nowPlaying={title:s.title,style:s.name,bpm:s.bpm,...songFacts(s)}; emit("nowplaying",nowPlaying);
   return s;
 }
@@ -1083,6 +1084,10 @@ async function renderOffline(kind,secs,arg){
   if(kind==="song"){ const s=setupSong(makeSong(arg),.05,0); if(ride) rideOn(s); while(s.next<secs-.1&&s.step<s.bars*16){ playStep(s,s.step,s.next); s.step++; s.next+=s.sp; } }
   else if(kind==="bed"){ const b=startBed(.05); if(arg!=null) b.def=BEDS[arg]; while(b.next<secs-2.5){ playBed(b,b.next); b.step++; b.next+=b.sp; } endBed(b,secs-2.4); }
   else if(kind==="sting"){ STINGS[arg](.1); }
+  else if(kind==="current"){   // the song on air, from the top, as written (and as long as it runs now, Let It Ride included)
+    const s=setupSong({...arg.recipe},.05,0); s.bars=arg.bars; if(arg.brk2!=null) s.brk2=arg.brk2; s.ride=!!arg.ride;
+    while(s.next<secs-.1&&s.step<s.bars*16){ playStep(s,s.step,s.next); s.step++; s.next+=s.sp; }
+    const end=Math.min(secs-.05,s.next+2.6); master.gain.setValueAtTime(VOL,Math.max(.1,end-2.4)); master.gain.linearRampToValueAtTime(0,end); }
   else if(kind==="sfx"){ const f=OT[arg]||ORGAN[arg]; if(f) f(otBus(),.05); }   // a show's sound effect, for episode exports
   rendering=oc.startRendering(); }finally{ ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE,voiceIn,extDuck}=keep); }   // restore before the await: the live station keeps ticking meanwhile
   return await rendering;
@@ -1120,6 +1125,11 @@ return {
   on(ev,f){ (listeners[ev]=listeners[ev]||[]).push(f); return ()=>{ listeners[ev]=listeners[ev].filter(x=>x!==f); }; },
   nextSpotText(){ return nextSpot(); },
   renderOffline,
+  /* "Save song": renders the song on air again, from the top, off the live audio path, and returns {buffer, info}. */
+  async renderSong(){ const live=[...songs].reverse().find(x=>x.recipe&&nowPlaying&&x.title===nowPlaying.title)||[...songs].reverse().find(x=>x.recipe);
+    if(!live) return null; const secs=Math.min(600,live.bars*16*live.sp+3);
+    const buffer=await renderOffline("current",secs,{recipe:live.recipe,bars:live.bars,brk2:live.brk2,ride:live.ride});
+    return {buffer,info:{title:live.title,style:live.name,bpm:live.bpm,...songFacts(live)}}; },
   get audioContext(){ return ctx; },
 };
 }

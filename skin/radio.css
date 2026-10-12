@@ -13,7 +13,12 @@ header.top .lcd.viz{min-height:110px}
 .setgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 18px;margin-top:10px}
 .setgrid .opt{display:flex;gap:8px;align-items:center;color:var(--label,#e6e6ee)}
 .setgrid .fld{display:flex;flex-direction:column;gap:4px;color:var(--label,#cfd2de);font-size:.9rem}
-#skipBtn,#spotBtn{font-size:.85rem}
+#skipBtn,#spotBtn{font-size:.85rem;padding-inline:clamp(10px,1.2vw,16px)}
+.savebtn{width:34px;min-width:34px;height:34px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
+.savebtn svg{width:19px;height:19px;display:block;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
+.savebtn[aria-busy=true]{cursor:progress;animation:mdfmSaving 1s ease-in-out infinite}
+@keyframes mdfmSaving{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.savebtn[aria-busy=true]{animation:none;opacity:.6}}
 .slackset{grid-column:1/-1;border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:10px 12px;display:grid;gap:8px;color:var(--label,#e6e6ee)}
 .slackset legend{font-weight:700;color:var(--label,#cfd2de);text-shadow:var(--engrave);padding:0 6px}
 .slackset .hint{margin:0;font-size:.85rem;color:var(--hint,#b9bdc9)}
