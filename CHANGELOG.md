@@ -2,6 +2,11 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.10.6 (2026-10-12, Rob)
+- **The floppy saves what's on top.** During a show, weather, sports, news, an interview, a caller, an ad or a station ID, Save records the whole break (from its opening sting until the music is back, even if you press it halfway) and saves it as an MP3 named after the show and episode when it ends. Between breaks it saves the song, as before. Shows save in the MDFM Radio app, where the voices play through the station; in a browser the voices are the computer's own speech and can't be recorded, so it saves the song instead and says so.
+- **No more silent radio after sleep or a speaker change.** If the station's audio clock hasn't started a moment after SOUND is turned on (macOS can leave it stuck after the Mac sleeps or the headphones/speakers change), the radio quietly starts a fresh audio engine. It also checks when audio devices change. If the speakers still can't be reached it says so on the screen.
+- `radio.onAir()` and `radio.recordBreak()` for apps that add their own save button (the app kit's `KitSave.attachSong` picks this up through `MDFM.saveSong`).
+
 ## 1.10.5 (2026-10-12, Rob)
 - **Save song (the floppy):** a floppy button next to Next song saves the song that's playing as an MP3: rendered again from the top (off the live audio, so it keeps playing), encoded at 192 kbps with title, style, BPM and key tags. MDFM Radio 0.3.5 asks where to save it (Music/MDFM by default; needs an app release; 0.3.4 and earlier get a normal download). On claude.ai pages (the hub, the phone page) the MP3 arrives inside a .zip, the only way those pages may hand out audio. The encoder is lamejs 1.2.1 (LGPL-3.0), kept in `vendor/lamejs`. New in the package: `radio.renderSong()`, `MDFM.saveSong()`, `MDFM.encodeMp3()`, `MDFM.saveBytes()`, `MDFM.zipFiles()`.
 

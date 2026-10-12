@@ -58,9 +58,21 @@ async function saveBytes(bytes, filename, { app = null, type = "audio/mpeg" } = 
   return { via: "browser", name: filename };
 }
 const safeName = s => String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
-/** The whole "Save song" flow: render the song on air from the top, encode it, save it. onStatus(text) reports progress. */
+/** Saving a break: waits for it to end, then encodes the recording. */
+async function saveBreak(radio, air, { app = null, onStatus = () => {} } = {}) {
+  onStatus(`Recording “${air.title}”. It saves when it's over…`);
+  const r = await radio.recordBreak(); if (!r) throw new Error("It ended before it could be saved.");
+  const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, album: i.show, genre: "Radio", comment: `MDFM 99.9 HD. ${i.show}${i.episode ? ": " + i.episode : ""}. Recorded off the air.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
+  const name = safeName(`MDFM - ${i.title}`) + ".mp3";
+  onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app })), title: i.title, bytes: mp3.length, kind: "break" };
+}
+/** The whole "Save" flow: the break on top if one is playing (shows, weather, ads...), else the song on air rendered again from the top. onStatus(text) reports progress. */
 async function saveSong(radio, { app = null, onStatus = () => {} } = {}) {
   if (!radio || typeof radio.renderSong !== "function") throw new Error("This radio can't save songs.");
+  // A show, weather, ad or other break on top right now: save that instead (the whole break, once it ends).
+  const air = typeof radio.onAir === "function" ? radio.onAir() : null;
+  if (air && air.saveable) return saveBreak(radio, air, { app, onStatus });
+  if (air) onStatus("Shows save in the MDFM Radio app. Saving the last song instead…");
   onStatus("Recording the song…"); const r = await radio.renderSong(); if (!r) throw new Error("Nothing is playing yet.");
   const i = r.info, style = String(i.style || "").toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase()).replace("R&b", "R&B").replace("Pluggnb", "PluggnB").replace(/\bDj\b/, "DJ");
   const mp3 = await encodeMp3(r.buffer, { title: i.title, genre: style, bpm: i.bpm, comment: `MDFM 99.9 HD. ${style}, ${i.bpm} BPM, ${i.key || ""}. Written by the station the moment it played.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
