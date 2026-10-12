@@ -62,3 +62,8 @@ html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-selec
 /* No scroll bar on the desktop receiver (it still scrolls with the trackpad or wheel when the window is short). */
 html.appwin,html.appwin body{scrollbar-width:none}
 html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;width:0;height:0}
+.strow{display:flex;flex:1 0 100%;flex-wrap:wrap;justify-content:flex-end;gap:8px;align-items:center}
+.stbtns{display:inline-flex;gap:6px}
+.stbtns[hidden]{display:none}
+.stbtn{width:34px;min-width:34px;height:34px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
+.stbtn svg{width:16px;height:16px;display:block;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}

@@ -73,7 +73,12 @@ async function saveSong(radio, { app = null, onStatus = () => {} } = {}) {
   const air = typeof radio.onAir === "function" ? radio.onAir() : null;
   if (air && air.saveable) return saveBreak(radio, air, { app, onStatus });
   if (air) onStatus("Shows save in the MDFM Radio app. Saving the last song instead…");
-  onStatus("Recording the song…"); const r = await radio.renderSong(); if (!r) throw new Error("Nothing is playing yet.");
+  onStatus(radio.getStation && radio.getStation() && radio.getStation().id === "wybc" ? "Recording a fresh piece (about 2½ minutes of music)…" : "Recording the song…"); const r = await radio.renderSong(); if (!r) throw new Error("Nothing is playing yet.");
+  if (r.info && r.info.station === "wybc") {   // WYBC 88.1: Collin's ambient piano
+    const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "WYBC 88.1", album: "WYBC 88.1", genre: "Ambient", comment: "WYBC 88.1. Ambient piano, composed by the station the moment you saved it." }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
+    const name = safeName(`WYBC - ${i.artist ? i.artist + " - " : ""}${i.title} (ambient piano)`) + ".mp3";
+    onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app })), title: i.title, bytes: mp3.length };
+  }
   const i = r.info, style = String(i.style || "").toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase()).replace("R&b", "R&B").replace("Pluggnb", "PluggnB").replace(/\bDj\b/, "DJ");
   const mp3 = await encodeMp3(r.buffer, { title: i.title, genre: style, bpm: i.bpm, comment: `MDFM 99.9 HD. ${style}, ${i.bpm} BPM, ${i.key || ""}. Written by the station the moment it played.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
   const name = safeName(`MDFM - ${i.title} (${style}, ${i.bpm} BPM)`) + ".mp3";

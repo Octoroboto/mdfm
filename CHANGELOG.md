@@ -2,6 +2,15 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.11.0 (2026-10-12, Rob)
+- **A second station: WYBC 88.1.** Collin's ambient piano generator (from his "Where Ya Been, Collin?!" map) is now its own station: a soft, warm piano piece composed live, with light strings, the odd bass clarinet or bassoon, room tone, tape grain and far-off concert-hall sounds. No ads, shows or news, just a quiet station ID every 15 to 20 minutes. It plays through the same volume, EQ, meters and visualizer.
+- **Station arrows** (◀ ▶) on the lower row with Next song and Station break switch between WYBC 88.1 and MDFM 99.9 HD, live or before tuning in. The display shows the station; on WYBC the buttons read Next piece (a new piece, crossfaded) and Station ID. The choice is remembered on this device.
+- **Each station has its own "What plays" section** in Settings: MDFM's is now "What plays between songs on MDFM 99.9"; WYBC's has quiet station IDs, light strings, bass clarinet and bassoon, concert-hall sounds, and room tone and tape grain (the piano always plays). WYBC's switches are remembered on this device.
+- **Every piece gets a made-up artist** (a name, a trio or quartet, or an ensemble), shown as it plays: it's procedural music, so the players are procedural too.
+- **Save on WYBC** renders a fresh 2½-minute performance (off the live audio) and saves it as an MP3: "WYBC - <artist> - <piece> (ambient piano)", tagged with that artist and the album WYBC 88.1.
+- Engine: `stations()`, `getStation()`, `setStation(id)`, `nextStation()`, `prevStation()`, `stationTypeList(id)`, `getStationTypes(id)`, `setStationTypes(id, t)` and a `station` event; `createMDFM({ station })` picks the starting station. Pages that don't use them stay on MDFM 99.9 as before.
+- Collin's generator is in `vendor/ambient-soundtrack`, unchanged except one line: it no longer suspends an audio context the host owns.
+
 ## 1.10.6 (2026-10-12, Rob)
 - **`dist/manifest.json`:** the build now writes a manifest (version, receiver version, path and sha256 of the engine and the radio page parts). The app kit's live MDFM updater (kit 2.2.0) reads it so kit apps get new radio content without a new build. No change to the radio itself.
 - **The floppy saves what's on top.** During a show, weather, sports, news, an interview, a caller, an ad or a station ID, Save records the whole break (from its opening sting until the music is back, even if you press it halfway) and saves it as an MP3 named after the show and episode when it ends. Between breaks it saves the song, as before. Shows save in the MDFM Radio app, where the voices play through the station; in a browser the voices are the computer's own speech and can't be recorded, so it saves the song instead and says so.

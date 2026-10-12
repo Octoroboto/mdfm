@@ -984,7 +984,7 @@ function callerSegment(){
     ["guest",pick(C.open)],["guest",`I just wanted to say ${pick(C.complaint)}.`],["host",pick(C.reply)],["guest",pick(C.bye)],["host",pick(["Thanks for calling.","Okay.","We'll be right back.","Click."])]]};
 }
 function voiceSting(){
-  if(!on||speaking||!VSTING.length) return; speaking=true; const g=gen, line=say(pick(VSTING)), t=ctx.currentTime+.05; emit("spot",{kind:"stinger",text:line});
+  if(!on||speaking||!VSTING.length||station!=="mdfm") return; speaking=true; const g=gen, line=say(pick(VSTING)), t=ctx.currentTime+.05; emit("spot",{kind:"stinger",text:line});
   fadeTo(musicDuck.gain,.35,.4,t); const len=pick(STINGS)(t);
   setTimeout(()=>{ if(g!==gen) return; speak(line,()=>{ if(g!==gen) return; fadeTo(musicDuck.gain,1,1,ctx.currentTime+.1); speaking=false; }); },Math.max(300,len*500));
 }
@@ -1016,7 +1016,7 @@ function forcedSpot(k){   // spotNow(kind) for kinds that need their text picked
   if(k==="ad"){ if(!ADS.length&&!AP_OK) return null; if(!ADS.length||(R()<.3&&AP_OK)) return {kind:"ad",text:genAd()}; if(!QUEUE.length) refill(); return {kind:"ad",text:QUEUE.shift()}; }
   return {kind:k}; }
 function spot(force,pre){
-  if(!on||speaking||!spotsOn) return;
+  if(!on||speaking||!spotsOn||station!=="mdfm") return;
   if(force&&KIND_TYPE[force]&&!TYPES[KIND_TYPE[force]]) return;   // switched off in Settings
   const sp=pre||(force?(showSpot(force)||forcedSpot(force)):nextSpot()); if(!sp) return;
   if(pre&&!TYPES[sp.title==="Caller"?"callers":KIND_TYPE[sp.kind]]) return;   // picked at the song change, switched off since
@@ -1080,16 +1080,87 @@ function primeSpeech(){ if(speechPrimed||!HAS_TTS||typeof opts.tts==="function")
 let lastRebuild=-1e9;
 function watchAudio(){ if(opts.audioContext||typeof window==="undefined"||!ctx) return; const c=ctx, t0=c.currentTime, g=gen;
   setTimeout(()=>{ if(!on||gen!==g||ctx!==c||c.currentTime-t0>.25) return; const now=Date.now(); if(now-lastRebuild<8000){ emit("caption",{who:"MDFM",text:"Can't reach the speakers. Check your sound output, then press SOUND again."}); return; } lastRebuild=now; rebuildAudio(); },1600); }
-function rebuildAudio(){ const old=ctx; recStop(true); clearInterval(timer); for(const s of songs) try{ s.bus.disconnect(); }catch(e){} songs=[]; bed=null; speaking=false; voiceSrc=null;
+function rebuildAudio(){ const old=ctx; recStop(true); clearTimeout(wybcT); if(amb){ try{ amb.inst.stop(); }catch(e){} amb=null; } ambIn=null; clearInterval(timer); for(const s of songs) try{ s.bus.disconnect(); }catch(e){} songs=[]; bed=null; speaking=false; voiceSrc=null;
   ctx=null; try{ old&&old.close&&old.close().catch(()=>{}); }catch(e){} on=false; setOn(true); }
 if(typeof navigator!=="undefined"&&navigator.mediaDevices&&typeof navigator.mediaDevices.addEventListener==="function")
   navigator.mediaDevices.addEventListener("devicechange",()=>{ if(on) watchAudio(); });
+/* ---------- stations: WYBC 88.1 (Collin's ambient piano, vendor/ambient-soundtrack) and MDFM 99.9 HD (everything above) ----------
+   One AudioContext, one volume, EQ, meters and visualizer: the ambient generator plays into this station's master.
+   Switching tunes away: MDFM's songs and talk stop and the other station fades in. Pages remember the choice. */
+const STATIONS=[
+  {id:"wybc",name:"WYBC 88.1",freq:"88.1",tagline:"Where Ya Been, Collin?!",style:"Ambient piano"},
+  {id:"mdfm",name:"MDFM 99.9 HD",freq:"99.9",tagline:"Hip hop, R&B, pop, dance and a DJ set",style:null},
+];
+const AMB=()=>typeof AmbientSoundtrack!=="undefined"?AmbientSoundtrack:(typeof globalThis!=="undefined"&&globalThis.AmbientSoundtrack)||null;
+const STATION_TYPES={ wybc:[["ids","Quiet station IDs"],["strings","Light strings"],["winds","Bass clarinet and bassoon"],["hall","Far-off concert hall sounds"],["room","Room tone and tape grain"]] };
+const wybcTypes={ids:true,strings:true,winds:true,hall:true,room:true};
+const AMB_LEVEL=4.2;   // the piece is soft by design (about -27 dB average): this brings it to about 3 dB under MDFM (a quiet station, not a dead one), under the limiter
+const PIECES=["Where Ya Been","Porch Light","The Long Way Round","Postcard, Unsent","Night Ferry","Back Before Dark","Small Hours","The Map Room",
+  "Quiet Miles","Window Seat","Somewhere Off the Interstate","Left the Light On","Slow Train North","Kitchen at 2 a.m.","Rain on the Map","Pinned, Not Posted"];
+// Procedural music, procedural players: every piece gets a made-up artist.
+const ART={first:["Elin","Marisol","Teodor","Ines","Callum","Noor","Aurelio","Hanne","Sabine","Rafe","Odile","Lucan","Mirela","Jonas","Thea","Bastian","Ilse","Corwin","Wren","Anouk"],
+  last:["Vane","Halloway","Brask","Lindqvist","Moreau","Ashdown","Kestrel","Ferrante","Okafor","Strand","Delacroix","Rowe","Abernathy","Solberg","Marchetti","Quill","Fairweather","Lusk"],
+  adj:["Quiet","Late","Slow","Paper","Lantern","Low Tide","Northbound","Small Hours","Porchlight","Wool"],noun:["Ensemble","Players","Chamber Group","Room","Society","Orchestra"]};
+function wybcArtist(){ const r=R(); if(r<.6) return `${pick(ART.first)} ${pick(ART.last)}`; if(r<.85) return `${pick(ART.last)} ${pick(["Trio","Quartet","Duo"])}`; return `The ${pick(ART.adj)} ${pick(ART.noun)}`; }
+const WYBC_IDS=["You're listening to W Y B C, eighty eight point one. Where ya been? Right here.","W Y B C. Eighty eight one. Take your time.",
+  "This is W Y B C, eighty eight point one. Quiet music for wherever you've been.","Eighty eight point one, W Y B C. Stay a while.",
+  "W Y B C, eighty eight one. The piano's still going. So are you.","You found W Y B C. Eighty eight point one. No rush."];
+const WYBC_VOICE={accent:"american",names:["Ava","Allison","Samantha","Microsoft Aria","Google US English"],pitch:.95,rate:.8};
+let station=STATIONS.some(s=>s.id===opts.station)&&(opts.station!=="wybc"||AMB())?opts.station:"mdfm";
+let amb=null, ambIn=null, wybcT=0, lastPiece="";
+const stationInfo=id=>{ const s=STATIONS.find(x=>x.id===id); return s?{...s,available:id!=="wybc"||!!AMB()}:null; };
+function ambSettings(){ const t=wybcTypes; return {strings:t.strings?1:0,winds:t.winds?1:0,hall:t.hall?1:0,room:t.room?1:0,grain:t.room?1:0}; }
+function ambStart(fadeIn){
+  const L=AMB(); if(!L||!ctx) return false;
+  if(!ambIn||ambIn.context!==ctx){ ambIn=G(AMB_LEVEL); ambIn.connect(master); }
+  const out=G(fadeIn?.0001:1); out.connect(ambIn); if(fadeIn) fadeTo(out.gain,1,fadeIn,ctx.currentTime);
+  const inst=L.create({context:ctx,destination:out,pauseWhenHidden:false,settings:ambSettings()});
+  amb={inst,out}; try{ const p=inst.start(); if(p&&p.catch) p.catch(()=>{}); }catch(e){}
+  let title; do title=pick(PIECES); while(title===lastPiece&&PIECES.length>1); lastPiece=title;
+  nowPlaying={station:"wybc",title,style:"Ambient piano",bpm:null,artist:wybcArtist()}; emit("nowplaying",nowPlaying);
+  return true;
+}
+function ambRetire(a,fade){ if(!a) return; try{ fadeTo(a.out.gain,.0001,fade,ctx.currentTime); }catch(e){}
+  setTimeout(()=>{ try{ a.inst.stop(); }catch(e){} setTimeout(()=>{ try{ a.out.disconnect(); }catch(e){} },1500); },fade*1000+100); }
+function wybcOn(){ ambStart(1.5); clearTimeout(wybcT); wybcT=setTimeout(wybcId,rr(40,90)*1000); }
+function wybcOff(fade){ clearTimeout(wybcT); wybcT=0; const a=amb; amb=null; ambRetire(a,fade); }
+// A quiet station ID every 15-20 minutes: the piano dips, a calm voice, the piano comes back.
+function wybcId(force){
+  if(!on||station!=="wybc") return; clearTimeout(wybcT); wybcT=setTimeout(wybcId,rr(15,20)*60e3);
+  if(!wybcTypes.ids||speaking) return; speaking=true; const g=gen, line=pick(WYBC_IDS), a=amb;
+  emit("spot",{kind:"id",station:"wybc",text:line}); if(a) fadeTo(a.out.gain,.4,1.5,ctx.currentTime);
+  const v=voiceFor(WYBC_VOICE), cast={voice:v,voiceName:v?null:"Samantha",pitch:WYBC_VOICE.pitch,rate:WYBC_VOICE.rate,who:"WYBC 88.1"};
+  setTimeout(()=>{ if(g!==gen||station!=="wybc"){ speaking=false; return; } speak(line,()=>{ if(g!==gen) return; speaking=false; if(amb) fadeTo(amb.out.gain,1,3,ctx.currentTime); },cast); },1600);
+}
+function setStation(id){
+  const s=stationInfo(id); if(!s||!s.available||id===station) return station; station=id;
+  if(on&&ctx){ gen++; const t=ctx.currentTime;
+    if(id==="wybc"){   // tune away from MDFM: its songs, beds and talk stop; the piano fades in
+      recStop(true); clearInterval(timer); timer=0; try{ speechSynthesis.cancel(); }catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
+      fadeTo(musicDuck.gain,.0001,1.2,t); const old=songs, b=bed; songs=[]; bed=null;
+      setTimeout(()=>{ for(const x of old) try{ x.bus.disconnect(); x.rvf.disconnect(); }catch(e){} if(b){ b.stopped=true; try{ b.bus.disconnect(); }catch(e){} } },1500);
+      wybcOn();
+    } else {   // back to MDFM: the piano fades out, a new song starts
+      try{ speechSynthesis.cancel(); }catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false; wybcOff(1.2);
+      fadeTo(musicDuck.gain,1,.3,t); startSong(t+.3,0); lastSpot=t; clearInterval(timer); timer=setInterval(tick,40); tick();
+    } }
+  emit("station",stationInfo(station)); return station;
+}
+function stepStation(d){ const list=STATIONS.filter(s=>stationInfo(s.id).available), i=list.findIndex(s=>s.id===station); return setStation(list[(i+d+list.length)%list.length].id); }
+// "Save" on WYBC: a fresh 2.5-minute performance, rendered off the live audio and brought up to MDFM's level.
+async function renderAmbient(secs){
+  const L=AMB(); if(!L) return null; const oc=new OfflineAudioContext(2,Math.ceil(44100*secs),44100);
+  const inst=L.create({context:oc,offline:true,settings:ambSettings()}); inst._scheduleAll(secs,true); const buffer=await oc.startRendering();
+  let pk=0; for(let c=0;c<2;c++){ const d=buffer.getChannelData(c); for(let i=0;i<d.length;i++){ const a=Math.abs(d[i]); if(a>pk) pk=a; } }
+  const k=pk>0?Math.min(8,.89/pk):1; for(let c=0;c<2;c++){ const d=buffer.getChannelData(c); for(let i=0;i<d.length;i++) d[i]*=k; }
+  return buffer;
+}
 function setOn(v){
   if(v===on) return; on=v; gen++;
   if(v){ primeSpeech(); if(!ctx) init(opts.audioContext); try{ const pr=ctx.resume(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){} watchAudio(); const t=ctx.currentTime; fadeTo(master.gain,(opts.volume??1)*VOL,.4,t);
     if(bed){ bed.stopped=true; try{ bed.bus.disconnect(); }catch(e){} bed=null; } fadeTo(musicDuck.gain,1,.3,t);   // restarted before the stop finished: the old break is gone
-    if(!songs.length){ startSong(t+.1,0); lastSpot=t-999; } clearInterval(timer); timer=setInterval(tick,40); tick(); }
-  else if(ctx){ recStop(true); const t=ctx.currentTime; fadeTo(master.gain,0,.3,t); clearInterval(timer); try{speechSynthesis.cancel();}catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
+    if(station==="wybc"&&AMB()){ clearInterval(timer); timer=0; wybcOn(); } else { station="mdfm"; if(!songs.length){ startSong(t+.1,0); lastSpot=t-999; } clearInterval(timer); timer=setInterval(tick,40); tick(); } }
+  else if(ctx){ recStop(true); wybcOff(.3); const t=ctx.currentTime; fadeTo(master.gain,0,.3,t); clearInterval(timer); try{speechSynthesis.cancel();}catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
     const c=ctx,md=musicDuck; setTimeout(()=>{ if(!on){ for(const s of songs) try{s.bus.disconnect();}catch(e){} songs=[]; if(bed){ try{bed.bus.disconnect();}catch(e){} bed=null; } fadeTo(md.gain,1,.01,c.currentTime); c.suspend(); } },400); }
   emit(v?"start":"stop");
 }
@@ -1130,8 +1201,8 @@ return {
   stop(){ setOn(false); },
   toggle(){ setOn(!on); return on; },
   isOn(){ return on; },
-  skip(){ for(const s of songs) if(!s.handed) s.step=Math.max(s.step,(s.bars-4)*16-1); },
-  spotNow(kind){ spot(kind); },
+  skip(){ if(station==="wybc"){ if(on&&amb){ const a=amb; amb=null; ambRetire(a,4); ambStart(4); } return; } for(const s of songs) if(!s.handed) s.step=Math.max(s.step,(s.bars-4)*16-1); },
+  spotNow(kind){ if(station==="wybc"){ wybcId(true); return; } spot(kind); },
   setDuck(v){ v=Math.max(0,Math.min(1,+v)); if(!Number.isFinite(v)) return; duckLevel=v; if(ctx&&extDuck){ const t=ctx.currentTime; extDuck.gain.cancelScheduledValues(t); extDuck.gain.setTargetAtTime(Math.max(v,0),t,v<1?.08:.35); } },   // 0..1 over everything (music and DJ), eased
   setProviders(p){ for(const k of ["weather","sports","news","tts","cannedFallback"]) if(k in p) opts[k]=p[k]; wxCache=spCache=null; },   // kind optional: "weather" | "sports"
   stingNow(){ voiceSting(); },
@@ -1158,14 +1229,26 @@ return {
   nextSpotText(){ return nextSpot(); },
   renderOffline,
   /* "Save song": renders the song on air again, from the top, off the live audio path, and returns {buffer, info}. */
-  async renderSong(){ const live=[...songs].reverse().find(x=>x.recipe&&nowPlaying&&x.title===nowPlaying.title)||[...songs].reverse().find(x=>x.recipe);
+  async renderSong(){ if(station==="wybc"){ if(!nowPlaying||nowPlaying.station!=="wybc") return null; const buffer=await renderAmbient(150); return buffer&&{buffer,info:{...nowPlaying,stationName:"WYBC 88.1"}}; }
+    const live=[...songs].reverse().find(x=>x.recipe&&nowPlaying&&x.title===nowPlaying.title)||[...songs].reverse().find(x=>x.recipe);
     if(!live) return null; const secs=Math.min(600,live.bars*16*live.sp+3);
     const buffer=await renderOffline("current",secs,{recipe:live.recipe,bars:live.bars,brk2:live.brk2,ride:live.ride});
     return {buffer,info:{title:live.title,style:live.name,bpm:live.bpm,...songFacts(live)}}; },
   /* "Save" during a break: onAir() says what break is on now ({kind, show, episode, title, saveable}); recordBreak()
      resolves {buffer, info} when it ends (the whole break, recorded from its start), or null if none is on. */
-  onAir(){ return REC&&REC.live?{...breakInfo(REC.sp),saveable:REC.voiced}:null; },
+  onAir(){ return station==="mdfm"&&REC&&REC.live?{...breakInfo(REC.sp),saveable:REC.voiced}:null; },
   recordBreak(){ const r=REC; if(!r||!r.live) return Promise.resolve(null); return new Promise((res,rej)=>r.waiters.push({res,rej})); },
   get audioContext(){ return ctx; },
+  /* Stations: WYBC 88.1 (ambient piano) and MDFM 99.9 HD. setStation / nextStation / prevStation switch live (or pick the
+     one SOUND starts on); the "station" event says which is on. Each station has its own "what plays" switches. */
+  stations(){ return STATIONS.map(x=>stationInfo(x.id)); },
+  getStation(){ return stationInfo(station); },
+  setStation(id){ return setStation(id); },
+  nextStation(){ return stepStation(1); },
+  prevStation(){ return stepStation(-1); },
+  stationTypeList(id){ return (STATION_TYPES[id]||[]).map(x=>[...x]); },   // MDFM's own list is window.MDFM_TYPES / setTypes
+  getStationTypes(id){ return id==="wybc"?{...wybcTypes}:{...TYPES}; },
+  setStationTypes(id,t){ if(id!=="wybc"){ this.setTypes(t); return; } for(const [k] of STATION_TYPES.wybc) if(t&&k in t) wybcTypes[k]=!!t[k];
+    if(amb){ const m=ambSettings(); for(const k in m) try{ amb.inst.set(k,m[k]); }catch(e){} } },
 };
 }

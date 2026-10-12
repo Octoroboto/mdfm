@@ -60,6 +60,19 @@ The look and controls come from **MedDev Receiver** (`Octoroboto/meddev-receiver
 | `radio.thwack()` | A swatter-hit sound effect (used by the hub's fly swatter). |
 | `mountEQ(canvas, radio, opts)` | LED bars with falling peak caps. Idle shimmer when off (`idle: false` to hide). |
 
+## Stations
+
+Two stations share one audio output (volume, EQ, meters and visualizer):
+
+- **MDFM 99.9 HD**: everything above.
+- **WYBC 88.1**: ambient piano composed live by Collin's generator (`vendor/ambient-soundtrack`), with a made-up artist per piece and a quiet station ID every 15-20 minutes. No ads, shows or news.
+
+`radio.stations()`, `getStation()`, `setStation(id)`, `nextStation()`, `prevStation()` and the `station` event switch between them
+(live, or before SOUND). `stationTypeList("wybc")` / `setStationTypes("wybc", { ids, strings, winds, hall, room })` are WYBC's
+"what plays" switches; MDFM's stay `setTypes`. On WYBC, `skip()` crossfades to a new piece, `spotNow()` plays a station ID
+and `renderSong()` renders a fresh 2.5-minute performance. The radio page has ◀ ▶ arrows on the lower button row and a
+"What plays" section per station; it remembers the station and WYBC's switches on the device.
+
 ## Weather and time
 
 The DJ reads the local time on its own, with a remark that fits the hour, then hands over to Tabitha Snatterbean for the weather. Real weather is opt-in, because it's the only part of MDFM that uses the network (Open-Meteo, free, no key):

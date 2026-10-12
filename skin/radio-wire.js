@@ -28,7 +28,28 @@
   // Newer apps render the robot voices as audio, so the volume and LOW/MID/HIGH EQ apply to them too.
   if(app&&app.tts) radio.setProviders({tts:spec=>app.tts(spec)});
   const np=$("#np"), cap=$("#cap"); let capT=0;
-  radio.on("nowplaying",s=>{ np.textContent=`Now playing: “${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`; });
+  const npText=s=>s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
+  radio.on("nowplaying",s=>{ np.textContent=`Now playing: ${npText(s)}`; });
+  // Stations: WYBC 88.1 (Collin's ambient piano) and MDFM 99.9 HD. The arrows switch; the choice is remembered on this device.
+  const stLS="mdfmStation", showStation=st=>{ if(!st) return; $("#stName").textContent=st.name; document.documentElement.dataset.station=st.id;
+    const w=st.id==="wybc"; $("#skipBtn").textContent=w?"Next piece":"Next song"; $("#spotBtn").textContent=w?"Station ID":"Station break";
+    $("#skipBtn").title=w?"A new piece":"Skip to the next song"; };
+  if(radio.setStation){ try{ const k=localStorage.getItem(stLS); if(k) radio.setStation(k); }catch(e){}
+    showStation(radio.getStation());
+    radio.on("station",st=>{ showStation(st); try{ localStorage.setItem(stLS,st.id); }catch(e){}
+      if(!radio.isOn()) np.textContent=`Tuned to ${st.name}. Press the SOUND button to tune in.`; else if(st.id==="mdfm"&&window.AXMOD) window.AXMOD.sound("MDFM 99.9 HD"); });
+    const step=d=>()=>{ d>0?radio.nextStation():radio.prevStation(); };
+    $("#stPrev").addEventListener("click",step(-1)); $("#stNext").addEventListener("click",step(1));
+    if(!radio.stations().some(s=>s.id!=="mdfm"&&s.available)) $("#stBtns").hidden=true;
+    // WYBC's own "what plays" switches (this device)
+    const wl=$("#wybcList"), list=radio.stationTypeList("wybc");
+    if(wl&&list.length&&radio.stations().some(s=>s.id==="wybc"&&s.available)){ let wt={}; try{ wt=JSON.parse(localStorage.getItem("wybcTypes")||"{}"); }catch(e){}
+      for(const [k,label] of list){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-wtype="${k}"> <span>${label}</span>`;
+        l.querySelector("input").checked=wt[k]!==false; wl.appendChild(l); }
+      const ws=()=>{ const t={}; wl.querySelectorAll("input[data-wtype]").forEach(cb=>t[cb.dataset.wtype]=cb.checked); return t; };
+      radio.setStationTypes("wybc",ws()); wl.addEventListener("change",()=>{ const t=ws(); radio.setStationTypes("wybc",t); try{ localStorage.setItem("wybcTypes",JSON.stringify(t)); }catch(e){} });
+      $("#wybcSet").hidden=false; } }
+  else { const b=$("#stBtns"); if(b) b.hidden=true; }
   radio.on("caption",c=>{ cap.textContent=`${c.who}: ${c.text}`; clearTimeout(capT); capT=setTimeout(()=>{ cap.textContent=""; },14000); });
   const box=$("#sndOn"); box.checked=false;
   box.addEventListener("change",()=>{ box.checked?radio.start():radio.stop(); if(!box.checked) np.textContent="Press the SOUND button to tune in."; });
@@ -49,7 +70,7 @@
   // and Calm mode mutes the voice drops between songs. Skipped quietly on an older receiver.
   (A=>{ if(!A) return; A.hasSound=true;
     radio.on("caption",c=>A.caption(c.text,{who:c.who}));
-    radio.on("nowplaying",s=>A.sound(`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
+    radio.on("nowplaying",s=>A.sound(s.station==="wybc"?`WYBC 88.1: “${s.title}” by ${s.artist}, ambient piano`:`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
     const band=(a,i,j)=>{ let m=0; for(let k=i;k<j;k++) m=Math.max(m,a[k]||0); return Math.round(m*100)+"%"; };
     A.describe($("header.top .lcd.viz"),()=>{ if(!radio.isOn()) return "off"; const s=radio.getSpectrum&&radio.getSpectrum(); return s?`bass ${band(s,0,6)}, mids ${band(s,6,13)}, treble ${band(s,13,19)}`:"on"; },{label:"EQ"});
     A.describe($(".vu"),()=>{ const l=radio.isOn()&&radio.getLevels?radio.getLevels():null; return l?`left ${Math.round(l[0]+14)} VU, right ${Math.round(l[1]+14)} VU`:"radio off"; },{label:"VU meters"});
