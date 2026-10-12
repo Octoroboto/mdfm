@@ -1,0 +1,32 @@
+{
+  "name": "mdfm",
+  "version": "1.10.6",
+  "receiver": "1.12.0",
+  "files": {
+    "mdfm.iife.js": {
+      "path": "dist/mdfm.iife.js",
+      "bytes": 421279,
+      "sha256": "bbde220ff8282f7e8cfbad3e0ab0331c2baff349683bca4f6d0b3f4620b01cac"
+    },
+    "types.js": {
+      "path": "skin/types.js",
+      "bytes": 753,
+      "sha256": "0c95ee1f573ac8e81c918f9d36d8e9be138586f9fb5d89e7018e788f78c016b3"
+    },
+    "radio.css": {
+      "path": "skin/radio.css",
+      "bytes": 5276,
+      "sha256": "009327c5f1f5a6943c850e4027514b6f560e07e8345e696b630ae9a5e4bf4f63"
+    },
+    "radio-wire.js": {
+      "path": "skin/radio-wire.js",
+      "bytes": 11006,
+      "sha256": "16db2d58d40db53f7ad2157f7163322a5e611c96927e6e3d59a29c6b9a79f21a"
+    },
+    "radio-body.html": {
+      "path": "skin/radio-body.html",
+      "bytes": 10299,
+      "sha256": "dd06e68fb97452f8a7062d3e9af977460763a06a21a13c6c28fab14c3ae17427"
+    }
+  }
+}

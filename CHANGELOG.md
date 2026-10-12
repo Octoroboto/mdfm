@@ -3,6 +3,7 @@
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
 ## 1.10.6 (2026-10-12, Rob)
+- **`dist/manifest.json`:** the build now writes a manifest (version, receiver version, path and sha256 of the engine and the radio page parts). The app kit's live MDFM updater (kit 2.2.0) reads it so kit apps get new radio content without a new build. No change to the radio itself.
 - **The floppy saves what's on top.** During a show, weather, sports, news, an interview, a caller, an ad or a station ID, Save records the whole break (from its opening sting until the music is back, even if you press it halfway) and saves it as an MP3 named after the show and episode when it ends. Between breaks it saves the song, as before. Shows save in the MDFM Radio app, where the voices play through the station; in a browser the voices are the computer's own speech and can't be recorded, so it saves the song instead and says so.
 - **No more silent radio after sleep or a speaker change.** If the station's audio clock hasn't started a moment after SOUND is turned on (macOS can leave it stuck after the Mac sleeps or the headphones/speakers change), the radio quietly starts a fresh audio engine. It also checks when audio devices change. If the speakers still can't be reached it says so on the screen.
 - `radio.onAir()` and `radio.recordBreak()` for apps that add their own save button (the app kit's `KitSave.attachSong` picks this up through `MDFM.saveSong`).

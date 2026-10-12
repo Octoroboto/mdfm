@@ -1,6 +1,7 @@
 // Zero-dependency build: stitches src/ into dist/mdfm.mjs (ES module) and dist/mdfm.iife.js (window.MDFM),
 // and the shared look (the MedDev Receiver, vendor/meddev-receiver) into dist/skin.css, dist/skin.js and the self-contained dist/radio.html.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 const root = new URL("../", import.meta.url);
 const read = p => readFileSync(new URL(p, root), "utf8");
 const { version } = JSON.parse(read("package.json"));
@@ -50,4 +51,11 @@ ${skinsTag}
 </body></html>
 `;
 out("radio.html", radio);
-console.log(`built mdfm ${version} (receiver ${rx.version}) -> dist/mdfm.mjs, dist/mdfm.iife.js, dist/skin.css, dist/skin.js, dist/radio.html`);
+// dist/manifest.json: what the app kit's MDFM updater (kit/mdfm/updater.cjs) reads to fetch newer content live.
+// Each file is listed with its path in this repo and its sha256, so apps only keep a set that matches as a whole.
+const shaOf = s => createHash("sha256").update(s).digest("hex");
+const parts = { "mdfm.iife.js": ["dist/mdfm.iife.js", iife], "types.js": ["skin/types.js", read("skin/types.js")], "radio.css": ["skin/radio.css", read("skin/radio.css")],
+  "radio-wire.js": ["skin/radio-wire.js", read("skin/radio-wire.js")], "radio-body.html": ["skin/radio-body.html", read("skin/radio-body.html")] };
+out("manifest.json", JSON.stringify({ name: "mdfm", version, receiver: rx.version,
+  files: Object.fromEntries(Object.entries(parts).map(([k, [p, s]]) => [k, { path: p, bytes: Buffer.byteLength(s), sha256: shaOf(s) }])) }, null, 2) + "\n");
+console.log(`built mdfm ${version} (receiver ${rx.version}) -> dist/mdfm.mjs, dist/mdfm.iife.js, dist/skin.css, dist/skin.js, dist/radio.html, dist/manifest.json`);
