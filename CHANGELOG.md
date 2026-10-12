@@ -2,6 +2,14 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.9.6 (2026-10-11, Rob)
+- **Three new shows** (content update; each can be switched off in Settings):
+  - **Show Ponies**, a fully generated serial. Each season is a made-up circuit with six ponies (names, owners, handlers, hometowns and a quirk each), three judges and five episodes: four classes picked from Halter, Trail, Costume, Pleasure Driving, Jumpers, Freestyle to Music and Showmanship, then a double-points Supreme Champion finale. Announcer Pembroke Vance and colour commentator Darlene Tuttle call each run, the judges score it, owners sometimes complain on air, points carry over, and each episode opens with a recap of the last one. The season is saved, so the story carries on between launches; after the finale a new season starts with new ponies.
+  - **Fixer Downer, with Gary Voss**: five episodes of unfortunate home repair (a squeaky door, one shelf, a small drip, a ceiling fan, a deck).
+  - **Gasket Case, with Hal and Vern Pruitt**: five episodes of two old brothers taking calls about broken cars. Callers sound like they're on the phone (cast members can now have `phone: true`).
+- New sound cues for shows: hammer, drill, crash and crank (an engine that won't start).
+- MDFM Radio / MD Hub keep the new on/off switches in their saved settings (needs an app release; until then the switches still work in the page, they just aren't remembered by the older apps).
+
 ## 1.9.5 (2026-10-11, Rob)
 - MedDev Receiver 1.10.4 built in: the light-colour knobs only re-colour Clara Stamford's embroidered screens instead of blacking them out, Clara's props are redrawn, and House of Spoons has no half spoons.
 

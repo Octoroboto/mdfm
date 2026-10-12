@@ -505,6 +505,13 @@ const OT={
     for(let k=0;k<3;k++) M.bell(b,t+2.1+k*.2,84,.15,.5,0); return 2.7; },
   gallery(b,t){ OT.steps(b,t); for(let k=0;k<10;k++) noiseHit(b,t+R()*2.4,rr(300,700),2,.25,.08); return 2.2; },
   applause(b,t){ for(let k=0;k<90;k++) noiseHit(b,t+R()*2.4*Math.sqrt(R()),rr(900,2400),1.5,.03,.35); return 2.4; },
+  hammer(b,t){ for(let k=0;k<5;k++){ const tt=t+k*.34+rr(0,.05); noiseHit(b,tt,1800,3,.04,.9); wood(b,tt,rr(300,360),.9); D.tom(b,tt,.35,110); } return 1.9; },
+  drill(b,t){ const bp=filt("bandpass",1400,2),g=ctx.createGain();
+    for(const [type,hi] of [["sawtooth",420],["square",840]]){ const o=osc(type,hi/4); o.frequency.setValueAtTime(hi/4,t); o.frequency.exponentialRampToValueAtTime(hi,t+.35); o.frequency.setValueAtTime(hi,t+1.2); o.frequency.exponentialRampToValueAtTime(hi*.3,t+1.6); o.connect(bp); o.start(t); o.stop(t+1.7); }
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.12,t+.15); g.gain.setValueAtTime(.12,t+1.2); g.gain.exponentialRampToValueAtTime(.0001,t+1.65); bp.connect(g); g.connect(b.mu); return 1.7; },
+  crash(b,t){ noiseHit(b,t,600,.7,.6,1); D.tom(b,t,1,70); for(let k=0;k<14;k++){ const tt=t+.08+R()*1.5; noiseHit(b,tt,rr(900,4000),3,rr(.03,.1),rr(.3,.8)); if(R()<.4) wood(b,tt,rr(200,900),.7); } M.bell(b,t+1.1,86,.5,.4,.3); return 2.0; },
+  crank(b,t){ const n=nz(t,2),lp=filt("lowpass",500,2),g=ctx.createGain(),lfo=osc("square",7),lg=G(.25); lfo.connect(lg); lg.connect(g.gain);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.3,t+.08); g.gain.setValueAtTime(.3,t+1.5); g.gain.exponentialRampToValueAtTime(.0001,t+1.8); n.connect(lp); lp.connect(g); g.connect(b.dr); lfo.start(t); lfo.stop(t+1.9); noiseHit(b,t+1.85,2200,4,.03,.6); return 2.0; },
   page(b,t){ const n=nz(t,.5),bp=filt("bandpass",3000,1),g=ctx.createGain(); bp.frequency.setValueAtTime(1500,t); bp.frequency.exponentialRampToValueAtTime(5000,t+.35); env(g,t,.12,.35,.35); n.connect(bp); bp.connect(g); g.connect(b.dr); return .7; },
 };
 const ORGAN={
@@ -514,7 +521,7 @@ const ORGAN={
   romance(b,t){ M.organ(b,t,[53,57,60,64],1.2,.9,5); M.organ(b,t+1.1,[55,59,62,67,71],2.4,1,5); return 3.2; },
   outro(b,t){ const k=ri(-2,2); M.organ(b,t,[53,57,60].map(m=>m+k),.6,1); M.organ(b,t+.6,[55,59,62].map(m=>m+k),.6,1); M.organ(b,t+1.2,[48,52,55,60,64].map(m=>m+k),3,1.1); return 3.6; },
 };
-const CUE_LABEL={rain:"rain",knock:"knock knock knock",door:"door creaks",steps:"footsteps",claps:"clapping",rocket:"rocket launch",beeps:"control panel beeps",theremin:"spooky space noise",zap:"zap",thunder:"thunder",clock:"clock ticking",horse:"hoofbeats",wind:"wind",teacup:"teacup clinks",typewriter:"typing",printer:"printer whirs",gallery:"quiet gallery",applause:"polite applause",page:"page turns"};
+const CUE_LABEL={rain:"rain",knock:"knock knock knock",door:"door creaks",steps:"footsteps",claps:"clapping",rocket:"rocket launch",beeps:"control panel beeps",theremin:"spooky space noise",zap:"zap",thunder:"thunder",clock:"clock ticking",horse:"hoofbeats",wind:"wind",teacup:"teacup clinks",typewriter:"typing",printer:"printer whirs",gallery:"quiet gallery",applause:"polite applause",page:"page turns",hammer:"hammering",drill:"power drill",crash:"something big falls over",crank:"engine cranks and won't start"};
 
 /* ---------- scheduler ---------- */
 let nextGap=rr(30,60), lastShow=-1e9;   // first break comes quickly; after that the station leans on music
@@ -646,10 +653,11 @@ async function techLines(){
   return lines;
 }
 function newsDue(){ if(typeof opts.news!=="function"||!spotsOn||!TYPES.news||speaking) return false; const d=new Date(), key=d.getDate()*24+d.getHours(); if(d.getMinutes()>=8||key===lastNewsHour) return false; lastNewsHour=key; return true; }
-const PLAYS=cat("plays"), ARTS=cat("arts"), PODS=cat("podcasts"), COOKS=cat("cooking"); const PLQ=[], ARQ=[], POQ=[], COQ=[];
+const PLAYS=cat("plays"), ARTS=cat("arts"), PODS=cat("podcasts"), COOKS=cat("cooking"), HOMES=cat("homerepair"), CARS=cat("garage"); const PLQ=[], ARQ=[], POQ=[], COQ=[], HRQ=[], GAQ=[];
 const fromQ=(q,src)=>{ if(!q.length){ const a=[...src]; for(let i=a.length-1;i>0;i--){ const j=ri(0,i); [a[i],a[j]]=[a[j],a[i]]; } q.push(...a); } return q.shift(); };
 function showSpot(kind){ if(kind==="play"&&PLAYS.length) return {kind,...fromQ(PLQ,PLAYS)}; if(kind==="arts"&&ARTS.length) return {kind,...fromQ(ARQ,ARTS)};
-  if(kind==="podcast"&&PODS.length) return {kind,...fromQ(POQ,PODS)}; if(kind==="cooking"&&COOKS.length) return {kind,...fromQ(COQ,COOKS)}; if(kind==="funnelball"&&FB.cities.length) return {kind}; return null; }
+  if(kind==="podcast"&&PODS.length) return {kind,...fromQ(POQ,PODS)}; if(kind==="cooking"&&COOKS.length) return {kind,...fromQ(COQ,COOKS)}; if(kind==="homerepair"&&HOMES.length) return {kind,...fromQ(HRQ,HOMES)}; if(kind==="garage"&&CARS.length) return {kind,...fromQ(GAQ,CARS)};
+  if(kind==="funnelball"&&FB.cities.length) return {kind}; if(kind==="showponies"&&SP_OK()) return {kind}; return null; }
 /* Funnelball: a made-up sport. Every broadcast is generated: teams, players, plays, scores and commentary. */
 const FB={cities:[],mascots:[],first:[],last:[],venues:[],intro:[],plays:[],color:[],close:[],final:[],outro:[]};
 packs.forEach(p=>{ const f=p.funnelball; if(f) for(const k in FB) FB[k].push(...(f[k]||[])); });
@@ -672,14 +680,76 @@ function funnelballLines(){
   L.push(["pbp",f(pick(FB.final),{w:w.name,l:l.name,ws:sc[w.name],ls:sc[l.name]})]);
   L.push(["color",pick(FB.outro)]); return L;
 }
+/* Show Ponies: a serial. A season is one circuit with the same six ponies, three judges and running points over five episodes
+   (four classes, then a double-points finale). The season is kept in localStorage when there is one, so the story carries on between launches. */
+const SP={host:[],circuits:[],venues:[],towns:[],titles:[],firsts:[],lasts:[],coats:[],people:[],surnames:[],quirks:[],judgeLines:[],classes:[],intro:[],newSeason:[],meet:[],recap:[],entry:[],mishaps:[],color:[],scores:[],ask:[],owner:[],owner2:[],results:[],standings:[],standingsTie:[],tease:[],champ:[],champColor:[],outro:[]};
+packs.forEach(p=>{ const s=p.showponies; if(s) for(const k in SP) SP[k].push(...(s[k]||[])); });
+const SP_ANN={accent:"british",names:["Daniel","Arthur","Oliver","Google UK English Male","Microsoft Ryan","Microsoft George"],pitch:.95,rate:1};
+const SP_COLOR={accent:"american",names:["Samantha","Allison","Ava","Susan","Microsoft Aria","Google US English"],pitch:1.1,rate:1.05};
+const SP_KEY="mdfm.showponies.v1", SP_EPS=5, SP_OK=()=>SP.firsts.length&&SP.classes.length&&SP.people.length&&SP.surnames.length&&SP.quirks.length&&SP.judgeLines.length;
+let SEASON=null;
+const spLoad=()=>{ try{ const s=JSON.parse(globalThis.localStorage.getItem(SP_KEY)); return s&&s.v===1&&Array.isArray(s.field)&&s.field.length>=4&&Array.isArray(s.plan)&&s.plan.length&&Array.isArray(s.judges)&&s.judges.length===3?s:null; }catch{ return null; } };
+const spSave=s=>{ try{ globalThis.localStorage.setItem(SP_KEY,JSON.stringify(s)); }catch{} };
+const spShuf=a=>{ a=[...a]; for(let i=a.length-1;i>0;i--){ const j=ri(0,i); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const spNum=n=>n%1?`${Math.floor(n)} and a half`:String(n), spPts=n=>`${n} point${n===1?"":"s"}`;
+function spNewSeason(n){
+  const used=new Set(), uniq=fn=>{ let v; for(let i=0;i<25;i++){ v=fn(); if(!used.has(v)) break; } used.add(v); return v; };
+  const js=spShuf(SP.surnames).slice(0,3), sur=SP.surnames.length>6?SP.surnames.filter(x=>!js.includes(x)):SP.surnames;   // judges never share a surname with an owner
+  const person=()=>uniq(()=>`${pick(SP.people)} ${pick(sur)}`), qs=spShuf(SP.quirks), nums=spShuf(Array.from({length:98},(_,i)=>i+2));
+  const field=Array.from({length:6},(_,i)=>{ const short=uniq(()=>pick(SP.firsts));
+    return {pony:`${R()<.55&&SP.titles.length?pick(SP.titles)+" ":""}${short}${R()<.65&&SP.lasts.length?" "+uniq(()=>pick(SP.lasts)):""}`,short,coat:pick(SP.coats)||"pony",town:pick(SP.towns)||"out of town",
+      owner:person(),rider:R()<.5?person():"",skill:rr(-1,1),quirk:qs[i%qs.length],pts:0,num:nums[i]}; });
+  const jl=spShuf(SP.judgeLines), judges=[0,1,2].map(i=>({name:`Judge ${js[i%js.length]}`,line:jl[i%jl.length]}));
+  const fin=SP.classes.find(c=>c.final), plan=[...spShuf(SP.classes.filter(c=>!c.final)).slice(0,SP_EPS-(fin?1:0)).map(c=>c.name),...(fin?[fin.name]:[])], vs=spShuf(SP.venues.length?SP.venues:["the fairgrounds"]);
+  return {v:1,n,circuit:pick(SP.circuits)||"Show Pony Circuit",venues:plan.map((_,i)=>vs[i%vs.length]),plan,field,judges,ep:0,last:""};
+}
+function showPonyEpisode(commit){   // commit=false (tests, previews) leaves the saved season alone
+  let s=SEASON||(SEASON=spLoad()); if(s&&!commit) s=JSON.parse(JSON.stringify(s));
+  if(!s||s.ep>=s.plan.length) s=spNewSeason(((s&&s.n)||0)+1);
+  const f=(t,x)=>String(t).replace(/\{(\w+)\}/g,(m,k)=>x[k]!=null?x[k]:m), P=a=>a.length?pick(a):"";
+  const ep=s.ep, fin=ep===s.plan.length-1, cls=SP.classes.find(c=>c.name===s.plan[ep])||pick(SP.classes);
+  const base={circuit:s.circuit,season:s.n,ep:ep+1,eps:s.plan.length,cls:cls.name,venue:s.venues[ep]||"the fairgrounds"};
+  const px=e=>({...base,pony:e.pony,short:e.short,coat:e.coat,town:e.town,owner:e.owner,rider:e.rider||e.owner,num:e.num,costume:pick(cls.costumes||["a pony"])});
+  const table=()=>[...s.field].sort((a,b)=>b.pts-a.pts||b.skill-a.skill);
+  const L=[["sfx","horse"],["ann",f(P(SP.intro),base)]];
+  if(ep===0){ L.push(["color",f(P(SP.newSeason),base)]); for(const e of spShuf(s.field).slice(0,2)) L.push(["color",f(P(SP.meet),{...px(e),about:f(e.quirk.about,px(e))})]); }
+  else { const [a,b]=table(); L.push(["color",f(P(SP.recap),{...base,last:s.last||"nothing much happened, which is its own kind of drama",leader:a.short,pts:spPts(a.pts),second:b.short,pts2:spPts(b.pts)})]); }
+  L.push(["ann",cls.intro]);
+  const ents=fin?table().slice(0,4):spShuf(s.field).slice(0,R()<.35?4:3), res=[]; let moment="";
+  for(const e of ents){ const x=px(e); let perf=e.skill+rr(-1.4,1.4);
+    L.push(["ann",f(P(SP.entry),x)]);
+    if(R()<.3){ L.push(["ann",f(e.quirk.trig,x)]); perf+=e.quirk.mod??rr(-.6,.6); }
+    if(R()<.22&&SP.mishaps.length){ const m=pick(SP.mishaps); L.push(["ann",f(m.text,x)]); perf-=1.3; if(!moment) moment=f(m.memory,x); }
+    else L.push(["ann",f(pick(perf>=0?cls.good:cls.bad),x)]);
+    const sc=s.judges.map(()=>Math.max(1,Math.min(10,Math.round((7+perf*1.2+rr(-.7,.7))*2)/2))), tot=sc[0]+sc[1]+sc[2];
+    L.push(["ann",f(P(SP.scores),{...x,j1:s.judges[0].name,j2:s.judges[1].name,j3:s.judges[2].name,s1:spNum(sc[0]),s2:spNum(sc[1]),s3:spNum(sc[2]),t:spNum(tot)})]);
+    if(R()<.35){ const j=ri(0,2); L.push(["ann",f(s.judges[j].line,{...x,judge:s.judges[j].name,s:spNum(sc[j])})]); }
+    if(R()<.55) L.push(["color",f(P(SP.color),x)]);
+    res.push({e,tot,tie:R()}); }
+  res.sort((a,b)=>b.tot-a.tot||b.tie-a.tie);
+  const lo=res[res.length-1].e; let owner=null;
+  if(R()<.55&&SP.ask.length&&SP.owner.length){ const x={...px(lo),jl:pick(s.judges).name}; owner={name:lo.owner,accent:pick(["american","irish","australian","scottish","gloomy","bubbly","cheery"])};
+    L.push(["ann",f(pick(SP.ask),x)]); L.push(["owner",f(pick(SP.owner),x)]); if(R()<.5&&SP.owner2.length) L.push(["owner",f(pick(SP.owner2),x)]);
+    if(!moment) moment=`${lo.owner} had some things to say about the judging`; }
+  L.push(["sfx","applause"]);
+  const pts=fin?[10,6,4,2]:[5,3,2,1]; res.forEach((r,i)=>{ r.e.pts+=pts[i]||0; });
+  L.push(["ann",f(P(SP.results),{...base,p1:res[0].e.pony,t1:spNum(res[0].tot),p2:res[1].e.pony,p3:res[2].e.pony})]);
+  if(fin){ const c=table()[0]; L.push(["ann",f(P(SP.champ),{...px(c),pts:spPts(c.pts)})]); L.push(["color",f(P(SP.champColor),{...base,next:s.n+1})]); }
+  else { const [a,b]=table(); L.push(["color",f(P(a.pts===b.pts&&SP.standingsTie.length?SP.standingsTie:SP.standings),{leader:a.short,pts:spPts(a.pts),second:b.short,pts2:spPts(b.pts)})]);
+    L.push(["ann",f(P(SP.tease),{...base,next:s.plan[ep+1],nextVenue:s.venues[ep+1],left:s.plan.length-ep-1===1?"one episode":`${s.plan.length-ep-1} episodes`})]); }
+  L.push(["color",P(SP.outro)]);
+  s.ep++; s.last=moment||`${res[0].e.short} won the ${cls.name}`;
+  if(commit){ SEASON=s; spSave(s); }
+  return {lines:L.filter(l=>l[1]!==""),owner,ep:ep+1,eps:s.plan.length,cls:cls.name,circuit:s.circuit,season:s.n};
+}
 const part=k=>packs.flatMap(p=>(p.adParts&&p.adParts[k])||[]);
 const AP={owner:part("owner"),kind:part("kind"),pitch:part("pitch"),turn:part("turn"),backdown:part("backdown")}; const AP_OK=Object.values(AP).every(a=>a.length);
 function genAd(){ if(!AP_OK) return pick(ADS); const b=`${pick(AP.owner)} ${pick(AP.kind)}`; return `${b}. ${pick(AP.pitch)}, ${pick(AP.turn)}. ${pick(AP.backdown)}. ${b}.`; }
 const QUEUE=[]; const refill=()=>{ const a=[...ADS]; for(let i=a.length-1;i>0;i--){ const j=ri(0,i); [a[i],a[j]]=[a[j],a[i]]; } QUEUE.push(...a); };
 /* Content types listeners can switch off (music always plays). */
-const TYPE_KEYS=["ids","stingers","ads","interviews","callers","weather","sports","plays","arts","podcast","cooking","funnelball","technews","news"];
+const TYPE_KEYS=["ids","stingers","ads","interviews","callers","weather","sports","plays","arts","podcast","cooking","homerepair","garage","funnelball","showponies","technews","news"];
 const TYPES={}; for(const k of TYPE_KEYS) TYPES[k]=!(opts.types&&opts.types[k]===false);
-const KIND_TYPE={id:"ids",ad:"ads",interview:"interviews",caller:"callers",weather:"weather",sports:"sports",play:"plays",arts:"arts",podcast:"podcast",cooking:"cooking",funnelball:"funnelball",technews:"technews",news:"news"};
+const KIND_TYPE={id:"ids",ad:"ads",interview:"interviews",caller:"callers",weather:"weather",sports:"sports",play:"plays",arts:"arts",podcast:"podcast",cooking:"cooking",homerepair:"homerepair",garage:"garage",funnelball:"funnelball",showponies:"showponies",technews:"technews",news:"news"};
 function nextSpot(){ spotCount++;
   if(TYPES.ids&&LATE.length&&spotCount>2&&R()<.12) return {kind:"id",late:1,text:say(pick(LATE))};
   const showOk=spotCount>1&&ctx&&ctx.currentTime-lastShow>720;   // at most one play or arts piece every 12 minutes
@@ -687,7 +757,9 @@ function nextSpot(){ spotCount++;
   if(showOk&&TYPES.arts&&R()<.16&&ARTS.length) return showSpot("arts");
   if(showOk&&TYPES.podcast&&R()<.14&&PODS.length) return showSpot("podcast");
   if(showOk&&TYPES.cooking&&R()<.14&&COOKS.length) return showSpot("cooking");
-  const opts2=[["interviews",.17,INTERVIEWS.length],["callers",.07,CALLERS.open.length],["weather",.10,WX.time.length||TAB.noData.length],["sports",.09,CHIP.noData.length],["funnelball",.06,FB.cities.length],["ids",.15,IDS.length],["ads",.42,ADS.length||AP_OK]]
+  if(showOk&&TYPES.homerepair&&R()<.14&&HOMES.length) return showSpot("homerepair");
+  if(showOk&&TYPES.garage&&R()<.14&&CARS.length) return showSpot("garage");
+  const opts2=[["interviews",.17,INTERVIEWS.length],["callers",.07,CALLERS.open.length],["weather",.10,WX.time.length||TAB.noData.length],["sports",.09,CHIP.noData.length],["funnelball",.06,FB.cities.length],["showponies",.06,SP_OK()],["ids",.15,IDS.length],["ads",.42,ADS.length||AP_OK]]
     .filter(([k,w,n])=>TYPES[k]&&n);
   if(!opts2.length) return null;   // everything switched off: just music
   let r=R()*opts2.reduce((a,o)=>a+o[1],0), k=opts2[0][0]; for(const o of opts2){ if((r-=o[1])<=0){ k=o[0]; break; } }
@@ -696,6 +768,7 @@ function nextSpot(){ spotCount++;
   if(k==="weather") return {kind:"weather"};
   if(k==="sports") return {kind:"sports"};
   if(k==="funnelball") return {kind:"funnelball"};
+  if(k==="showponies") return {kind:"showponies"};
   if(k==="ids") return {kind:"id",text:say(pick(IDS))};
   if(!ADS.length||(R()<.3&&AP_OK)) return {kind:"ad",text:genAd()};
   if(!QUEUE.length) refill(); return {kind:"ad",text:QUEUE.shift()}; }
@@ -796,7 +869,7 @@ function spot(force,pre){
   const sp=pre||(force?(showSpot(force)||forcedSpot(force)):nextSpot()); if(!sp) return;
   if(pre&&!TYPES[sp.title==="Caller"?"callers":KIND_TYPE[sp.kind]]) return;   // picked at the song change, switched off since
   speaking=true; lastSpot=ctx.currentTime; const g=gen;   // g: this start/stop session; a stop (or stop and start) retires the break
-  const show=sp.kind==="play"||sp.kind==="arts"||sp.kind==="podcast"||sp.kind==="cooking", ad=sp.kind==="ad", iv=sp.kind==="interview"||sp.kind==="weather"||sp.kind==="sports"||sp.kind==="news"||sp.kind==="technews"||sp.kind==="funnelball"||show, t=ctx.currentTime+.05; emit("spot",sp);
+  const show=sp.kind==="play"||sp.kind==="arts"||sp.kind==="podcast"||sp.kind==="cooking"||sp.kind==="homerepair"||sp.kind==="garage", ad=sp.kind==="ad", iv=sp.kind==="interview"||sp.kind==="weather"||sp.kind==="sports"||sp.kind==="news"||sp.kind==="technews"||sp.kind==="funnelball"||sp.kind==="showponies"||show, t=ctx.currentTime+.05; emit("spot",sp);
   fadeTo(musicDuck.gain,show?.0001:ad||iv?.02:.2,ad||iv?1.2:.6,t);
   const st0=ad||iv?.9:.25, len=pick(STINGS)(t+st0);
   let lead=st0+len*.75+(sp.late?rr(3.2,4.5):0);
@@ -822,19 +895,23 @@ function spot(force,pre){
         sp.lines=lines; sp.text=lines.map(l=>l[1]).join(" "); emit("spot",sp); const host=hostCast();
         speakLines(lines,{host,tab:guestCast(TABITHA,host),chip:guestCast(CHIPV,host),names:{host:"DJ",tab:"Tabitha Snatterbean",chip:"Chip Nitro"}},after); }).catch(after); return; }
     if(sp.kind==="play"){ const host=hostCast(), cast={host,names:{host:"DJ"}};
-      for(const [k,c] of Object.entries(sp.cast||{})){ cast[k]=guestCast(c,host); cast.names[k]=c.name||k; }
+      for(const [k,c] of Object.entries(sp.cast||{})){ cast[k]={...guestCast(c,host),phone:!!c.phone}; cast.names[k]=c.name||k; }
       speakLines([["host",`And now, the M D F M Golden Age Radio Hour. ${sp.title}. Tonight: ${sp.episode||"a new episode"}.`],...sp.lines,["host",pick(["You've been listening to the M D F M Golden Age Radio Hour. Back to the beats.","That was the Golden Age Radio Hour. None of those products exist. Please stop asking.","Golden Age Radio Hour, everybody. They don't make them like that anymore. For legal reasons."])]],cast,after); return; }
     if(sp.kind==="arts"){ const host=hostCast(), wren=guestCast(ARTS_HOST,host), cast={host:wren,dj:host,names:{host:"Wren Applewhite-Dunst",dj:"DJ"}};
       for(const k of ["reporter","subject","subject2"]) if(sp[k]){ cast[k]=guestCast(sp[k],wren); cast.names[k]=(k==="reporter"?sp[k].name:sp[k].name)||k; }
       speakLines([["dj","M D F M Arts and Culture. Here's Wren."],["host",`This is M D F M Arts and Culture. I'm Wren Applewhite-Dunst.`],["pause",700],...sp.lines,["host",pick(["This is M D F M Arts. Thank you for listening slowly.","For M D F M Arts and Culture, I'm Wren Applewhite-Dunst. Breathe in. Okay, that's enough.","I'm Wren Applewhite-Dunst. Art is everywhere. Mostly in the way."])]],cast,after); return; }
     if(sp.kind==="funnelball"){ const lines=funnelballLines(); sp.lines=lines; sp.text=lines.map(l=>l[1]).join(" "); emit("spot",sp); const host=hostCast();
       speakLines([["host",pick(["Time for Funnelball on M D F M.","It's Funnelball time. I still don't know the rules.","M D F M Funnelball, presented by nobody."])],...lines],{host,pbp:guestCast(FB_PBP,host),color:guestCast(FB_COLOR,host),names:{host:"DJ",pbp:"Duke Ransom",color:"Lorna Pike"}},after); return; }
-    if(sp.kind==="podcast"||sp.kind==="cooking"){ const host=hostCast(), cast={dj:host,names:{dj:"DJ"}};
-      for(const [k,c] of Object.entries(sp.cast||{})){ cast[k]=guestCast(c,host); cast.names[k]=c.name||k; }
+    if(sp.kind==="showponies"){ const e=showPonyEpisode(true), lines=e.lines; sp.lines=lines; sp.title=`${e.circuit}, episode ${e.ep} of ${e.eps}: ${e.cls}`; sp.text=lines.filter(l=>l[0]!=="sfx").map(l=>l[1]).join(" "); emit("spot",sp); const host=hostCast();
+      speakLines([["host",SP.host.length?pick(SP.host):"Show ponies, on M D F M."],...lines],{host,ann:guestCast(SP_ANN,host),color:guestCast(SP_COLOR,host),owner:guestCast(e.owner||{accent:"american"},host),names:{host:"DJ",ann:"Pembroke Vance",color:"Darlene Tuttle",owner:e.owner?e.owner.name:"Owner"}},after); return; }
+    if(sp.kind==="podcast"||sp.kind==="cooking"||sp.kind==="homerepair"||sp.kind==="garage"){ const host=hostCast(), cast={dj:host,names:{dj:"DJ"}};
+      for(const [k,c] of Object.entries(sp.cast||{})){ cast[k]={...guestCast(c,host),phone:!!c.phone}; cast.names[k]=c.name||k; }
       cast.host=cast[Object.keys(sp.cast||{})[0]]||host;
-      const open=sp.kind==="podcast"?[["dj",`M D F M presents a podcast we did not ask for. ${sp.show}. ${sp.title}.`]]:[["dj",`And now, from M D F M Public Radio, ${sp.show}.`],["pause",600]];
+      const OPENX={homerepair:[["dj",`M D F M Home and Garden presents ${sp.show}. Today: ${sp.title}.`]],garage:[["dj",`Car trouble? Please don't call these guys. It's ${sp.show}. Today: ${sp.title}.`],["pause",400]]};
+      const CLOSEX={homerepair:["That was Fixer Downer. M D F M does not recommend anything Gary did.","Fixer Downer, everybody. Please call a licensed professional. Gary is not one.","That was Fixer Downer. If Gary is at your door, do not open it."],garage:["That was Gasket Case. Get your car looked at by a real mechanic.","Gasket Case, everybody. The goose is fine.","That was Gasket Case. No cars were fixed during this broadcast."]};
+      const open=OPENX[sp.kind]||(sp.kind==="podcast"?[["dj",`M D F M presents a podcast we did not ask for. ${sp.show}. ${sp.title}.`]]:[["dj",`And now, from M D F M Public Radio, ${sp.show}.`],["pause",600]]);
       const close=sp.kind==="podcast"?pick(["That was a podcast. We're legally required to say it was a podcast.","Like, subscribe, and please stop sending us protein powder.","M D F M does not endorse the grindset. Back to the music."]):pick(["Simmer Down is made possible by listeners like you, and by butter.","That was Simmer Down. Please don't call in about the recipes.","Simmer Down, everybody. Back to the beats."]);
-      speakLines([...open,...sp.lines,["dj",close]],cast,after); return; }
+      speakLines([...open,...sp.lines,["dj",CLOSEX[sp.kind]?pick(CLOSEX[sp.kind]):close]],cast,after); return; }
     if(iv){ const host=hostCast(); speakLines(sp.title==="Caller"?sp.lines:[["host",`M D F M interview. Today: ${sp.title}.`],...sp.lines],{host,guest:{...guestCast(sp.guest,host),phone:sp.title==="Caller"},guest2:guestCast(sp.guest2||{accent:"british"},host),names:{host:"DJ",guest:sp.title,guest2:"Guest"}},after); }
     else speak(sp.text,after); }catch(e){ after(); } }, lead*1000);   // a bad line or pack never leaves the station stuck mid-break
 }
@@ -897,9 +974,9 @@ return {
   /* underwater: muffled, resonant, slowly drifting low-pass with a slight pitch wobble on the music (the voice is the system's speech, so it stays dry) */
   setUnderwater(v){ applyUnderwater(v); },
   isUnderwater(){ return underwater; },
-  setTypes(t){ for(const k of TYPE_KEYS) if(t&&k in t) TYPES[k]=!!t[k]; },   // {ids, stingers, ads, interviews, callers, weather, sports, plays, arts, podcast, cooking, funnelball, technews, news}: false switches a kind off
+  setTypes(t){ for(const k of TYPE_KEYS) if(t&&k in t) TYPES[k]=!!t[k]; },   // {ids, stingers, ads, interviews, callers, weather, sports, plays, arts, podcast, cooking, homerepair, garage, funnelball, showponies, technews, news}: false switches a kind off
   getTypes(){ return {...TYPES}; },
-  sampleLines(kind){ if(kind==="funnelball") return funnelballLines(); if(kind==="technews") return techLines(); const s=showSpot(kind); return s&&s.lines; },   // for tests and previews
+  sampleLines(kind,advance){ if(kind==="funnelball") return funnelballLines(); if(kind==="showponies") return SP_OK()?showPonyEpisode(!!advance).lines:null; if(kind==="technews") return techLines(); const s=showSpot(kind); return s&&s.lines; },   // for tests and previews
   setVolume(v){ v=volNum(v); if(v==null) return; opts.volume=v; if(ctx&&on) fadeTo(master.gain,v*VOL,.2,ctx.currentTime); },
   nowPlaying(){ return nowPlaying; },
   getSpectrum,

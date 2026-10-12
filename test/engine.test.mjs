@@ -49,7 +49,7 @@ test("a news provider that returns junk or throws never stalls the station", asy
 });
 
 test("weather and sports providers that throw or reject never stall the station", async () => {
-  const { r, ev, run } = sim({ weather: () => { throw new Error("x"); }, sports: () => Promise.reject(new Error("y")), cannedFallback: false, types: { ads: false, ids: false, interviews: false, callers: false, funnelball: false, plays: false, arts: false, podcast: false, cooking: false } });
+  const { r, ev, run } = sim({ weather: () => { throw new Error("x"); }, sports: () => Promise.reject(new Error("y")), cannedFallback: false, types: { ads: false, ids: false, interviews: false, callers: false, funnelball: false, plays: false, arts: false, podcast: false, cooking: false, homerepair: false, garage: false, showponies: false } });
   r.start(); await run(3600);
   assert.ok(!ev.cap.some(c => /undefined/.test(c.text)));
   assert.ok(ev.spot.filter(e => e.t > 1800).length >= 1, "still running breaks in the second half hour");
@@ -64,7 +64,7 @@ test("weather provider with junk numbers never says NaN", async () => {
 });
 
 test("types switched off never play, and with every talk type off except voice drops, voice drops still play", async () => {
-  const allOff = Object.fromEntries(["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "funnelball", "technews", "news"].map(k => [k, false]));
+  const allOff = Object.fromEntries(["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "homerepair", "garage", "funnelball", "showponies", "technews", "news"].map(k => [k, false]));
   let x = sim({ types: allOff, news: async () => ({ items: [{ text: "hi", channel: "general", who: { first: "A" }, kind: "official" }] }) }, { at: new Date(2026, 9, 11, 9, 50) });
   x.r.start(); await x.run(3600);
   assert.equal(x.ev.spot.length, 0, "nothing but music: " + x.ev.spot.map(e => e.kind));
