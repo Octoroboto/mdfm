@@ -1,7 +1,7 @@
 {
   "name": "mdfm-radio",
   "productName": "MDFM Radio",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "MDFM 99.9 HD in its own window, with live local weather and sports.",
   "main": "src/main/main.js",
   "private": true,

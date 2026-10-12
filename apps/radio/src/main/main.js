@@ -26,14 +26,18 @@ const bundledDir = path.join(__dirname, "../../vendor");
 const getSettings = () => settings;
 const live = createLive(getSettings);
 let slack = null, slackCfg = null;   // optional company news; created once the app is ready (needs userData + keychain)
+// New content or a new look found right after launch is put on screen straight away (the app reloads itself), so a
+// restart is all anyone needs. Later in a session it waits for the next launch, so music that's playing isn't cut off.
+const launchedAt = Date.now(), FRESH_MS = 90e3;
+function freshOrSay(msg) { if (win && !win.isDestroyed() && Date.now() - launchedAt < FRESH_MS) win.webContents.reload(); else sendStatus(msg); }
 const updater = createUpdater({ app, getSettings, bundledDir, appVersion: app.getVersion(),
-  onStatus: () => sendStatus(), onEngine: () => sendStatus("New MDFM content is ready. It plays from the next launch, or press Cmd+R now.") });
+  onStatus: () => sendStatus(), onEngine: () => freshOrSay("New MDFM content is ready. It plays from the next launch, or press Cmd+R now.") });
 
 // The look (MedDev Receiver, its own repo): newer versions are fetched quietly and swapped into the page on the next launch or Cmd+R.
 const lookOn = () => !!(settings && settings.contentUpdates && !settings.useBundled);
 const bundledLook = () => { try { const h = fs.readFileSync(path.join(bundledDir, "radio.html"), "utf8"); return { version: versionOf((/<style id="mdfm-skin">([\s\S]{0,400})/.exec(h) || [])[1]) || "0.0.0" }; } catch { return { version: "0.0.0" }; } };
-const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, o), bundled: bundledLook, enabled: lookOn,
-  onChange: s => sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or press Cmd+R now.`) });
+const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, { timeout: 30000, ...o }), bundled: bundledLook, enabled: lookOn,
+  onChange: s => freshOrSay(`A new receiver look (${s.version}) is ready. It shows from the next launch, or press Cmd+R now.`) });
 
 function status(note) { return { ...updater.status, engine: servedEngine || updater.status.engine, live: { ...live.status }, bouncer: bouncerSummary(), futureproofer: fp ? fpSummary() : null, slack: slack ? { ...slack.status, ready: slack.ready, builder: !!setupAvailable({ app }) } : null, note: note || null, appVersion: app.getVersion() }; }
 function bouncerSummary() { const b = bouncer.status(); return { level: b.level, label: b.label, mode: b.mode, healthy: b.healthy, blocked: b.counts.blocked, problem: b.problems[0] || null, rules: b.policy.version }; }
@@ -75,7 +79,7 @@ function createWindow() {
   win.loadURL("mdfm://app/radio.html");
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   settings = settingsStore.load(app);
   // Slack: the sign-in helper's address (this Mac's setting, the app, or the mdfm repo's config/slack.json),
   // sign-in in an app window that closes itself, and the builder's one-time setup wizard.
@@ -146,6 +150,8 @@ app.whenReady().then(() => {
     { role: "help", submenu: [{ label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") },
       ...(setupAvailable({ app }) ? [{ type: "separator" }, { label: "Set up Slack for MDFM…", click: () => openSlackSetup() }] : [])] },
   ]));
+  // At every launch, check for new content and a new look first (up to 5 seconds), so the window opens with them.
+  if (settings.contentUpdates && !settings.useBundled) await Promise.race([Promise.allSettled([updater.checkContent(), look.check()]), new Promise(r => setTimeout(r, 5000))]);
   createWindow(); updater.start();
   fp = startFutureproofer({ updater, look, enginePackageVersion: bouncer.status().enginePackageVersion, onChange: () => sendStatus() });
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });

@@ -24,9 +24,12 @@ const { createReceiverUpdater, versionOf } = require("../common/receiver");
 // and the hub page gets the newer styling too (its controls' code updates when the hub artifact is republished).
 const SHELL_SKIN = path.join(__dirname, "../shell/skin.css"), SHELL_RX = path.join(__dirname, "../shell/receiver.js");
 const { cleanAxmod } = require("../common/axmod-settings");
-const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, o),
+// A new look found right after launch is put on screen straight away (frame and hub reload), so a restart is all anyone needs.
+const launchedAt = Date.now(), FRESH_MS = 90e3;
+const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, { timeout: 30000, ...o }),
   bundled: () => { try { const css = fs.readFileSync(SHELL_SKIN, "utf8"); let js = null; try { js = fs.readFileSync(SHELL_RX, "utf8"); } catch {} return { version: versionOf(css) || "0.0.0", css, js }; } catch { return { version: "0.0.0" }; } },
-  onChange: s => sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or reload the hub (Cmd+R).`) });
+  onChange: s => { if (win && !win.isDestroyed() && Date.now() - launchedAt < FRESH_MS) { win.webContents.reload(); if (view) view.webContents.reload(); }
+    else sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or reload the hub (Cmd+R).`); } });
 const SHELL_SKINS = path.join(__dirname, "../shell/skins.json");
 const SKIN_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 function skinsBundle() { const a = look.active(); if (a.source === "updated" && a.skins && Array.isArray(a.skins.skins)) return a.skins;
@@ -98,7 +101,7 @@ function createWindow() {
 // A sign-in-friendly browser identity (claude.ai and Google sign-in expect a normal Chrome).
 function chromeUA(ses) { ses.setUserAgent(ses.getUserAgent().replace(/\s(Electron|MD Hub|mdfm-hub)\/\S+/g, "")); }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   settings = settingsStore.load(app);
   // Slack: the sign-in helper's address (this Mac's setting, the app, or the mdfm repo's config/slack.json),
   // sign-in in an app window that closes itself, and the builder's one-time setup wizard.
@@ -197,6 +200,8 @@ app.whenReady().then(() => {
       { label: "Open the hub in your browser", click: () => shell.openExternal(settings.hubUrl) }, { label: "MDFM on GitHub", click: () => shell.openExternal("https://github.com/Octoroboto/mdfm") },
       ...(setupAvailable({ app }) ? [{ type: "separator" }, { label: "Set up Slack for MDFM…", click: () => openSlackSetup() }] : [])] },
   ]));
+  // At every launch, check for a new look first (up to 5 seconds), so the window opens with it.
+  await Promise.race([look.check(), new Promise(r => setTimeout(r, 5000))]);
   createWindow();
   fp = startFutureproofer({ look, getWindow: () => win, getSettings, saveSettings, enginePackageVersion, onChange: () => sendStatus() });
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
