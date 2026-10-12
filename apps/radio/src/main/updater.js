@@ -8,7 +8,7 @@ const REL = "https://api.github.com/repos/Octoroboto/mdfm/releases?per_page=20";
 // A content update is the whole radio page (engine + ads + look), built by "npm run build" in the mdfm repo.
 function inlineScripts(html) { return [...html.matchAll(/<script(?: id="([^"]*)")?>([\s\S]*?)<\/script>/g)].map(m => ({ id: m[1] || "", code: m[2] })); }
 function validateEngine(html, version) {
-  if (typeof html !== "string" || html.length < 100000 || html.length > 8e6) return "unexpected size";
+  if (typeof html !== "string" || html.length < 100000 || html.length > 16e6) return "unexpected size";   // 16 MB: the page carries every skin (about 7 MB of it) and grows with stations
   if (!html.includes(`<meta name="mdfm-version" content="${version}">`)) return "version mismatch";
   for (const id of ["mdfm-lib", "mdfm-skin-js", "mdfm-radio-wire"]) if (!html.includes(`<script id="${id}">`)) return "missing " + id;
   if (!html.includes('<style id="mdfm-skin">')) return "missing skin";

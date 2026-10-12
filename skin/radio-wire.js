@@ -25,15 +25,18 @@
     const unscroll=()=>{ const se=document.scrollingElement; if(se&&se.scrollTop>0&&se.scrollHeight<=innerHeight+1) se.scrollTop=0; };
     addEventListener("resize",unscroll); addEventListener("focus",unscroll); document.addEventListener("visibilitychange",unscroll); }
   if(app) radio.setProviders({weather:()=>app.live("weather"),sports:()=>app.live("sports"),news:()=>app.live("news"),cannedFallback:false});
+  // PTLK 108.0: newer apps fetch live business and gaming headlines and encyclopedia pages; without them the shows write their own.
+  // (Through app.live, so older apps simply answer null.)
+  if(app&&app.live) radio.setProviders({headlines:(kind,arg)=>app.live(kind==="wiki"?"wiki:"+arg:"headlines:"+kind)});
   // Newer apps render the robot voices as audio, so the volume and LOW/MID/HIGH EQ apply to them too.
   if(app&&app.tts) radio.setProviders({tts:spec=>app.tts(spec)});
   const np=$("#np"), cap=$("#cap"); let capT=0;
-  const npText=s=>s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
+  const npText=s=>s.station==="ptlk"?`${s.style} · “${s.title}” · ${s.artist}`:s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
   radio.on("nowplaying",s=>{ np.textContent=`Now playing: ${npText(s)}`; });
-  // Stations: WYBC 88.1 (Collin's ambient piano) and MDFM 99.9 HD. The arrows switch; the choice is remembered on this device.
+  // Stations: WYBC 88.1 (Collin's ambient piano), MDFM 99.9 HD and PTLK 108.0 (talk). The arrows switch; the choice is remembered on this device.
   const stLS="mdfmStation", showStation=st=>{ if(!st) return; $("#stName").textContent=st.name; document.documentElement.dataset.station=st.id;
-    const w=st.id==="wybc"; $("#skipBtn").textContent=w?"Next piece":"Next song"; $("#spotBtn").textContent=w?"Station ID":"Station break";
-    $("#skipBtn").title=w?"A new piece":"Skip to the next song"; };
+    const w=st.id==="wybc", t=st.id==="ptlk"; $("#skipBtn").textContent=t?"Next show":w?"Next piece":"Next song"; $("#spotBtn").textContent=w||t?"Station ID":"Station break";
+    $("#skipBtn").title=t?"Skip to a new show":w?"A new piece":"Skip to the next song"; };
   if(radio.setStation){ try{ const k=localStorage.getItem(stLS); if(k) radio.setStation(k); }catch(e){}
     showStation(radio.getStation());
     radio.on("station",st=>{ showStation(st); try{ localStorage.setItem(stLS,st.id); }catch(e){}
@@ -48,7 +51,15 @@
         l.querySelector("input").checked=wt[k]!==false; wl.appendChild(l); }
       const ws=()=>{ const t={}; wl.querySelectorAll("input[data-wtype]").forEach(cb=>t[cb.dataset.wtype]=cb.checked); return t; };
       radio.setStationTypes("wybc",ws()); wl.addEventListener("change",()=>{ const t=ws(); radio.setStationTypes("wybc",t); try{ localStorage.setItem("wybcTypes",JSON.stringify(t)); }catch(e){} });
-      $("#wybcSet").hidden=false; } }
+      $("#wybcSet").hidden=false; }
+    // PTLK's show switches (this device)
+    const pl=$("#ptlkList"), plist=radio.stationTypeList("ptlk");
+    if(pl&&plist.length&&radio.stations().some(s=>s.id==="ptlk"&&s.available)){ let pt={}; try{ pt=JSON.parse(localStorage.getItem("ptlkTypes")||"{}"); }catch(e){}
+      for(const [k,label] of plist){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-ptype="${k}"> <span>${label}</span>`;
+        l.querySelector("input").checked=pt[k]!==false; pl.appendChild(l); }
+      const ps=()=>{ const t={}; pl.querySelectorAll("input[data-ptype]").forEach(cb=>t[cb.dataset.ptype]=cb.checked); return t; };
+      radio.setStationTypes("ptlk",ps()); pl.addEventListener("change",()=>{ const t=ps(); radio.setStationTypes("ptlk",t); try{ localStorage.setItem("ptlkTypes",JSON.stringify(t)); }catch(e){} });
+      $("#ptlkSet").hidden=false; } }
   else { const b=$("#stBtns"); if(b) b.hidden=true; }
   radio.on("caption",c=>{ cap.textContent=`${c.who}: ${c.text}`; clearTimeout(capT); capT=setTimeout(()=>{ cap.textContent=""; },14000); });
   const box=$("#sndOn"); box.checked=false;
@@ -73,7 +84,7 @@
   // and Calm mode mutes the voice drops between songs. Skipped quietly on an older receiver.
   (A=>{ if(!A) return; A.hasSound=true;
     radio.on("caption",c=>A.caption(c.text,{who:c.who}));
-    radio.on("nowplaying",s=>A.sound(s.station==="wybc"?`WYBC 88.1: “${s.title}” by ${s.artist}, ambient piano`:`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
+    radio.on("nowplaying",s=>A.sound(s.station==="ptlk"?`PTLK 108.0: ${s.style}, “${s.title}”, with ${s.artist}`:s.station==="wybc"?`WYBC 88.1: “${s.title}” by ${s.artist}, ambient piano`:`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
     const band=(a,i,j)=>{ let m=0; for(let k=i;k<j;k++) m=Math.max(m,a[k]||0); return Math.round(m*100)+"%"; };
     A.describe($("header.top .lcd.viz"),()=>{ if(!radio.isOn()) return "off"; const s=radio.getSpectrum&&radio.getSpectrum(); return s?`bass ${band(s,0,6)}, mids ${band(s,6,13)}, treble ${band(s,13,19)}`:"on"; },{label:"EQ"});
     A.describe($(".vu"),()=>{ const l=radio.isOn()&&radio.getLevels?radio.getLevels():null; return l?`left ${Math.round(l[0]+14)} VU, right ${Math.round(l[1]+14)} VU`:"radio off"; },{label:"VU meters"});

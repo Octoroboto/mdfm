@@ -62,8 +62,10 @@ const safeName = s => String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " "
 async function saveBreak(radio, air, { app = null, onStatus = () => {} } = {}) {
   onStatus(`Recording “${air.title}”. It saves when it's over…`);
   const r = await radio.recordBreak(); if (!r) throw new Error("It ended before it could be saved.");
-  const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, album: i.show, genre: "Radio", comment: `MDFM 99.9 HD. ${i.show}${i.episode ? ": " + i.episode : ""}. Recorded off the air.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
-  const name = safeName(`MDFM - ${i.title}`) + ".mp3";
+  const i = r.info, pt = i.station === "ptlk";   // PTLK 108.0 talk shows: artist = the hosts, album = the station
+  const mp3 = await encodeMp3(r.buffer, pt ? { title: i.episode || i.show, artist: i.hosts || "PTLK 108.0", album: `PTLK 108.0: ${i.show}`, genre: "Talk", comment: `PTLK 108.0. ${i.show}${i.episode ? ": " + i.episode : ""}. Written by the station as it aired; never the same twice.` }
+    : { title: i.title, album: i.show, genre: "Radio", comment: `MDFM 99.9 HD. ${i.show}${i.episode ? ": " + i.episode : ""}. Recorded off the air.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
+  const name = safeName(pt ? `PTLK - ${i.show}${i.episode ? " - " + i.episode : ""}` : `MDFM - ${i.title}`) + ".mp3";
   onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app })), title: i.title, bytes: mp3.length, kind: "break" };
 }
 /** The whole "Save" flow: the break on top if one is playing (shows, weather, ads...), else the song on air rendered again from the top. onStatus(text) reports progress. */
@@ -72,6 +74,8 @@ async function saveSong(radio, { app = null, onStatus = () => {} } = {}) {
   // A show, weather, ad or other break on top right now: save that instead (the whole break, once it ends).
   const air = typeof radio.onAir === "function" ? radio.onAir() : null;
   if (air && air.saveable) return saveBreak(radio, air, { app, onStatus });
+  if (air && air.station === "ptlk") throw new Error("PTLK shows save in the MDFM Radio app and MD Hub, where the voices can be recorded.");
+  if (radio.getStation && radio.getStation() && radio.getStation().id === "ptlk") throw new Error("Wait for the next show to start, then press save.");
   if (air) onStatus("Shows save in the MDFM Radio app. Saving the last song instead…");
   onStatus(radio.getStation && radio.getStation() && radio.getStation().id === "wybc" ? "Recording a fresh piece (about 2½ minutes of music)…" : "Recording the song…"); const r = await radio.renderSong(); if (!r) throw new Error("Nothing is playing yet.");
   if (r.info && r.info.station === "wybc") {   // WYBC 88.1: Collin's ambient piano

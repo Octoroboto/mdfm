@@ -70,6 +70,19 @@ when {
 };
 
 
+// ══ PTLK 108.0 (talk shows) ══════════════════════════════════════════════════════════════════
+
+@id("ptlk-headlines")
+@description("Business and gaming headlines for Analyze Biz and Button Mashers (GDELT, read-only, cached 30 minutes)")
+permit (principal == Caller::"app", action == Action::"GET", resource == Host::"api.gdeltproject.org")
+when { context.path == "/api/v2/doc/doc" && context.sameToday < 300 };
+
+@id("ptlk-encyclopedia")
+@description("A short Wikipedia summary of one animal for The Long Look (read-only)")
+permit (principal == Caller::"app", action == Action::"GET", resource == Host::"en.wikipedia.org")
+when { context.path like "/api/rest_v1/page/summary/*" && context.sameToday < 500 };
+
+
 // ══ Local sports ═════════════════════════════════════════════════════════════════════════════
 
 @id("sports-scores")

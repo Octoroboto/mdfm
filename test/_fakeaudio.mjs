@@ -35,6 +35,7 @@ export class FakeAudioContext {
   createWaveShaper() { const n = new Node(this); n.curve = null; n.oversample = "none"; return n; }
   createConvolver() { const n = new Node(this); n.buffer = null; return n; }
   createChannelSplitter() { return new Node(this); }
+  createChannelMerger() { return new Node(this); }
   createDynamicsCompressor() { return new Node(this, { threshold: -24, knee: 30, ratio: 12, attack: .003, release: .25 }); }
   createAnalyser() { const a = new Node(this); a.fftSize = 2048; a.smoothingTimeConstant = .8; a.minDecibels = -100; a.maxDecibels = -30;
     Object.defineProperty(a, "frequencyBinCount", { get() { return a.fftSize / 2; } });

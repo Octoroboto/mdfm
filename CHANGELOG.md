@@ -2,6 +2,21 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.13.0 (2026-10-12, Rob)
+- **A third station: PTLK 108.0, all talk.** Every show is written as it airs (`src/talk.js`), from big enough pools of names, places, plots and jokes that an episode never repeats, with running storylines that carry on from one episode to the next. Shows, each with its own switch in "What plays on PTLK 108.0":
+  - **Clap Attack with Doug:** real estate is a family business, and Doug didn't come to make friends. A listing of the hour with one flaw, callers who accidentally buy houses, his mother Barb, cousin Trent, and a feud with rival agent Sheila Vance that escalates every episode.
+  - **Analyze Biz:** Squirky Tallume and Gregg Ploptz read three to five business headlines, then roast, analyze or plainly misunderstand them, with Gregg's Gut Check.
+  - **The Real USB Drives of Cleverly Spillz:** the drama is real, the data has been forged. A drive turns up at a party, accusations fly, confessionals, and Rodney from the help kiosk proves the files were faked.
+  - **Button Mashers:** Sal from Jersey and Kev from Boston read gaming headlines. They love video games. They've never played one.
+  - **The Long Look:** a slow nature documentary about one animal: true facts (read from Wikipedia in the apps), a slow pan, and letters the animal may or may not have written.
+  - Four more: **Lost & Found Live** (callers reunited with each other's things, and a ticking box), **The Committee** (an HOA meeting; Ron's mailbox keeps growing), **Overnight Shipping** (a noir serial at a sorting hub, a chapter per episode, with Big Lou the forklift and a mole in Returns who is an air fryer) and **Ask a Retired Wizard** (spells for modern problems, and the side effects).
+- An announcer and the organ between shows. On PTLK the buttons read **Next show** and **Station ID** (an ID cuts in between lines, then the show carries on). Every show has its own voices, with callers on a phone line; captions name who's talking.
+- **Live headlines in the apps:** the MDFM Radio app (0.3.6) and MD Hub (0.2.6) fetch business and gaming headlines (GDELT) and animal summaries (Wikipedia), filtered (no tragedies, crime or illness) and cached, under new Bouncer rules. Everywhere else, and whenever the news is slow, the shows write their own with made-up companies and games. The hosts read each real headline straight first and joke about the situation, never about named people.
+- **Save on PTLK** (in the apps) records the whole show as an MP3: "PTLK - <show> - <episode>.mp3", artist = the hosts.
+- **MDFM Radio 0.3.6:** content updates up to 16 MB are accepted (the page with every skin had grown past the old 8 MB check, so MDFM 1.12.1 content was being turned away).
+- MedDev Receiver 1.13.1 built in: the spray can no longer sits on the header buttons in browser windows too narrow for it to rest beside the radio (about 800 to 1350 px wide), where it covered Station break / Station ID and took its clicks.
+- Stations now switch through one path (leave the old station, enter the new one), so adding the next station is a few lines. MDFM 99.9 and WYBC 88.1 sound exactly as before (MDFM checked sample for sample).
+
 ## 1.12.1 (2026-10-12, Rob)
 - **Layout fixes on the radio page:**
   - The station panel lost its spacing in 1.11.0: the new button row reused the station row's class name, which pushed the station controls to the right and opened big gaps. Fixed.

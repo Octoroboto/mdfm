@@ -6,6 +6,8 @@ const security = require("./security");
 const settingsStore = require("./settings");
 const { cleanAxmod } = require("../common/axmod-settings");
 const { createLive } = require("../common/live");
+const { createHeadlines } = require("../common/headlines");   // PTLK 108.0's live headlines and encyclopedia pages
+const ptlkLive = createHeadlines();
 const { createSlack } = require("../common/slack");
 const { createSlackConfig } = require("../common/slack-config");
 const { openSignInWindow } = require("../common/signin");
@@ -97,7 +99,8 @@ app.whenReady().then(async () => {
   protocol.handle("mdfm", () => { const html = pageToServe(); return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": csp(html) } }); });
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(perm === "geolocation"));
   session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === "geolocation");
-  ipcMain.handle("live:get", async (e, kind) => { const v = kind === "weather" ? await live.weather() : kind === "sports" ? await live.sports() : kind === "news" ? await slack.fetchNews() : null; sendStatus(); return v; });
+  ipcMain.handle("live:get", async (e, kind) => { const v = kind === "weather" ? await live.weather() : kind === "sports" ? await live.sports() : kind === "news" ? await slack.fetchNews()
+    : /^(headlines:(business|gaming)|wiki:[A-Z][A-Za-z' -]{1,60})$/.test(String(kind)) ? await ptlkLive.get(kind) : null; if (!/^(headlines|wiki):/.test(String(kind))) sendStatus(); return v; });
   const refreshLive = () => live.weather().then(() => live.sports()).then(() => sendStatus()).catch(() => sendStatus());
   ipcMain.on("live:coords", (e, c) => { live.setCoords(c); refreshLive(); });
   ipcMain.on("live:geoError", (e, msg) => { live.setGeoError(msg); sendStatus(); });

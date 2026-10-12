@@ -62,15 +62,27 @@ The look and controls come from **MedDev Receiver** (`Octoroboto/meddev-receiver
 
 ## Stations
 
-Two stations share one audio output (volume, EQ, meters and visualizer):
+Three stations share one audio output (volume, EQ, meters, visualizer and TUNE), on the dial by frequency:
 
-- **MDFM 99.9 HD**: everything above.
 - **WYBC 88.1**: ambient piano composed live by Collin's generator (`vendor/ambient-soundtrack`), with a made-up artist per piece and a whisper DJ every 15-20 minutes. No ads, shows or news.
+- **MDFM 99.9 HD**: everything above.
+- **PTLK 108.0**: 100% procedural talk radio (`src/talk.js`). Nine shows, each episode written as it airs from large pools of
+  names, places, plots and jokes, with running storylines (Doug's feud with Sheila Vance, Ron's mailbox, the Overnight Shipping
+  serial) kept while the page is open: Clap Attack with Doug, Analyze Biz, The Real USB Drives of Cleverly Spillz, Button Mashers,
+  The Long Look (nature), Lost & Found Live, The Committee, Overnight Shipping and Ask a Retired Wizard. An announcer and the organ
+  run between shows. `setProviders({ headlines(kind, arg) })` feeds live material: `headlines("business")` and
+  `headlines("gaming")` resolve `[{ title, source }]`, `headlines("wiki", "Pangolin")` resolves `{ title, extract }`. The
+  shows read live headlines straight, then joke about the situation, never about named people; with no provider, or after
+  6 seconds, they make up their own (fictional companies and games). The apps provide it through `app.live("headlines:…")` /
+  `app.live("wiki:…")` (`apps/common/headlines.js`: GDELT and Wikipedia, filtered and cached).
 
 `radio.stations()`, `getStation()`, `setStation(id)`, `nextStation()`, `prevStation()` and the `station` event switch between them
 (live, or before SOUND). `stationTypeList("wybc")` / `setStationTypes("wybc", { ids, strings, winds, hall, room })` are WYBC's
 "what plays" switches; MDFM's stay `setTypes`. On WYBC, `skip()` crossfades to a new piece, `spotNow()` plays a station ID
-and `renderSong()` renders a fresh 2.5-minute performance. The radio page has ◀ ▶ arrows on the lower button row and a
+and `renderSong()` renders a fresh 2.5-minute performance. On PTLK, `skip()` starts a new show, `spotNow()` cuts in a station ID
+between lines and the show carries on, `onAir()` describes the show (Save records it whole in the apps, where the voices are
+audio) and `stationTypeList("ptlk")` / `setStationTypes("ptlk", { doug, biz, usb, buttons, nature, lost, hoa, ship, wizard, ids })`
+are its switches. The radio page has ◀ ▶ arrows on the lower button row and a
 "What plays" section per station; it remembers the station and WYBC's switches on the device.
 
 ## Sound tuning (TUNE)

@@ -1068,7 +1068,8 @@ function voiceSting(){
    music is back, so Save can hand over the whole thing even when pressed halfway. Voices are only in the recording when
    the app renders them as audio (opts.tts); the browser's own speech can't be captured. Up to 15 minutes. */
 const SHOW_NAME={weather:"Weather with Tabitha Snatterbean",sports:"Sports with Chip Nitro",news:"Company News",technews:"MedDev Tech News",funnelball:"Funnelball",showponies:"Show Ponies",play:"Golden Age Radio Hour",arts:"Arts and Culture",interview:"Interview",ad:"Ad break",id:"Station ID"};
-function breakInfo(sp){ const call=sp.kind==="interview"&&sp.title==="Caller", show=sp.show||(call?"Call-in":SHOW_NAME[sp.kind])||"Station break";
+function breakInfo(sp){ if(sp.kind==="ptlk") return {kind:"ptlk",station:"ptlk",show:sp.show,episode:String(sp.title||""),title:sp.title?`${sp.show}: ${sp.title}`:sp.show,hosts:sp.hosts||""};
+  const call=sp.kind==="interview"&&sp.title==="Caller", show=sp.show||(call?"Call-in":SHOW_NAME[sp.kind])||"Station break";
   const ep=sp.kind==="ad"||sp.kind==="id"||call||!sp.title||sp.title===show?"":String(sp.title); return {kind:sp.kind,show,episode:ep,title:ep?`${show}: ${ep}`:show}; }
 function recStart(sp){ recStop(true); if(!ctx||!recIn||typeof ctx.createScriptProcessor!=="function") return;
   const node=ctx.createScriptProcessor(4096,2,2), sink=G(0), r={sp,node,sink,chunks:[[],[]],n:0,sr:ctx.sampleRate,live:true,voiced:typeof opts.tts==="function",waiters:[]};
@@ -1160,16 +1161,23 @@ function rebuildAudio(){ const old=ctx; recStop(true); clearTimeout(wybcT); if(a
   ctx=null; try{ old&&old.close&&old.close().catch(()=>{}); }catch(e){} on=false; setOn(true); }
 if(typeof navigator!=="undefined"&&navigator.mediaDevices&&typeof navigator.mediaDevices.addEventListener==="function")
   navigator.mediaDevices.addEventListener("devicechange",()=>{ if(on) watchAudio(); });
-/* ---------- stations: WYBC 88.1 (Collin's ambient piano, vendor/ambient-soundtrack) and MDFM 99.9 HD (everything above) ----------
-   One AudioContext, one volume, EQ, meters and visualizer: the ambient generator plays into this station's master.
-   Switching tunes away: MDFM's songs and talk stop and the other station fades in. Pages remember the choice. */
+/* ---------- stations: WYBC 88.1 (Collin's ambient piano, vendor/ambient-soundtrack), MDFM 99.9 HD (everything above)
+   and PTLK 108.0 (procedural talk shows, src/talk.js) ----------
+   One AudioContext, one volume, EQ, meters and visualizer: every station plays into the TUNE stage (ST.in).
+   Switching tunes away: the old station's songs, beds, timers and talk stop and fade, the new one fades in (leaveStation /
+   enterStation). Dial order is by frequency and the arrows wrap. Pages remember the choice. */
 const STATIONS=[
   {id:"wybc",name:"WYBC 88.1",freq:"88.1",tagline:"Where Ya Been, Collin?!",style:"Ambient piano"},
   {id:"mdfm",name:"MDFM 99.9 HD",freq:"99.9",tagline:"Hip hop, R&B, pop, dance and a DJ set",style:null},
+  {id:"ptlk",name:"PTLK 108.0",freq:"108.0",tagline:"All talk. Every show written live.",style:"Talk radio"},
 ];
 const AMB=()=>typeof AmbientSoundtrack!=="undefined"?AmbientSoundtrack:(typeof globalThis!=="undefined"&&globalThis.AmbientSoundtrack)||null;
-const STATION_TYPES={ wybc:[["ids","The whisper DJ"],["strings","Light strings"],["winds","Bass clarinet and bassoon"],["hall","Far-off concert hall sounds"],["room","Room tone and tape grain"]] };
+const TALK=typeof createTalk==="function"?createTalk(R):null;   // PTLK's show writer; without it PTLK is skipped
+const STATION_TYPES={ wybc:[["ids","The whisper DJ"],["strings","Light strings"],["winds","Bass clarinet and bassoon"],["hall","Far-off concert hall sounds"],["room","Room tone and tape grain"]],
+  ptlk:TALK?[...TALK.shows.map(x=>[x.id,x.label]),["ids","Station IDs"]]:[] };
 const wybcTypes={ids:true,strings:true,winds:true,hall:true,room:true};
+const ptlkTypes=Object.fromEntries(STATION_TYPES.ptlk.map(([k])=>[k,true]));
+const stationOk=id=>id==="wybc"?!!AMB():id==="ptlk"?!!TALK:id==="mdfm";
 const AMB_LEVEL=4.2;   // the piece is soft by design (about -27 dB average): this brings it to about 3 dB under MDFM (a quiet station, not a dead one), under the limiter
 const PIECES=["Where Ya Been","Porch Light","The Long Way Round","Postcard, Unsent","Night Ferry","Back Before Dark","Small Hours","The Map Room",
   "Quiet Miles","Window Seat","Somewhere Off the Interstate","Left the Light On","Slow Train North","Kitchen at 2 a.m.","Rain on the Map","Pinned, Not Posted"];
@@ -1194,9 +1202,9 @@ const WYBC_WHISPER=[
 ];
 const WYBC_VOICE={accent:"whisper",names:["Whisper"],pitch:1,rate:.86};
 const WYBC_SOFT={accent:"american",names:["Ava","Allison","Samantha","Microsoft Aria","Google US English"],pitch:.85,rate:.78};   // no whisper voice on this computer: a soft, slow one
-let station=STATIONS.some(s=>s.id===opts.station)&&(opts.station!=="wybc"||AMB())?opts.station:"mdfm";
+let station=STATIONS.some(s=>s.id===opts.station)&&stationOk(opts.station)?opts.station:"mdfm";
 let amb=null, ambIn=null, wybcT=0, lastPiece="";
-const stationInfo=id=>{ const s=STATIONS.find(x=>x.id===id); return s?{...s,available:id!=="wybc"||!!AMB()}:null; };
+const stationInfo=id=>{ const s=STATIONS.find(x=>x.id===id); return s?{...s,available:stationOk(id)}:null; };
 function ambSettings(){ const t=wybcTypes; return {strings:t.strings?1:0,winds:t.winds?1:0,hall:t.hall?1:0,room:t.room?1:0,grain:t.room?1:0}; }
 function ambStart(fadeIn){
   const L=AMB(); if(!L||!ctx) return false;
@@ -1222,21 +1230,86 @@ function wybcId(force){
   const cast={voice:v,voiceName:v?null:"Whisper",pitch:sp.pitch,rate:sp.rate,vol:w?.85:.6,who:"WYBC whisper DJ"};
   setTimeout(()=>{ if(g!==gen||station!=="wybc"){ speaking=false; return; } speak(line,()=>{ if(g!==gen) return; speaking=false; if(amb) fadeTo(amb.out.gain,1,3,ctx.currentTime); },cast); },1600);
 }
+function hush(){ try{ speechSynthesis.cancel(); }catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false; }
+function leaveStation(id,t){   // tune away: everything that station had going stops and fades
+  recStop(true);
+  if(id==="mdfm"){ clearInterval(timer); timer=0; fadeTo(musicDuck.gain,.0001,1.2,t); const old=songs, b=bed; songs=[]; bed=null;
+    setTimeout(()=>{ for(const x of old) try{ x.bus.disconnect(); x.rvf.disconnect(); }catch(e){} if(b){ b.stopped=true; try{ b.bus.disconnect(); }catch(e){} } },1500); }
+  else if(id==="wybc") wybcOff(1.2);
+  else if(id==="ptlk") ptlkOff();
+}
+function enterStation(id,t){
+  if(id==="mdfm"){ fadeTo(musicDuck.gain,1,.3,t); startSong(t+.3,0); lastSpot=t; clearInterval(timer); timer=setInterval(tick,40); tick(); }
+  else if(id==="wybc") wybcOn();
+  else if(id==="ptlk") ptlkOn();
+}
 function setStation(id){
-  const s=stationInfo(id); if(!s||!s.available||id===station) return station; station=id;
-  if(on&&ctx){ gen++; const t=ctx.currentTime;
-    if(id==="wybc"){   // tune away from MDFM: its songs, beds and talk stop; the piano fades in
-      recStop(true); clearInterval(timer); timer=0; try{ speechSynthesis.cancel(); }catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
-      fadeTo(musicDuck.gain,.0001,1.2,t); const old=songs, b=bed; songs=[]; bed=null;
-      setTimeout(()=>{ for(const x of old) try{ x.bus.disconnect(); x.rvf.disconnect(); }catch(e){} if(b){ b.stopped=true; try{ b.bus.disconnect(); }catch(e){} } },1500);
-      wybcOn();
-    } else {   // back to MDFM: the piano fades out, a new song starts
-      try{ speechSynthesis.cancel(); }catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false; wybcOff(1.2);
-      fadeTo(musicDuck.gain,1,.3,t); startSong(t+.3,0); lastSpot=t; clearInterval(timer); timer=setInterval(tick,40); tick();
-    } }
+  const s=stationInfo(id); if(!s||!s.available||id===station) return station; const was=station; station=id;
+  if(on&&ctx){ gen++; const t=ctx.currentTime; hush(); leaveStation(was,t); enterStation(id,t); }
   emit("station",stationInfo(station)); return station;
 }
 function stepStation(d){ const list=STATIONS.filter(s=>stationInfo(s.id).available), i=list.findIndex(s=>s.id===station); return setStation(list[(i+d+list.length)%list.length].id); }
+/* PTLK 108.0: 100% procedural talk. src/talk.js writes each episode (cast, lines, sound cues); this plays them back to back
+   through speak() (so the app's rendered voices, captions, TUNE and Save all work), with an announcer and the organ between
+   shows. Some shows read live headlines or an encyclopedia page through opts.headlines(kind, arg) (the apps provide it);
+   without it, or when it's slow, they make their own. Shows remember their running plots (feuds, serials) while the page is open. */
+const PTLK_ANN={name:"P T L K announcer",accent:"american",names:["Evan","Tom","Daniel","Aaron","Microsoft Guy","Google US English"],pitch:.86,rate:1.02};
+const ptlkState={}, ptlkRecent=[]; let ptlk=null;
+const spelled=t=>String(t).replace(/\b[A-Z](?: [A-Z]){2,5}\b/g,m=>m.replace(/ /g,""));   // "P T L K" is how it's said; captions show "PTLK"
+function talkCast(c){   // a cast as speak() wants it: distinct voices where the computer has them, callers on the phone line
+  const host=hostCast(), out={names:{}}, used=new Set(), vs=HAS_TTS?speechSynthesis.getVoices():[];
+  for(const [k,sp] of Object.entries(c)){
+    let v=null; const want=[...(sp.names||[]),...((ACCENTS[sp.accent]||{}).names||[])];
+    for(const n of want){ const f=vs.find(x=>(x.name===n||x.name.startsWith(n+" ")||x.name.startsWith(n+" ("))&&!used.has(x.name)); if(f){ v=f; break; } }
+    if(!v){ const a=(ACCENTS[sp.accent]||{}).lang; if(a) v=vs.find(x=>(x.lang||"").replace("_","-").toLowerCase().startsWith(a)&&!used.has(x.name))||null; }
+    if(!v) v=voiceFor(sp)||host.voice; if(v) used.add(v.name);
+    out[k]={voice:v,voiceName:v?null:(want[0]||null),pitch:sp.pitch??1,rate:sp.rate??1,vol:sp.vol,phone:/^c\d+$|^owner$/.test(k)};
+    out.names[k]=spelled(sp.name||k); if(!out.host) out.host=out[k];
+  }
+  return out;
+}
+function ptlkPick(){
+  const ok=TALK.shows.filter(x=>ptlkTypes[x.id]); if(!ok.length) return null;
+  let c=ok.filter(x=>!ptlkRecent.includes(x.id)); if(!c.length) c=ok; const s=pick(c);
+  ptlkRecent.push(s.id); while(ptlkRecent.length>Math.min(4,ok.length-1)) ptlkRecent.shift(); return s;
+}
+const within=(p,ms)=>Promise.race([Promise.resolve().then(()=>p),new Promise(res=>setTimeout(()=>res(null),ms))]).catch(()=>null);
+async function ptlkData(s){   // live headlines or an encyclopedia page, checked; null means the show makes its own
+  if(!s.needs) return null; const h=typeof opts.headlines==="function"?opts.headlines:null;
+  if(s.needs==="animal"){ const a=pick(TALK.animals()); if(!h) return {animal:a}; const w=await within(h("wiki",a),6000);
+    return {animal:a,wiki:w&&typeof w.extract==="string"?{title:String(w.title||a).slice(0,120),extract:w.extract.slice(0,2000)}:null}; }
+  if(!h) return null; const list=await within(h(s.needs),6000); if(!Array.isArray(list)) return null;
+  return list.filter(x=>x&&typeof x.title==="string").slice(0,25).map(x=>({title:x.title.slice(0,200),source:typeof x.source==="string"?x.source.slice(0,60):""}));
+}
+function ptlkOn(){ ptlkOff(); ptlk={n:0,t:0,lines:null,i:0,cast:null,ep:null}; const p=ptlk; p.t=setTimeout(()=>ptlkShow(p,true),700); }
+function ptlkOff(){ if(!ptlk) return; clearTimeout(ptlk.t); ptlk.dead=true; ptlk=null; }
+async function ptlkShow(p,first){
+  if(p!==ptlk||!on||station!=="ptlk") return; clearTimeout(p.t); const n=++p.n; p.lines=null;
+  const s=ptlkPick();
+  if(!s){ nowPlaying={station:"ptlk",title:"Dead air",style:"Talk radio",artist:"Nobody, every show is switched off",bpm:null}; emit("nowplaying",nowPlaying); p.t=setTimeout(()=>ptlkShow(p),4000); return; }
+  speaking=true; const data=await ptlkData(s); if(p!==ptlk||n!==p.n) return;
+  let ep; try{ ep=TALK.episode(s.id,data,ptlkState[s.id]||(ptlkState[s.id]={})); }catch(e){ ep=TALK.episode(s.id,null,ptlkState[s.id]); }
+  const show=spelled(ep.show), hosts=spelled(ep.hosts), sp={kind:"ptlk",station:"ptlk",show,title:ep.title,showId:ep.showId,hosts,live:!!ep.usedLive};
+  nowPlaying={station:"ptlk",title:ep.title,style:show,artist:hosts,bpm:null}; emit("nowplaying",nowPlaying); emit("spot",sp); recStart(sp);
+  const cast=talkCast({ann:PTLK_ANN,...ep.cast}); cast.host=cast[Object.keys(ep.cast)[0]]||cast.ann;
+  const L=[]; if(ptlkTypes.ids){ if(first||R()<.4) L.push(["ann",TALK.id()]); L.push(["ann",TALK.next(s.id).replace(/^(Coming up|Up next|Stay with us\. Next)/,"Now")]); }
+  L.push(["organ","theme"],["pause",400],...ep.lines);
+  if(!ep.lines.length||ep.lines[ep.lines.length-1][0]!=="organ") L.push(["organ","outro"]);
+  p.lines=L; p.i=0; p.cast=cast; p.ep=ep; ptlkStep(p,n);
+}
+function ptlkStep(p,n){   // one line at a time, so a station ID can cut in between lines
+  if(p!==ptlk||n!==p.n||!on) return;
+  if(p.i>=p.lines.length){ recStop(); speaking=false; p.t=setTimeout(()=>ptlkShow(p),rr(1200,2500)); return; }
+  let line=p.lines[p.i++]; if(typeof line[1]==="string"&&line[0]!=="sfx"&&line[0]!=="organ"&&line[0]!=="pause"){ const v=spelled(line[1]); if(v!==line[1]) line=[line[0],{say:line[1],show:v}]; }
+  speakLines([line],p.cast,()=>{ if(p===ptlk&&n===p.n) ptlkStep(p,n); });
+}
+function ptlkId(){   // "Station ID": cuts in after the line being spoken, then the show picks up where it was
+  const p=ptlk; if(!on||station!=="ptlk"||!p||!ptlkTypes.ids) return; const line=TALK.id(); emit("spot",{kind:"id",station:"ptlk",text:spelled(line)});
+  if(!p.lines){ return; }
+  const back=p.ep&&p.i<p.lines.length-1?[["ann",`We now return you to ${p.ep.show}.`]]:[];
+  p.lines.splice(p.i,0,["pause",300],["ann",pick(["Pardon the interruption.","A quick word from the station.","Sorry, folks. Legally, we have to say this."])+" "+line],...back);
+}
+function ptlkSkip(){ const p=ptlk; if(!on||!p) return; gen++; hush(); recStop(true); ptlkShow(p); }
 // "Save" on WYBC: a fresh 2.5-minute performance, rendered off the live audio and brought up to MDFM's level.
 async function renderAmbient(secs){
   const L=AMB(); if(!L) return null; const oc=new OfflineAudioContext(2,Math.ceil(44100*secs),44100);
@@ -1249,8 +1322,8 @@ function setOn(v){
   if(v===on) return; on=v; gen++;
   if(v){ primeSpeech(); if(!ctx) init(opts.audioContext); try{ const pr=ctx.resume(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){} watchAudio(); const t=ctx.currentTime; fadeTo(master.gain,(opts.volume??1)*VOL,.4,t);
     if(bed){ bed.stopped=true; try{ bed.bus.disconnect(); }catch(e){} bed=null; } fadeTo(musicDuck.gain,1,.3,t);   // restarted before the stop finished: the old break is gone
-    if(station==="wybc"&&AMB()){ clearInterval(timer); timer=0; wybcOn(); } else { station="mdfm"; if(!songs.length){ startSong(t+.1,0); lastSpot=t-999; } clearInterval(timer); timer=setInterval(tick,40); tick(); } }
-  else if(ctx){ recStop(true); wybcOff(.3); const t=ctx.currentTime; fadeTo(master.gain,0,.3,t); clearInterval(timer); try{speechSynthesis.cancel();}catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
+    if(station==="wybc"&&AMB()){ clearInterval(timer); timer=0; wybcOn(); } else if(station==="ptlk"&&TALK){ clearInterval(timer); timer=0; ptlkOn(); } else { station="mdfm"; if(!songs.length){ startSong(t+.1,0); lastSpot=t-999; } clearInterval(timer); timer=setInterval(tick,40); tick(); } }
+  else if(ctx){ recStop(true); wybcOff(.3); ptlkOff(); const t=ctx.currentTime; fadeTo(master.gain,0,.3,t); clearInterval(timer); try{speechSynthesis.cancel();}catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
     const c=ctx,md=musicDuck; setTimeout(()=>{ if(!on){ for(const s of songs) try{s.bus.disconnect();}catch(e){} songs=[]; if(bed){ try{bed.bus.disconnect();}catch(e){} bed=null; } fadeTo(md.gain,1,.01,c.currentTime); c.suspend(); } },400); }
   emit(v?"start":"stop");
 }
@@ -1291,10 +1364,10 @@ return {
   stop(){ setOn(false); },
   toggle(){ setOn(!on); return on; },
   isOn(){ return on; },
-  skip(){ if(station==="wybc"){ if(on&&amb){ const a=amb; amb=null; ambRetire(a,4); ambStart(4); } return; } for(const s of songs) if(!s.handed) s.step=Math.max(s.step,(s.bars-4)*16-1); },
-  spotNow(kind){ if(station==="wybc"){ wybcId(true); return; } spot(kind); },
+  skip(){ if(station==="ptlk"){ ptlkSkip(); return; } if(station==="wybc"){ if(on&&amb){ const a=amb; amb=null; ambRetire(a,4); ambStart(4); } return; } for(const s of songs) if(!s.handed) s.step=Math.max(s.step,(s.bars-4)*16-1); },
+  spotNow(kind){ if(station==="ptlk"){ ptlkId(); return; } if(station==="wybc"){ wybcId(true); return; } spot(kind); },
   setDuck(v){ v=Math.max(0,Math.min(1,+v)); if(!Number.isFinite(v)) return; duckLevel=v; if(ctx&&extDuck){ const t=ctx.currentTime; extDuck.gain.cancelScheduledValues(t); extDuck.gain.setTargetAtTime(Math.max(v,0),t,v<1?.08:.35); } },   // 0..1 over everything (music and DJ), eased
-  setProviders(p){ for(const k of ["weather","sports","news","tts","cannedFallback"]) if(k in p) opts[k]=p[k]; wxCache=spCache=null; },   // kind optional: "weather" | "sports"
+  setProviders(p){ for(const k of ["weather","sports","news","tts","cannedFallback","headlines"]) if(k in p) opts[k]=p[k]; wxCache=spCache=null; },   // kind optional: "weather" | "sports"
   stingNow(){ voiceSting(); },
   voices(){ return HAS_TTS?speechSynthesis.getVoices().map(v=>v.name+" ("+v.lang+")"):[]; },
   setSpots(v){ spotsOn=!!v; },
@@ -1319,14 +1392,15 @@ return {
   nextSpotText(){ return nextSpot(); },
   renderOffline,
   /* "Save song": renders the song on air again, from the top, off the live audio path, and returns {buffer, info}. */
-  async renderSong(){ if(station==="wybc"){ if(!nowPlaying||nowPlaying.station!=="wybc") return null; const buffer=await renderAmbient(150); return buffer&&{buffer,info:{...nowPlaying,stationName:"WYBC 88.1"}}; }
+  async renderSong(){ if(station==="ptlk") return null;   // talk saves as a recording (onAir / recordBreak), in the apps
+    if(station==="wybc"){ if(!nowPlaying||nowPlaying.station!=="wybc") return null; const buffer=await renderAmbient(150); return buffer&&{buffer,info:{...nowPlaying,stationName:"WYBC 88.1"}}; }
     const live=[...songs].reverse().find(x=>x.recipe&&nowPlaying&&x.title===nowPlaying.title)||[...songs].reverse().find(x=>x.recipe);
     if(!live) return null; const secs=Math.min(600,live.bars*16*live.sp+3);
     const buffer=await renderOffline("current",secs,{recipe:live.recipe,bars:live.bars,brk2:live.brk2,ride:live.ride});
     return {buffer,info:{title:live.title,style:live.name,bpm:live.bpm,...songFacts(live)}}; },
   /* "Save" during a break: onAir() says what break is on now ({kind, show, episode, title, saveable}); recordBreak()
      resolves {buffer, info} when it ends (the whole break, recorded from its start), or null if none is on. */
-  onAir(){ return station==="mdfm"&&REC&&REC.live?{...breakInfo(REC.sp),saveable:REC.voiced}:null; },
+  onAir(){ return station!=="wybc"&&REC&&REC.live?{...breakInfo(REC.sp),station,saveable:REC.voiced}:null; },
   recordBreak(){ const r=REC; if(!r||!r.live) return Promise.resolve(null); return new Promise((res,rej)=>r.waiters.push({res,rej})); },
   get audioContext(){ return ctx; },
   /* TUNE: the sound-tuning stage. All defaults = MDFM exactly as before. Values 0..1 (width 0.5 = untouched);
@@ -1337,7 +1411,7 @@ return {
   soundDefaults(){ return {...SOUND_DEF}; },
   soundPresets(){ return SOUND_PRESETS.map(p=>({id:p.id,name:p.name,sound:{...SOUND_DEF,...p.s}})); },
   rooms(){ return Object.entries(ROOMS).map(([id,r])=>({id,name:r.name})); },
-  /* Stations: WYBC 88.1 (ambient piano) and MDFM 99.9 HD. setStation / nextStation / prevStation switch live (or pick the
+  /* Stations: WYBC 88.1 (ambient piano), MDFM 99.9 HD and PTLK 108.0 (talk). setStation / nextStation / prevStation switch live (or pick the
      one SOUND starts on); the "station" event says which is on. Each station has its own "what plays" switches. */
   stations(){ return STATIONS.map(x=>stationInfo(x.id)); },
   getStation(){ return stationInfo(station); },
@@ -1345,8 +1419,9 @@ return {
   nextStation(){ return stepStation(1); },
   prevStation(){ return stepStation(-1); },
   stationTypeList(id){ return (STATION_TYPES[id]||[]).map(x=>[...x]); },   // MDFM's own list is window.MDFM_TYPES / setTypes
-  getStationTypes(id){ return id==="wybc"?{...wybcTypes}:{...TYPES}; },
-  setStationTypes(id,t){ if(id!=="wybc"){ this.setTypes(t); return; } for(const [k] of STATION_TYPES.wybc) if(t&&k in t) wybcTypes[k]=!!t[k];
+  getStationTypes(id){ return id==="wybc"?{...wybcTypes}:id==="ptlk"?{...ptlkTypes}:{...TYPES}; },
+  setStationTypes(id,t){ if(id==="ptlk"){ for(const [k] of STATION_TYPES.ptlk) if(t&&k in t) ptlkTypes[k]=!!t[k]; return; }
+    if(id!=="wybc"){ this.setTypes(t); return; } for(const [k] of STATION_TYPES.wybc) if(t&&k in t) wybcTypes[k]=!!t[k];
     if(amb){ const m=ambSettings(); for(const k in m) try{ amb.inst.set(k,m[k]); }catch(e){} } },
 };
 }

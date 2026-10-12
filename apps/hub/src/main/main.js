@@ -7,6 +7,8 @@ const path = require("path"), fs = require("fs"), crypto = require("crypto");
 const security = require("./security");
 const settingsStore = require("./settings");
 const { createLive } = require("../common/live");
+const { createHeadlines } = require("../common/headlines");   // PTLK 108.0's live headlines and encyclopedia pages
+const ptlkLive = createHeadlines();
 const { createSlack } = require("../common/slack");
 const { createSlackConfig } = require("../common/slack-config");
 const { openSignInWindow } = require("../common/signin");
@@ -134,7 +136,8 @@ app.whenReady().then(async () => {
   const fromHub = e => { try { return view && e.sender === view.webContents && HUB_HOSTS.test(new URL(e.senderFrame.url).hostname); } catch { return false; } };
   const refreshLive = () => live.weather().then(() => live.sports()).then(() => sendStatus()).catch(() => sendStatus());
   setTimeout(refreshLive, 4000); setInterval(refreshLive, 15 * 60e3);
-  ipcMain.handle("hub:live", async (e, kind) => { if (!fromHub(e)) return null; const v = kind === "weather" ? await live.weather() : kind === "sports" ? await live.sports() : kind === "news" ? await slack.fetchNews() : null; sendStatus(); return v; });
+  ipcMain.handle("hub:live", async (e, kind) => { if (!fromHub(e)) return null; const v = kind === "weather" ? await live.weather() : kind === "sports" ? await live.sports() : kind === "news" ? await slack.fetchNews()
+    : /^(headlines:(business|gaming)|wiki:[A-Z][A-Za-z' -]{1,60})$/.test(String(kind)) ? await ptlkLive.get(kind) : null; if (!/^(headlines|wiki):/.test(String(kind))) sendStatus(); return v; });
   ipcMain.on("hub:coords", (e, c) => { if (!fromHub(e)) return; live.setCoords(c); refreshLive(); });
   ipcMain.on("hub:geoError", (e, msg) => { if (!fromHub(e)) return; live.setGeoError(msg); sendStatus(); });
   ipcMain.handle("hub:tts", async (e, spec) => { if (!fromHub(e)) throw new Error("not allowed"); return tts.render({ text: String(spec && spec.text || ""), voice: spec && spec.voice ? String(spec.voice) : null, rate: +(spec && spec.rate) || 1, pitch: +(spec && spec.pitch) || 1 }); });
