@@ -2,6 +2,12 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.10.4 (2026-10-12, Rob)
+- **"Now playing" knows what was rolled:** besides the title, style and BPM, each song now reports its key and scale, swing, chord progression, song form, length in bars and the instruments it was given (`nowPlaying()` and the `nowplaying` event; new fields only). The MDFM product page uses them for its "a song being written" card.
+- **Fix:** asking for an interview or a call-in on demand (`spotNow("interview")` / `spotNow("caller")`) picked no lines and ended the break in silence. They now pick a guest or a caller like the regular breaks do.
+- **Guitar sits back in the mix:** the distorted guitar (Emo Dance Pop, and some pop songs) is about 8 dB quieter. It was louder than the drums, bass and vocals put together.
+- MedDev Receiver 1.11.1 built in. Content update.
+
 ## 1.10.3 (2026-10-12, Rob)
 - **Drag the apps by a skin's top too:** in MDFM Radio, pressing on the parts a skin draws above or beside the receiver (Slouch from the Dead's theatre, Clara Stamford's cabinets) moves the window, like the metal does. Before, only presses inside the receiver did. Content update.
 
