@@ -64,6 +64,9 @@
     try{ const r=await MDFM.saveSong(radio,{app,onStatus:say}); cap.textContent=r.via==="claude"?`Saved “${r.title}” (the MP3 is inside ${r.name}).`:`Saved “${r.title}” as an MP3.`; }
     catch(e){ cap.textContent=e&&e.code==="declined"?"Not saved.":`Couldn't save it: ${(e&&e.message)||e}`; }
     finally{ saveBtn.removeAttribute("aria-busy"); capT=setTimeout(()=>{ cap.textContent=""; },9000); } });
+  // TUNE: the sound-tuning pop-out (realism, soundstage, clarity, warmth, room, trunk rattle, radio grain). Kept on this device.
+  if(MDFM.mountTune&&radio.setSound&&$("#tunePop")) MDFM.mountTune(radio,{panel:$("#tunePop"),toggle:$("#tuneOn")});
+  else if($("#tuneOn")) $("#tuneOn").closest("label").hidden=true;
   $("#stEngine").textContent=`v${MDFM.VERSION}`;
   window.MDFM_receiver(radio,{app});
   // AXMOD (accessibility, MedDev Receiver 1.7+): captions for voices and songs, text versions of the EQ and meters,

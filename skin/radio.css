@@ -67,3 +67,20 @@ html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;
 .stbtns[hidden]{display:none}
 .stbtn{width:34px;min-width:34px;height:34px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
 .stbtn svg{width:16px;height:16px;display:block;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
+/* TUNE: the sound-tuning pop-out */
+header.top .deck{position:relative}
+.tunepop{position:absolute;right:12px;top:calc(100% - 10px);z-index:70;width:min(720px,calc(100% - 24px));padding:14px;display:flex;flex-direction:column;gap:12px;border-left-width:2px}
+.tunepop .wtitle{margin:-14px -14px 2px}
+.tunerow{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
+.tunefld{display:flex;flex-direction:column;gap:4px;font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--caption,#cfd2de)}
+.tunefld select{min-width:170px;font:600 .85rem/1.2 var(--f-body,Tahoma,sans-serif);letter-spacing:0;text-transform:none;padding:6px 8px}
+.tunebtns{display:flex;gap:14px;margin-left:auto}
+.tunepop small,.tuneknobs small{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;color:var(--caption);text-shadow:0 1px 0 rgba(0,0,0,.65);text-align:center}
+.tuneknobs{display:flex;flex-wrap:wrap;gap:12px 10px;justify-content:space-between}
+.tuneknobs .rd-k{width:76px}
+.tuneknobs .rd-mm{width:64px}
+.tuneknobs .rd-knob{--kc:var(--knob-pointer,#ffb347)}
+.tuneknobs .rd-k.moved .rd-knob{--kc:#7fe22a}
+.tunehint{margin:0;font-size:.78rem;color:var(--hint,#b9bdc9)}
+.tunesw input:checked{box-shadow:0 0 0 2px var(--btn-bezel),0 0 0 3px var(--btn-rim),0 0 8px #7fe22a}
+@media (max-width:560px){.tunepop{position:fixed;left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:80vh;overflow:auto}}

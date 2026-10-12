@@ -1,12 +1,12 @@
 {
   "name": "mdfm",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "receiver": "1.12.0",
   "files": {
     "mdfm.iife.js": {
       "path": "dist/mdfm.iife.js",
-      "bytes": 463799,
-      "sha256": "d6de38fee83d7f16ea47e8f7539f1a34c1384ae3b72b0a92e9cbf15ac3e3d098"
+      "bytes": 480547,
+      "sha256": "d7b7c28a1bf1f8486530ce2f26f356b40fdad2da0ed5292cdfbc765694744628"
     },
     "types.js": {
       "path": "skin/types.js",
@@ -15,18 +15,18 @@
     },
     "radio.css": {
       "path": "skin/radio.css",
-      "bytes": 5665,
-      "sha256": "470dccf1e6a763d865e62229a7c9dda0c1bc6d8b9bafadd2c815a1e48d4e1602"
+      "bytes": 7110,
+      "sha256": "d037e4dc86e9b0a06e6a11b92473b312f2d980e79daeaa900be0e8c0564ee6d3"
     },
     "radio-wire.js": {
       "path": "skin/radio-wire.js",
-      "bytes": 13300,
-      "sha256": "e95eb225ddd91d765b29d776f754e97b91f9a06092023ff17ce8def7cc42f961"
+      "bytes": 13614,
+      "sha256": "ae92bcc3a9ab57f6274fa5d5f7159e08b933365a56a8a00f40c925246f23fc09"
     },
     "radio-body.html": {
       "path": "skin/radio-body.html",
-      "bytes": 11153,
-      "sha256": "25f6a015f7ae7de1bbda9587ba4a8c6f794b27ff4ebefa283489f29d51ae7e38"
+      "bytes": 11424,
+      "sha256": "8719f12b7f3c8b11dc346d56f137b268e3d651564ba49915becd8f9693ca2e42"
     }
   }
 }

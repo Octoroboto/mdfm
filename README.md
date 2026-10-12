@@ -65,13 +65,20 @@ The look and controls come from **MedDev Receiver** (`Octoroboto/meddev-receiver
 Two stations share one audio output (volume, EQ, meters and visualizer):
 
 - **MDFM 99.9 HD**: everything above.
-- **WYBC 88.1**: ambient piano composed live by Collin's generator (`vendor/ambient-soundtrack`), with a made-up artist per piece and a quiet station ID every 15-20 minutes. No ads, shows or news.
+- **WYBC 88.1**: ambient piano composed live by Collin's generator (`vendor/ambient-soundtrack`), with a made-up artist per piece and a whisper DJ every 15-20 minutes. No ads, shows or news.
 
 `radio.stations()`, `getStation()`, `setStation(id)`, `nextStation()`, `prevStation()` and the `station` event switch between them
 (live, or before SOUND). `stationTypeList("wybc")` / `setStationTypes("wybc", { ids, strings, winds, hall, room })` are WYBC's
 "what plays" switches; MDFM's stay `setTypes`. On WYBC, `skip()` crossfades to a new piece, `spotNow()` plays a station ID
 and `renderSong()` renders a fresh 2.5-minute performance. The radio page has ◀ ▶ arrows on the lower button row and a
 "What plays" section per station; it remembers the station and WYBC's switches on the device.
+
+## Sound tuning (TUNE)
+
+`radio.setSound({ realism, width, clarity, warmth, room, roomType, rattle, grain })` shapes the sound between the station
+mix and the volume. Values run 0 to 1 (`width` 0.5 is untouched, 0 is mono, 1 is wide); `roomType` is `studio`, `car`,
+`living`, `club` or `hall`. At the defaults (`soundDefaults()`) the stage is a straight wire. `soundPresets()` lists the
+presets, `resetSound()` goes back, and `createMDFM({ sound })` starts tuned. The radio page's TUNE button opens the knobs.
 
 ## Weather and time
 

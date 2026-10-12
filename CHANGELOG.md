@@ -2,6 +2,20 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.12.0 (2026-10-12, Rob)
+- **TUNE: a sound-tuning pop-out.** A TUNE button next to SOUND and EQ opens a skinned panel of knobs. Every knob at its start mark is MDFM exactly as it sounded before (checked sample for sample), so nothing changes until someone turns something:
+  - **Realism:** speakers in a real room, a little glue, air and low-end tightening.
+  - **Soundstage:** mono through to wide (the middle is as it is now).
+  - **Clarity:** less mud, more presence and air.
+  - **Warmth:** rich, warm tape and console colour.
+  - **Room**, with a room picker (studio, car, living room, club, concert hall): how much of that room you hear. The car adds cabin bass gain, a boxy middle and soft, damped highs.
+  - **Trunk rattle:** loose panels buzzing, only when a song's sub bass pushes hard.
+  - **Radio grain:** hiss, the odd crackle, a narrower band and a little flutter.
+- **Presets:** MDFM (as it is), Rich and warm, Car stereo, Late-night AM, Club PA, Living room and Concert hall; turning any knob makes it Custom. RESET goes back to MDFM as it is; double-clicking a knob resets just that one. Knobs work by dragging, scrolling and the arrow keys. The settings are remembered on this device.
+- **WYBC gets a whisper DJ.** WYBC's station IDs are now a whisper DJ who leans in every 15 to 20 minutes and whispers about the station, the time, or what just played ("That was Night Ferry, by Rafe Solberg."). It uses the Mac's Whisper voice (rendered through the volume and EQ in the MDFM Radio app); computers without one get a soft, slow voice instead. The piano dips under it. In Settings the switch is now "The whisper DJ".
+- Tuning applies to both stations, the voices and Save. Engine: `setSound()`, `getSound()`, `resetSound()`, `soundDefaults()`, `soundPresets()`, `rooms()` and `createMDFM({ sound })`.
+- Ideas from Collin: a wider soundstage, more clarity, a car interior with a hint of trunk rattle, a bit of radio grain; rich, enveloping and warm.
+
 ## 1.11.0 (2026-10-12, Rob)
 - **A second station: WYBC 88.1.** Collin's ambient piano generator (from his "Where Ya Been, Collin?!" map) is now its own station: a soft, warm piano piece composed live, with light strings, the odd bass clarinet or bassoon, room tone, tape grain and far-off concert-hall sounds. No ads, shows or news, just a quiet station ID every 15 to 20 minutes. It plays through the same volume, EQ, meters and visualizer.
 - **Station arrows** (◀ ▶) on the lower row with Next song and Station break switch between WYBC 88.1 and MDFM 99.9 HD, live or before tuning in. The display shows the station; on WYBC the buttons read Next piece (a new piece, crossfaded) and Station ID. The choice is remembered on this device.
