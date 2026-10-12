@@ -100,3 +100,12 @@ test("a URL with a broken %-escape is judged (unreadable, fails closed), never t
   let out = null; handler({ url: "https://fonts.gstatic.com/50%off", method: "GET", webContentsId: 3 }, r => { out = r; });
   assert.deepStrictEqual(out, { cancel: true });
 });
+
+test("app-update-download: only the mdfm release .dmg and GitHub's file hosts", () => {
+  const b = make(), ok = u => { try { b.assert({ url: u, method: "GET" }, "app"); return true; } catch { return false; } };
+  assert.ok(ok("https://github.com/Octoroboto/mdfm/releases/download/radio-v0.3.7/MDFM.Radio-0.3.7-arm64.dmg"));
+  assert.ok(ok("https://release-assets.githubusercontent.com/github-production-release-asset/1/2?sp=r&sig=x"));
+  assert.ok(ok("https://objects.githubusercontent.com/github-production-release-asset-2e65be/1/2"));
+  assert.ok(!ok("https://github.com/Octoroboto/other/releases/download/v1/x.dmg"));
+  assert.ok(!ok("https://github.com/evil/mdfm/releases/download/radio-v1.0.0/x.dmg"));
+});

@@ -2,6 +2,11 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## Apps: MDFM Radio 0.3.7 and MD Hub 0.2.7 (2026-10-12, Rob)
+- **Download downloads.** When a newer app is out, Download (in Settings, the Futureproofer list, or MD Hub's "is available" box) now fetches the .dmg for this Mac's chip straight into the Downloads folder, with progress on the Dock icon, and opens it in Finder ready to drag into Applications. No browser and no releases page. If it can't, it offers the download page instead.
+- Only the mdfm repo's release .dmg files, over https, following GitHub's redirect to its file host; every hop goes through Bouncer (new rule "app-update-download"). Nothing installs by itself.
+- No MDFM content change.
+
 ## 1.13.0 (2026-10-12, Rob)
 - **A third station: PTLK 108.0, all talk.** Every show is written as it airs (`src/talk.js`), from big enough pools of names, places, plots and jokes that an episode never repeats, with running storylines that carry on from one episode to the next. Shows, each with its own switch in "What plays on PTLK 108.0":
   - **Clap Attack with Doug:** real estate is a family business, and Doug didn't come to make friends. A listing of the hour with one flaw, callers who accidentally buy houses, his mother Barb, cousin Trent, and a feud with rival agent Sheila Vance that escalates every episode.

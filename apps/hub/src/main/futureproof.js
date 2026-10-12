@@ -1,5 +1,5 @@
 // Futureproofer for MD Hub, in the FOREGROUND: when a newer MD Hub is out it asks (Download / Later / Skip this version).
-// Never forced. It also keeps an eye on Electron, Bouncer's engine, known security problems, this Mac and the build.
+// Download fetches the .dmg into ~/Downloads in the app (common/app-download.js). Never forced. It also keeps an eye on Electron, Bouncer's engine, known security problems, this Mac and the build.
 // The hub page itself is always current: it's the live artifact on claude.ai.
 const { app, dialog, shell } = require("electron");
 const fs = require("fs"), os = require("os"), path = require("path"), { execFileSync } = require("child_process");
@@ -20,7 +20,7 @@ async function latestRelease() {
   return { version: best.tag_name.replace(/^hub-v/, ""), url: best.html_url, download: dmg ? dmg.browser_download_url : best.html_url, notes: String(best.body || "").slice(0, 600) };
 }
 
-function startFutureproofer({ look, getWindow, getSettings, saveSettings, enginePackageVersion, onChange }) {
+function startFutureproofer({ look, getWindow, getSettings, saveSettings, enginePackageVersion, onChange, download }) {
   const translated = process.platform === "darwin" && underRosetta();
   let asked = null;   // versions already asked about this launch
   async function offer(u) {
@@ -28,7 +28,7 @@ function startFutureproofer({ look, getWindow, getSettings, saveSettings, engine
     const w = getWindow(); const { response } = await dialog.showMessageBox(w && !w.isDestroyed() ? w : undefined, {
       type: "info", buttons: ["Download", "Later", "Skip this version"], defaultId: 0, cancelId: 1,
       message: `MD Hub ${u.version} is available`, detail: `You have ${app.getVersion()}. Updating is optional.${u.notes ? "\n\n" + u.notes : ""}` });
-    if (response === 0) shell.openExternal(u.download);
+    if (response === 0) { if (download && u.download !== u.url) download(u.download); else shell.openExternal(u.download); }   // the .dmg straight into Downloads; the releases page only if there's no .dmg for this Mac
     if (response === 2) saveSettings({ skipVersion: u.version });
   }
   const fp = createFutureproofer({

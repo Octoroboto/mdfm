@@ -42,6 +42,19 @@ const HUB_HOSTS = /(^|\.)(claude\.ai|claudeusercontent\.com|claude\.site|claude\
 const LOGIN_HOSTS = /(^|\.)(accounts\.google\.com|appleid\.apple\.com)$/;
 let slackCfg = null;
 let win = null, view = null, settings = null, fp = null, slack = null, settingsOpen = false;
+// App updates: Download fetches the newest .dmg into ~/Downloads itself (progress on the Dock icon), then opens it.
+const { createAppDownload, isReleaseDmg } = require("../common/app-download");
+let appDl = null;
+function downloadUpdate(url, appName) {
+  if (!appDl) appDl = createAppDownload({ downloadsDir: app.getPath("downloads"), openFile: f => shell.openPath(f), userAgent: appName.replace(/ /g, "-"),
+    onProgress: p => { if (win && !win.isDestroyed()) win.setProgressBar(p.state === "downloading" ? Math.max(.02, p.pct) : -1); } });
+  return appDl.start(url).then(() => {
+    dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, { type: "info", buttons: ["OK"], message: `The new ${appName} is in your Downloads folder`,
+      detail: `It's open in Finder now: quit ${appName}, drag the new one into Applications, choose Replace, and open it again.` }).catch(() => {});
+  }).catch(e => dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, { type: "warning", buttons: ["Open the download page", "Cancel"], defaultId: 0, cancelId: 1,
+      message: "The update didn't download", detail: e.message }).then(r => { if (r.response === 0) shell.openExternal(url); }).catch(() => {}));
+}
+
 
 const { appB, viewB, signinB, enginePackageVersion } = security.startBouncers({ notify: p => sendStatus(`Bouncer stopped a request: ${p.body}`) });
 const getSettings = () => settings;
@@ -189,7 +202,7 @@ app.whenReady().then(async () => {
   ipcMain.handle("slack:disconnect", async e => { if (!fromShell(e)) return false; await slack.disconnect(); sendStatus("Slack disconnected."); return true; });
   ipcMain.handle("bouncer:details", e => { if (!fromShell(e)) return null; const d = b => ({ status: b.status(), recent: b.recent(30) }); return { app: d(appB), hub: d(viewB) }; });
   ipcMain.handle("bouncer:showLog", (e, which) => { if (!fromShell(e)) return; const f = (which === "hub" ? viewB : appB).status().log.file; if (f && fs.existsSync(f)) shell.showItemInFolder(f); else shell.openPath(path.dirname(f)); });
-  ipcMain.handle("open:url", (e, url) => { if (fromShell(e) && /^https:\/\/(github\.com\/Octoroboto\/|osv\.dev\/vulnerability\/)/.test(url)) shell.openExternal(url); });
+  ipcMain.handle("open:url", (e, url) => { if (fromShell(e) && isReleaseDmg(url)) { downloadUpdate(String(url), "MD Hub"); return; } if (fromShell(e) && /^https:\/\/(github\.com\/Octoroboto\/|osv\.dev\/vulnerability\/)/.test(url)) shell.openExternal(url); });
 
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: "appMenu" }, { role: "editMenu" },
@@ -206,7 +219,7 @@ app.whenReady().then(async () => {
   // At every launch, check for a new look first (up to 5 seconds), so the window opens with it.
   await Promise.race([look.check(), new Promise(r => setTimeout(r, 5000))]);
   createWindow();
-  fp = startFutureproofer({ look, getWindow: () => win, getSettings, saveSettings, enginePackageVersion, onChange: () => sendStatus() });
+  fp = startFutureproofer({ look, getWindow: () => win, getSettings, saveSettings, enginePackageVersion, onChange: () => sendStatus(), download: url => downloadUpdate(url, "MD Hub") });
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });

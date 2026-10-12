@@ -70,6 +70,18 @@ when {
 };
 
 
+// ══ App updates ══════════════════════════════════════════════════════════════════════════════
+
+@id("app-update-download")
+@description("Download a newer version of this app (the .dmg from the mdfm releases page, then GitHub's file host it redirects to), only when someone presses Download")
+permit (principal == Caller::"app", action == Action::"GET", resource)
+when {
+  ((context.host == "github.com" && context.path like "/Octoroboto/mdfm/releases/download/*") ||
+   context.host == "objects.githubusercontent.com" || context.host == "release-assets.githubusercontent.com") &&
+  context.sameToday < 30
+};
+
+
 // ══ PTLK 108.0 (talk shows) ══════════════════════════════════════════════════════════════════
 
 @id("ptlk-headlines")

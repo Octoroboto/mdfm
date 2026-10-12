@@ -1,5 +1,5 @@
 // MDFM Radio: the MDFM station in its own window. Plays with zero Claude credits.
-const { app, BrowserWindow, ipcMain, protocol, session, shell, Menu, safeStorage } = require("electron");
+const { app, BrowserWindow, ipcMain, protocol, session, shell, Menu, safeStorage, dialog } = require("electron");
 const onscreen = require("../common/onscreen");
 const path = require("path"), fs = require("fs"), crypto = require("crypto");
 const security = require("./security");
@@ -22,6 +22,19 @@ protocol.registerSchemesAsPrivileged([{ scheme: "mdfm", privileges: { standard: 
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 
 let win = null, settings = null, fp = null;
+// App updates: Download fetches the newest .dmg into ~/Downloads itself (progress on the Dock icon), then opens it.
+const { createAppDownload, isReleaseDmg } = require("../common/app-download");
+let appDl = null;
+function downloadUpdate(url, appName) {
+  if (!appDl) appDl = createAppDownload({ downloadsDir: app.getPath("downloads"), openFile: f => shell.openPath(f), userAgent: appName.replace(/ /g, "-"),
+    onProgress: p => { if (win && !win.isDestroyed()) win.setProgressBar(p.state === "downloading" ? Math.max(.02, p.pct) : -1); } });
+  return appDl.start(url).then(() => {
+    dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, { type: "info", buttons: ["OK"], message: `The new ${appName} is in your Downloads folder`,
+      detail: `It's open in Finder now: quit ${appName}, drag the new one into Applications, choose Replace, and open it again.` }).catch(() => {});
+  }).catch(e => dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, { type: "warning", buttons: ["Open the download page", "Cancel"], defaultId: 0, cancelId: 1,
+      message: "The update didn't download", detail: e.message }).then(r => { if (r.response === 0) shell.openExternal(url); }).catch(() => {}));
+}
+
 // Bouncer starts first, before any window or request exists (rules: src/main/bouncer/policy.cedar).
 const bouncer = security.startBouncer({ notify: p => sendStatus(`Bouncer stopped a request: ${p.body}`) });
 const bundledDir = path.join(__dirname, "../../vendor");
@@ -147,7 +160,7 @@ app.whenReady().then(async () => {
     const { screen } = require("electron"), wa = screen.getDisplayMatching(w.getBounds()).workArea, b = w.getBounds();
     const height = Math.min(Math.round(h), wa.height); w.setBounds({ x: b.x, y: Math.max(wa.y, Math.min(b.y, wa.y + wa.height - height)), width: b.width, height }); });
   ipcMain.handle("bouncer:showLog", () => { const f = bouncer.status().log.file; if (f && fs.existsSync(f)) shell.showItemInFolder(f); else shell.openPath(path.dirname(f)); });
-  ipcMain.handle("open:url", (e, url) => { if (/^https:\/\/(github\.com\/Octoroboto\/|osv\.dev\/vulnerability\/|www\.electronjs\.org\/)/.test(url)) shell.openExternal(url); });
+  ipcMain.handle("open:url", (e, url) => { if (isReleaseDmg(url)) { downloadUpdate(String(url), "MDFM Radio"); return; } if (/^https:\/\/(github\.com\/Octoroboto\/|osv\.dev\/vulnerability\/|www\.electronjs\.org\/)/.test(url)) shell.openExternal(url); });
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: "appMenu" }, { role: "editMenu" },
     { label: "View", submenu: [{ role: "reload", label: "Reload (applies new content)" }, { type: "separator" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" }] },

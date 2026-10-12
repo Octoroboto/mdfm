@@ -35,4 +35,12 @@ async function postJSON(url, body, { timeout = 10000 } = {}) {
     return await r.json();
   } finally { clearTimeout(t); }
 }
-module.exports = { getJSON, postJSON, ALLOWED, useBouncer };
+// One hop of a file download (app updates, common/app-download.js): https, only the given hosts, through Bouncer.
+// Redirects come back to the caller, which checks the next host before following.
+async function fetchHop(url, { hosts, userAgent = "MDFM-Radio" } = {}) {
+  const u = new URL(url);
+  if (u.protocol !== "https:" || !(hosts || ALLOWED).has(u.hostname)) throw new Error("blocked host: " + u.hostname);
+  gate(u);
+  return fetch(u, { redirect: "manual", headers: { "user-agent": userAgent, accept: "application/octet-stream" } });
+}
+module.exports = { getJSON, postJSON, ALLOWED, useBouncer, fetchHop };
