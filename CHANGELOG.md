@@ -2,6 +2,10 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.10.1 (2026-10-11, Rob)
+- **`radio.setDuck(level)`** (0 to 1): ducks the whole station, music and DJ, with a quick fade down and a gentler fade back. MedDev Receiver 1.11.0's skin actors use it: spoken lines duck to 12%, sung lines (♪) to silence.
+- **MedDev Receiver 1.11.0 built in:** the new Slouch from the Dead: The Musical skin and its five-scene stage play. Content update.
+
 ## 1.10.0 (2026-10-11, Rob)
 - **Five new genres in the mix** (17 in all), each with its own new sounds:
   - **Gothic Dance Pop:** four on the floor, a church organ and a dark choir, a pumping octave bass, huge snares and a crash every other bar in the hook.
