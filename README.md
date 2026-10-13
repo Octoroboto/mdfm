@@ -106,6 +106,21 @@ ads, callers, ids, amb })` are its switches. `renderOffline("fpiece", secs, { st
 
 ## Sound tuning (TUNE)
 
+**Style Matrix** (1.17): a radar chart in the TUNE pop-out pulls the station's music toward pop, hip-hop, rock, classical,
+modern country and "galactic cosmotosis" (plus CHAOS). The song keeps its notes and form, but its instruments, groove,
+tempo, swing and sound move toward each style, weighted by how far each axis is pulled. It's per station:
+`styleMixKeys()`, `getStyleMix(id)`, `setStyleMix({ rock: .5, galactic: .3 }, id)`, `resetStyleMix(id)`. With everything
+at the centre, nothing changes.
+
+**Groove & Key** (1.17): beside the radar, per station:
+- **Tempo and time:** BPM (40–220, or the song's own), time signature (the song's 4/4, or 3/4, 6/8, 5/4, 7/8, 7/4), swing, and length (0.5× to 3×, from the next song).
+- **Key:** any key and scale (major, minor, the modes and 12 more, such as Phrygian dominant, Double harmonic and Super Locrian). Notes move by scale degree, so chords and tunes keep their shape.
+- **Drums:** density, fills, feel (half, normal or double time), humanize and drum level.
+
+API: `grooveKeys()`, `keyModes()`, `meters()`, `grooveSupport(id)`, `getGroove(id)`, `setGroove({ bpm: 120, meter: "5/4", root: 9, mode: "mixolydian", density: .7 }, id)` and `resetGroove(id)`. `mountTune` takes an optional `grooveStore` (default: localStorage `mdfmGroove`).
+
+Save includes everything. `nowPlaying()` and the saved file's info show the new BPM, key and time. WYBC has no time signature, and its drum controls work on the matrix's rhythm section. With every control at its default, nothing changes.
+
 `radio.setSound({ realism, width, clarity, warmth, room, roomType, rattle, grain })` shapes the sound between the station
 mix and the volume. Values run 0 to 1 (`width` 0.5 is untouched, 0 is mono, 1 is wide); `roomType` is `studio`, `car`,
 `living`, `club` or `hall`. At the defaults (`soundDefaults()`) the stage is a straight wire. `soundPresets()` lists the

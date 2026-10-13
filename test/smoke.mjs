@@ -44,6 +44,16 @@ const r = await p.evaluate(async () => {
   out.hearyeJoust = hspots.some(x => x.kind === "hearye" && x.show === "The Royal Joust"); out.hearyeAir = radio.onAir();
   radio.setStation("mdfm"); await new Promise(r => setTimeout(r, 1500)); out.backNp3 = radio.nowPlaying() && radio.nowPlaying().bpm; radio.stop();
   out.hearyeSave = await (async () => { const b2 = await radio.renderOffline("fpiece", 6, { style: "battle", seed: 3, target: 60 }); const d = b2.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } return [+Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]; })();
+  // Style matrix (TUNE): seven styles, per station; a full mix renders with sound and no clipping, and zero puts it back
+  out.mixKeys = radio.styleMixKeys().length; radio.setStation("mdfm"); radio.setStyleMix({ pop: 1, hiphop: 1, rock: 1, classical: 1, country: 1, galactic: 1, chaos: 1 });
+  out.mixOther = radio.getStyleMix("hearye").rock; out.mixRender = await (async () => { const b2 = await radio.renderOffline("song", 6); const d = b2.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } return [+Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]; })();
+  // Save on WYBC goes through the whole chain, with the style matrix's pull and rhythm section when it's up
+  out.wybcSave = []; for (const m of [null, { pop: 1, chaos: .5 }]) { radio.resetStyleMix("wybc"); if (m) radio.setStyleMix(m, "wybc"); const b2 = await radio.renderOffline("wybc", 12); const d = b2.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } out.wybcSave.push([+Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]); } radio.resetStyleMix("wybc");
+  // Groove & key (TUNE): per station; a song with every control moved renders with sound and no clipping, and reset puts it back
+  out.grvKeys = radio.grooveKeys().length; out.grvModes = radio.keyModes().length; radio.setGroove({ bpm: 120, meter: "5/4", swing: .8, length: .7, root: 9, mode: "doubleharm", density: .9, fills: 1, feel: 1, humanize: .6, drums: .7 }, "mdfm");
+  out.grvOther = radio.getGroove("hearye").bpm; out.grvRender = await (async () => { const b2 = await radio.renderOffline("song", 8); const d = b2.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } return [+Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]; })();
+  radio.resetGroove("mdfm"); out.grvZero = JSON.stringify(radio.getGroove("mdfm")) === JSON.stringify(radio.grooveDefaults());
+  radio.resetStyleMix(); out.mixZero = Object.values(radio.getStyleMix()).every(v => v === 0);
   // PTLK show music: every style's theme renders with sound and no clipping; the phone line isn't louder than a dry voice
   out.ptMusic = []; for (const style of ["news", "doug", "ticker", "pomp", "lost", "westcoast", "tech", "nature", "noir", "fantasy"]) { const m = await radio.renderOffline("ptmusic", 9, { style, cue: "theme" }), d = m.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } out.ptMusic.push([style, +Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]); }
   const lvl = b => { const d = b.getChannelData(0); let q = 0; for (const x of d) q += x * x; return Math.sqrt(q / d.length); };
@@ -56,6 +66,7 @@ console.log(r); await b.close(); srv.close();
 const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.kinds.includes("interview") && r.examplePackUsed && r.np && r.fb.length > 4 && r.pod > 5 && r.cook > 5 && r.sp > 10 && r.hr > 5 && r.ga > 5 && r.stations.join() === "wybc,hearye,mdfm,ptlk" && r.wybcSpectrum > 0.05 && r.wybcNp === "wybc" && r.backNp > 0
   && r.ptlkSpectrum > 0.05 && r.ptlkNp && r.ptlkNp.station === "ptlk" && r.ptlkNp.style === "Button Mashers" && r.ptlkLive && r.ptlkWho.includes("Sal") && r.ptlkAir && r.ptlkAir.saveable && r.ptlkSkip === "ptlk" && r.backNp2 > 0
   && r.hearyeSpectrum > 0.05 && r.hearyeNp && r.hearyeNp.station === "hearye" && r.hearyeNp.artist && r.hearyeWho.some(w => /Crier/.test(w)) && r.hearyeJoust && r.hearyeAir && r.hearyeAir.saveable && r.backNp3 > 0 && r.hearyeSave[0] > 0.01 && r.hearyeSave[1] < 1.2
+  && r.mixKeys === 7 && r.mixOther === 0 && r.mixRender[0] > 0.02 && r.mixRender[1] < 1.2 && r.mixZero && r.grvKeys === 11 && r.grvModes >= 15 && r.grvOther === 0 && r.grvRender[0] > 0.02 && r.grvRender[1] < 1.3 && r.grvZero && r.wybcSave.every(([rms, pk]) => rms > 0.01 && pk < 1.3)
   && r.ptMusic.length === 10 && r.ptMusic.every(([, rms, pk]) => rms > 0.02 && pk < 1.2) && r.phoneVsDry < 0 && r.presets >= 5 && r.tuned === "car" && r.untuned;
 if (errs.length) console.log("page errors:", errs);
 console.log(ok ? "SMOKE TEST PASSED" : "SMOKE TEST FAILED"); process.exit(ok ? 0 : 1);

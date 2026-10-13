@@ -73,7 +73,7 @@ html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;
 /* TUNE: the sound-tuning pop-out */
 header.top .deck{position:relative}
 .tunepop[hidden]{display:none!important}
-.tunepop{position:absolute;right:12px;top:calc(100% - 10px);z-index:70;width:min(720px,calc(100% - 24px));padding:14px;display:flex;flex-direction:column;gap:12px;border-left-width:2px}
+.tunepop{position:absolute;right:12px;top:calc(100% - 10px);z-index:70;width:min(840px,calc(100% - 24px));padding:14px;display:flex;flex-direction:column;gap:12px;border-left-width:2px}
 .tunepop .wtitle{margin:-14px -14px 2px}
 .tunerow{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
 .tunefld{display:flex;flex-direction:column;gap:4px;font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--caption,#cfd2de)}
@@ -86,5 +86,40 @@ header.top .deck{position:relative}
 .tuneknobs .rd-knob{--kc:var(--knob-pointer,#ffb347)}
 .tuneknobs .rd-k.moved .rd-knob{--kc:#7fe22a}
 .tunehint{margin:0;font-size:.78rem;color:var(--hint,#b9bdc9)}
+.tunemix{border-top:1px solid rgba(0,0,0,.45);box-shadow:0 -1px 0 rgba(255,255,255,.08);padding-top:10px}
+.tunemixhd{display:flex;align-items:center;gap:10px}
+.tunemixt{font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.2em;color:var(--caption,#cfd2de);text-shadow:0 1px 0 rgba(0,0,0,.65)}
+.tunemixst{font:600 .74rem/1.2 var(--f-body,Tahoma,sans-serif);color:var(--hint,#b9bdc9);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tunemix{display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);grid-template-areas:"hd hd" "radar hint";gap:6px 18px;align-items:center}
+.tunemix>.tunemixhd{grid-area:hd}.tunemix .tuneradarbox{grid-area:radar}.tunemix .tunehint{grid-area:hint}
+.tunemix:has(.tunegrv){grid-template-columns:minmax(0,1fr) minmax(260px,310px);grid-template-areas:"hd grv" "radar grv" "hint grv";align-items:start}
+.tunemix .tunegrv{grid-area:grv;display:flex;flex-direction:column;gap:8px;padding-left:16px;border-left:1px solid rgba(0,0,0,.45);box-shadow:-1px 0 0 rgba(255,255,255,.08)}
+@media (max-width:640px){.tunemix,.tunemix:has(.tunegrv){grid-template-columns:minmax(0,1fr);grid-template-areas:"hd" "radar" "grv" "hint"}.tunemix .tunegrv{padding:10px 0 0;border-left:0;box-shadow:none;border-top:1px solid rgba(0,0,0,.45)}}
+.tunegrv .tg-sec{display:flex;flex-direction:column;gap:5px}
+.tunegrv .tg-sub{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.2em;color:var(--caption,#cfd2de);opacity:.8;margin-top:2px}
+.tunegrv .tg-row{display:grid;grid-template-columns:62px minmax(0,1fr) 74px;align-items:center;gap:8px;min-height:24px}
+.tunegrv .tg-key .tg-row,.tunegrv .tg-row:has(select){grid-template-columns:62px minmax(0,1fr)}
+.tunegrv .tg-l{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;color:var(--caption,#cfd2de);text-shadow:0 1px 0 rgba(0,0,0,.65);white-space:nowrap}
+.tunegrv .tg-row.moved .tg-l{color:#7fe22a}
+.tunegrv .tg-row.na{opacity:.4}
+.tunegrv input[type=range]{width:100%;min-width:0;margin:0;accent-color:var(--knob-pointer,#ffb347);cursor:pointer;height:18px}
+.tunegrv .tg-row.moved input[type=range]{accent-color:#7fe22a}
+.tunegrv select{min-width:0;width:100%;font:600 .8rem/1.2 var(--f-body,Tahoma,sans-serif);padding:3px 6px}
+.tunegrv .tg-v{font:400 15px/1 var(--f-mono,"VT323",monospace);color:var(--lcd,#00e000);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.45);border-radius:3px;padding:2px 4px}
+.tunegrv .tg-hd .rd-btn{margin-left:auto}
+.tuneradarbox{width:100%;max-width:440px;justify-self:center}
+.tradar{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair;overflow:visible}
+.tradar .tr-ring{fill:none;stroke:rgba(226,229,238,.18);stroke-width:1}
+.tradar .tr-ring.out{stroke:rgba(226,229,238,.45);fill:rgba(0,0,0,.28)}
+.tradar .tr-ax{stroke:rgba(226,229,238,.22);stroke-width:1}
+.tradar .tr-shape{fill:color-mix(in srgb,var(--knob-pointer,#ffb347) 30%,transparent);stroke:var(--knob-pointer,#ffb347);stroke-width:1.6;stroke-linejoin:round;transition:points .08s}
+.tradar.moved .tr-shape{fill:rgba(127,226,42,.3);stroke:#7fe22a}
+.tradar .tr-song{fill:var(--lcd,#00e000);stroke:#000;stroke-width:1}
+.tradar .tr-h{fill:#cfd3de;stroke:#000;stroke-width:1.2;cursor:grab;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
+.tradar .tr-h.moved{fill:#7fe22a}.tradar .tr-h.chaos.moved{fill:#ff5f56}
+.tradar .tr-h:focus-visible{outline:none;stroke:var(--gold,#e2c86b);stroke-width:3}
+.tradar .tr-lab{font:700 9px/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;fill:var(--caption,#cfd2de);paint-order:stroke;stroke:rgba(0,0,0,.55);stroke-width:2px}
+.tradar .tr-lab.chaos{fill:#ff8a80}
+.tradar .tr-val{font:400 14px/1 var(--f-mono,"VT323",monospace);letter-spacing:0;fill:var(--lcd,#00e000);stroke:none}
 .tunesw input:checked{box-shadow:0 0 0 2px var(--btn-bezel),0 0 0 3px var(--btn-rim),0 0 8px #7fe22a}
 @media (max-width:560px){.tunepop{position:fixed;left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:80vh;overflow:auto}}

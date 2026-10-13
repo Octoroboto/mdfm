@@ -55,7 +55,7 @@ function create(opts={}){
     C.room.connect(master); C.grain.connect(master); C.hall.connect(master);
     built=true; return true;
   }
-  const hz=m=>440*Math.pow(2,(m-69)/12);
+  const hz=m=>440*Math.pow(2,((opts.mapNote?opts.mapNote(m):m)-69)/12);   // MDFM patch: the host can move notes (MDFM's TUNE key and mode)
   const rnd=(a,b)=>a+Math.random()*(b-a);
   const pan=(dest,p)=>{ if(!ctx.createStereoPanner) return dest; const pn=ctx.createStereoPanner(); pn.pan.value=p; pn.connect(dest); return pn; };   // a panned input into dest
   // a short burst of filtered noise (used for all the little mechanical sounds)
@@ -189,6 +189,7 @@ function create(opts={}){
     while(nextT<horizon){
       const SUB=SUB0/M.tempo, BAR=SUB*8;
       const pos=step%8; if(pos===0&&step>0) chordAt=nextChord(chordAt); const ch=CH[chordAt];
+      if(pos===0&&opts.onChord) try{ opts.onChord(nextT,ch.slice(),BAR); }catch(e){}   // MDFM patch: each chord as it's laid out (offline Save), so MDFM's style matrix can play along
       if(pos===0){
         // legato pedalling: the new chord is struck, the old pedal lifts (its strings get damped) and the pedal goes back down
         const old=ped; ped=ctx.createGain(); ped.connect(music);
@@ -314,6 +315,7 @@ function create(opts={}){
     /** Change a mixer setting live, e.g. set('tempo', 0.8). */
     set(k,v){ if(!(k in DEFAULTS)||!isFinite(v)) return; M[k]=+v; apply(k); },
     get:k=>M[k], settings:()=>({...M}), reset(){ Object.assign(M,DEFAULTS); Object.keys(DEFAULTS).forEach(apply); },
+    chord:()=>CH[chordAt].slice(),   // MDFM patch: the chord the piano is on (MIDI notes, bass first), so MDFM's style matrix can play along
     /** The AudioContext (created on first start) and the final output node, for routing into your own graph or a stream. */
     get context(){ return ctx; }, get output(){ return out; },
     // used by renderWav(): lay the whole piece out ahead of time on an OfflineAudioContext

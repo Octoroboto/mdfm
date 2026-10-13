@@ -2,6 +2,42 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.17.0 (2026-10-13, Rob)
+- **Style Matrix in TUNE.** A radar chart under the sound knobs with seven axes: Pop, Hip-hop, Rock, Classical, Country, Galactic Cosmotosis and CHAOS. The song on air sits in the middle. Drag out toward a style (or tab to a point and use the arrow keys) to pull the song that way; double-click a point to reset it, and ZERO clears the station. Each station keeps its own mix (localStorage `mdfmStyleMix`).
+- **Pulling, not layering.** The song keeps its own notes, chords, melody, bass line, rhythm and form. What changes:
+  - **Instruments:** they're played the style's way (piano chords become power chords, strings, an acoustic strum, Rhodes, plucks or a cosmic pad; kicks become a rock kick, timpani, a laser hit and so on).
+  - **Groove:** half-time snares and hat rolls for hip-hop, straight eighths for rock, a shaker-and-snap pocket for country, no kit for classical.
+  - **Tempo and swing:** they move toward the style's. Tempos multiply when several axes are pulled.
+  - **Station sound:** drive, lo-fi, a concert hall, brightness, or a phaser and echo.
+- **Combining axes:** they blend by how far each is pulled. Past 100% in total, the song's own instruments are gone and the styles share the sound.
+- **CHAOS** isn't a direction: notes jump, instruments swap at random, plus stutters, tape stops, gate chops, key changes and sound effects. The higher it's pulled, the worse it gets.
+- **Country** is modern country radio: a big kit with claps, acoustic strum over palm-muted electric, banjo rolls, Telecaster twang and pedal steel, about 104 BPM.
+- **Every station:**
+  - MDFM 99.9 and HEARYE 95.5 are pulled note by note.
+  - PTLK's show music is pulled too.
+  - WYBC is pulled through the piano generator's own controls (pace, busyness, strings, winds, warmth, space), with a rhythm section in the style that follows the piano's chord. This needs one marked "MDFM patch" line in `vendor/ambient-soundtrack`, which exposes the chord.
+- **Save matches what's on air** with the matrix up, on MDFM, HEARYE and WYBC: the pulled instruments, groove and tempo, and the station sound too (drive, lo-fi, hall, slapback, brightness, phaser and echo). A WYBC save now goes through the whole chain like the others (TUNE and EQ included), with the matrix's pull and rhythm section. For that, the WYBC generator has a second marked "MDFM patch" line that reports each chord as it's laid out.
+- **Every point at the centre:** nothing is rerouted, and every station sounds exactly as before (MDFM checked sample for sample).
+- **HEARYE:** the music under shows, ads and call-ins is about 6 dB quieter. The piece dips further under the bard, and the ambience drops lower during talk.
+- API: `styleMixKeys()`, `getStyleMix(id)`, `setStyleMix(values, id)`, `resetStyleMix(id)`. `mountTune` takes an optional `mixStore`.
+- **Groove & Key in TUNE**, beside the matrix, per station. Every control's default is the song as written, and Save takes all of it.
+  - **Tempo and time:**
+    - BPM: 40–220.
+    - Time signature: the song's 4/4, or 3/4, 6/8, 5/4, 7/8, 7/4.
+    - Swing: straight to heavy.
+    - Length: 0.5× to 3×, from the next song or piece.
+  - **Key and mode:** any of the 12 keys and 19 scales. Notes move by scale degree, so chords and melodies keep their shape.
+  - **Drums:**
+    - Density: sparse to busy (extra hats, ghost snares and kicks).
+    - Fills: none to a fill every few bars.
+    - Feel: half, normal or double time.
+    - Humanize: timing and touch.
+    - Drum level: off to +6 dB.
+  - **Where it applies:** MDFM, HEARYE and PTLK's show music. On WYBC: the tempo, key and swing, and the drum controls on the matrix's rhythm section (no time signature). HEARYE's triplet-feel styles keep their own time signature.
+  - **Now playing and saved files** show the new BPM, key and time signature.
+  - A third marked "MDFM patch" line in the WYBC generator lets MDFM move its notes into the chosen key.
+  - API: `grooveKeys()`, `keyModes()`, `meters()`, `grooveSupport(id)`, `getGroove(id)`, `setGroove(values, id)`, `resetGroove(id)`. `mountTune` takes an optional `grooveStore`.
+
 ## 1.16.0 (2026-10-13, Rob)
 - **HEARYE 95.5's music leans about 60% toward gothic pop, fantasy pop and epic fantasy action scores.** The fantasy instruments still carry the tunes. Underneath them:
   - **Fantasy pop** (elven, halfling, tavern, procession, herald): a pop kit, a bouncy synth bass, bright synth pads and plucked synth arpeggios, with side-chain pumping.
