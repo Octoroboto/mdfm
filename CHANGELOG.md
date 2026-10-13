@@ -2,6 +2,14 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.17.1 (2026-10-13, Rob)
+- **HEARYE 95.5's music is back to its 1.15 sound:** the fantasy instruments on their own, at their original tempos, meters and scales, without the 1.16 pop, gothic and epic layers. Pieces render the same as in 1.15, sample for sample. To lean it toward pop now, use the Style Matrix.
+- **Kept from 1.16 and 1.17:**
+  - Titles don't repeat a word.
+  - The quieter music under talk (the same level as 1.17).
+  - The extra instruments that the matrix and the groove use.
+- **Groove & Key:** a time signature isn't applied to HEARYE's 3-beat or triplet-feel pieces, which keep their own.
+
 ## 1.17.0 (2026-10-13, Rob)
 - **Style Matrix in TUNE.** A radar chart under the sound knobs with seven axes: Pop, Hip-hop, Rock, Classical, Country, Galactic Cosmotosis and CHAOS. The song on air sits in the middle. Drag out toward a style (or tab to a point and use the arrow keys) to pull the song that way; double-click a point to reset it, and ZERO clears the station. Each station keeps its own mix (localStorage `mdfmStyleMix`).
 - **Pulling, not layering.** The song keeps its own notes, chords, melody, bass line, rhythm and form. What changes:

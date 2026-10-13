@@ -68,10 +68,8 @@ Four stations share one audio output (volume, EQ, meters, visualizer and TUNE), 
 - **HEARYE 95.5**: Renn Faire Radio, the Home of High Drama. Procedural high-fantasy music (`FS` in `src/engine.js`: elven
   ambience, halfling party, tavern jig, the wizards' council, den of evil, angelic herald, battle orders, glorious battle,
   bard's lament, royal procession) on harps, lutes, flutes, fiddles, strings, horns, brass, organ, Gregorian chant, battle
-  drums, frame drums and tambourines, over forest, meadow, mountain, cave, tavern and hearth ambience. Since 1.16 the music
-  leans about 60% toward gothic pop, fantasy pop and epic fantasy action scores (`fMod`, per-style `pop` blend): a pop
-  kit or trailer percussion, synth bass, synth pads and arps, side-chain pumping, risers, snare builds, impacts and braams,
-  with the fantasy instruments still carrying the tunes. Each piece is written
+  drums, frame drums and tambourines, over forest, meadow, mountain, cave, tavern and hearth ambience. (1.16's pop and epic
+  layers were taken out in 1.17.1; the Style Matrix in TUNE pulls it toward pop when you want that.) Each piece is written
   from a seed (a made-up title and players), so Save renders the piece on air again from the top. Between pieces: a royal
   crier (IDs), a bard (intros, back-announces, call-ins) and a herald (realm news: the Slack news from `opts.news`, read in
   the old tongue, or made-up proclamations without it), seven scripted shows of 15-16 episodes each (`src/faire/*.js`: Why
