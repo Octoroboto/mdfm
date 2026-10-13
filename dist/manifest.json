@@ -1,17 +1,17 @@
 {
   "name": "mdfm",
-  "version": "1.22.0",
+  "version": "1.22.1",
   "receiver": "1.13.3",
   "files": {
     "mdfm.iife.js": {
       "path": "dist/mdfm.iife.js",
-      "bytes": 1158999,
-      "sha256": "4b4c0a6752abe7b72ca84b5bb86d986e6eb826eec37f87c555b575a7cf9c0892"
+      "bytes": 1159166,
+      "sha256": "423e330ae2a320b81013da5f84dcfa1f4a84fc2c87e7e902e1cacd6d26d0d9b0"
     },
     "types.js": {
       "path": "skin/types.js",
-      "bytes": 753,
-      "sha256": "0c95ee1f573ac8e81c918f9d36d8e9be138586f9fb5d89e7018e788f78c016b3"
+      "bytes": 836,
+      "sha256": "115778f5b1dc833f1a7f73237cdb11d40ccd91ea41b06abad40c0740649283ac"
     },
     "radio.css": {
       "path": "skin/radio.css",

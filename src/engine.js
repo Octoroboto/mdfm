@@ -558,7 +558,7 @@ function makeSong(force,from=MDFM_STY,recent=recentStyles){
   const keyUp=st.set?pick([5,7,-2,3]):R()<.22?pick([1,2]):0, lastHook=[...sections].reverse().find(x=>x.kind==="hook");
   if(st.set){ kinds.hook.lead="hook"; kinds.verse.lead=pick(["verse","none"]); kinds.break.chords="sustain"; }
   if(st.chords==="guitar"){ kinds.verse.chords="mute"; kinds.pre.chords="mute"; kinds.intro.chords="mute"; kinds.hook.chords="main"; kinds.outro.chords="main"; kinds.bridge.chords="sustain"; }   // emo: palm-muted verses, open hooks
-  return songMeterPick({name,st,sc,root,bpm,sp,bars,brk,deg,chord,sections,kinds,fills,keyUp,keyFrom:st.set?deckB:keyUp&&lastHook?lastHook.start:1e9,deckB,
+  return songMeterPick(from===MDFM_STY&&TYPES.meters===false,{name,st,sc,root,bpm,sp,bars,brk,deg,chord,sections,kinds,fills,keyUp,keyFrom:st.set?deckB:keyUp&&lastHook?lastHook.start:1e9,deckB,
     chops:Array.from({length:4},()=>pick(SYL)),
     prog:pa,progB:pb,cpb:st.cpb||(st.half?1:(R()<.5?1:2)),swing:rr(st.sw[0],Math.min(.66,st.sw[1]+.02)),K,S,H,O,P,K2,H2,P2,LOG,bassPat,bassOff,
     hook,answer,verse,hookLen,verseLen,chordsI,leadI,leadB,padI,kTune:rr(.88,1.12),sTone:rr(.85,1.2),hatDec:rr(-.24,-.12),
@@ -578,7 +578,8 @@ const METER_PATS={
     half:{K:["x.........x.....","x...x.......x..."],S:[["........x......."]],H:["x.x.x...x.x.x...","xxxxxx..xxxxxx..","x.x.xr..x.x.x3.."],P:[""]},
     four:{K:["x.......x.......","x...x...x......."],S:[["........x......."]],H:["..x.x.....x.x..."],O:["....o.......o...",""],P:[""]},
     ballad:{K:["x.........x.....","x..............."],S:[["........x......."]],H:["x.x.x...x.x.x..."],P:[""]}}};
-function songMeterPick(s){ const st=s.st, list=st.meters||METER_FIT[STYLE_FAM[s.name]]||[], p=st.meterP??.25, r=((s.kTune*9973.17+s.sTone*7919.31)%1+1)%1;   // drawn from what was already rolled: no extra random draw, so a 4/4 song plays exactly as before
+function songMeterPick(only44,s){ if(only44) return s;   // MDFM's Settings: "Songs in 3/4, 6/8, 5/4, 7/8" off: every song in 4/4, as before 1.22
+ const st=s.st, list=st.meters||METER_FIT[STYLE_FAM[s.name]]||[], p=st.meterP??.25, r=((s.kTune*9973.17+s.sTone*7919.31)%1+1)%1;   // drawn from what was already rolled: no extra random draw, so a 4/4 song plays exactly as before
   if(!list.length||r>=p||st.set) return s;
   const mk=list[Math.min(list.length-1,Math.floor(r/p*list.length))], keep=()=>({K:s.K,K2:s.K2,S:s.S,H:s.H,H2:s.H2,O:s.O,P:s.P,P2:s.P2,bassPat:s.bassPat,f0:s.f0});
   s.pat44=keep(); s.pat44.f0=12;   // if TUNE's TIME takes it back to 4/4 (or anything else), it plays its 4/4 patterns
@@ -1080,7 +1081,7 @@ const AP={owner:part("owner"),kind:part("kind"),pitch:part("pitch"),turn:part("t
 function genAd(){ if(!AP_OK) return pick(ADS); const b=`${pick(AP.owner)} ${pick(AP.kind)}`; return `${b}. ${pick(AP.pitch)}, ${pick(AP.turn)}. ${pick(AP.backdown)}. ${b}.`; }
 const QUEUE=[]; const refill=()=>{ const a=[...ADS]; for(let i=a.length-1;i>0;i--){ const j=ri(0,i); [a[i],a[j]]=[a[j],a[i]]; } QUEUE.push(...a); };
 /* Content types listeners can switch off (music always plays). */
-const TYPE_KEYS=["ids","stingers","ads","interviews","callers","weather","sports","plays","arts","podcast","cooking","homerepair","garage","funnelball","showponies","technews","news"];
+const TYPE_KEYS=["meters","ids","stingers","ads","interviews","callers","weather","sports","plays","arts","podcast","cooking","homerepair","garage","funnelball","showponies","technews","news"];
 const TYPES={}; for(const k of TYPE_KEYS) TYPES[k]=!(opts.types&&opts.types[k]===false);
 const KIND_TYPE={id:"ids",ad:"ads",interview:"interviews",caller:"callers",weather:"weather",sports:"sports",play:"plays",arts:"arts",podcast:"podcast",cooking:"cooking",homerepair:"homerepair",garage:"garage",funnelball:"funnelball",showponies:"showponies",technews:"technews",news:"news"};
 function nextSpot(){ spotCount++;

@@ -2,6 +2,9 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.22.1 (2026-10-13, Rob)
+- **A switch for MDFM's time signatures:** "Songs in 3/4, 6/8, 5/4, 7/8" in MDFM 99.9's Settings (on by default). Off, every song is in 4/4, the line-up from before 1.22 (`setTypes({ meters: false })`). PTRN's genres aren't affected.
+
 ## 1.22.0 (2026-10-13, Rob)
 - **New station: PTRN 101.1 (PATTERN).** No default sound, no shows, no DJ: its Settings list 34 genres in seven families (each with All / None), and it plays simple, well-made procedural tracks in whichever are on.
   - Electronic: house, techno, trance, drum & bass, dubstep, UK garage, synthwave, chiptune. Hip-hop & R&B: boom bap, trap, drill, G-funk, R&B. Rock & pop: rock, punk, metal, indie pop, synth-pop. Jazz, funk & soul: swing jazz, bossa nova, funk, disco, blues, gospel. Latin & Caribbean: reggaeton, salsa, reggae, dancehall, afrobeats. Chill: lo-fi, trip-hop, ambient. Country & folk.
