@@ -2,6 +2,16 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.20.0 (2026-10-13, Rob)
+- **The radio page only promises what the app can do.** In apps that embed it without the MDFM Radio app's back end (Analyze Pics, for one), Connect Slack used to do nothing, and weather, sports and PTLK headlines were silently the made-up ones. Now:
+  - It asks for live data only when the app provides `live()`, and says on the status line when the reports are made up.
+  - It hides Connect Slack, the city and units fields, content updates, Futureproofer and the Bouncer log button when the app can't do them.
+  - A failed Slack connect now says why.
+- **It works with the app kit's new `mdfm-live` module** (kit 2.12.0), which gives any kit app real weather, local sports, PTLK headlines and Slack news with its own Bouncers. Its settings and status come through `liveSettings`, `liveStatus` and `onLiveStatus`.
+- **Fixed:** after Connect Slack succeeded, the radio app's page threw on a missing checkbox.
+- **MedDev Receiver 1.13.3.**
+- The MDFM Radio app works the same as before.
+
 ## 1.19.0 (2026-10-13, Rob)
 - **HEARYE bangerz:** pulling HEARYE 95.5 toward a style in the Style Matrix now brings in a full beat and a low end, following the piece's chords. HEARYE's pieces have no kit or bass of their own, so before this the matrix could only add hats and cymbals.
   - **Hip-hop:** an 808 on the root that slides between the kicks, with a trap half-time snare on faster pieces (about 100 BPM and up) and a boom-bap backbeat on slower ones.

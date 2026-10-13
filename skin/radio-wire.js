@@ -24,12 +24,12 @@
     // If the whole receiver fits, it is never left scrolled part-way (which looked like the top being cut off).
     const unscroll=()=>{ const se=document.scrollingElement; if(se&&se.scrollTop>0&&se.scrollHeight<=innerHeight+1) se.scrollTop=0; };
     addEventListener("resize",unscroll); addEventListener("focus",unscroll); document.addEventListener("visibilitychange",unscroll); }
-  if(app) radio.setProviders({weather:()=>app.live("weather"),sports:()=>app.live("sports"),news:()=>app.live("news"),cannedFallback:false});
+  if(app&&typeof app.live==="function") radio.setProviders({weather:()=>app.live("weather"),sports:()=>app.live("sports"),news:()=>app.live("news"),cannedFallback:false});   // live data from the app (MDFM Radio, or a kit app with mdfm-live); without it, the station's own made-up reports
   // PTLK 108.0: newer apps fetch live business and gaming headlines and encyclopedia pages; without them the shows write their own.
   // (Through app.live, so older apps simply answer null.)
-  if(app&&app.live) radio.setProviders({headlines:(kind,arg)=>app.live(kind==="wiki"?"wiki:"+arg:"headlines:"+kind)});
+  if(app&&typeof app.live==="function") radio.setProviders({headlines:(kind,arg)=>app.live(kind==="wiki"?"wiki:"+arg:"headlines:"+kind)});
   // Newer apps render the robot voices as audio, so the volume and LOW/MID/HIGH EQ apply to them too.
-  if(app&&app.tts) radio.setProviders({tts:spec=>app.tts(spec)});
+  if(app&&typeof app.tts==="function") radio.setProviders({tts:spec=>app.tts(spec)});
   const np=$("#np"), cap=$("#cap"); let capT=0;
   const npText=s=>s.station==="ptlk"||(s.station==="hearye"&&s.talk)?`${s.style} · “${s.title}” · ${s.artist}`:s.station==="hearye"?`“${s.title}” · ${s.artist} · ${s.style.toLowerCase()}`:s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
   radio.on("nowplaying",s=>{ np.textContent=`Now playing: ${npText(s)}`; });
@@ -104,37 +104,50 @@
   $("#settings").hidden=false;
   document.querySelectorAll(".apponly").forEach(el=>el.hidden=!app);
   if(!app) return;
+  // What this app can do. The MDFM Radio app has everything; another kit app may have only some of it (live data and
+  // Slack come from the kit's mdfm-live module), and anything it can't do is hidden rather than left to fail silently.
+  const has=f=>typeof f==="function", LS=app.liveSettings||null, S=LS||app.settings||null, liveOK=has(app.live), slackOK=!!(app.slack&&has(app.slack.connect));
+  const hideBox=sel=>{ const el=$(sel); if(el) (el.closest("label,fieldset")||el).hidden=true; };
+  if(!has(app.checkNow)){ hideBox("#setUpdates"); hideBox("#setBundled"); hideBox("#fpSet"); $("#checkNow").hidden=true; $("#appUpd").hidden=true; }
+  if(!liveOK||!S){ hideBox("#setCity"); hideBox("#setUnits"); }
+  if(!slackOK) hideBox("#slackSet");
+  const logFn=has(app.showBouncerLog)?app.showBouncerLog:has(app.liveBouncerLog)?app.liveBouncerLog:null; if(!logFn) $("#bouncerLog").hidden=true;
   if(app.autoplay) setTimeout(()=>{ box.checked=true; radio.start(); },600);
   // The Mac's own location (macOS asks once). If it's off or unavailable, the app uses a rough network location and says so.
-  const geoWhy=e=>e&&e.code===1?"not allowed (System Settings → Privacy & Security → Location Services → MDFM Radio)":e&&e.code===3?"timed out":"unavailable";
-  if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>app.coords(p.coords.latitude,p.coords.longitude),e=>{ if(app.geoError) app.geoError(geoWhy(e)); }, {timeout:15000,maximumAge:3600e3,enableHighAccuracy:false});
-  else if(app.geoError) app.geoError("unavailable");
-  const s=app.settings.get();
-  $("#setSlackChannels").value=s.slackChannels||""; $("#setNameFixes").value=s.nameFixes||"";
-  $("#setUpdates").checked=!!s.contentUpdates; $("#setBundled").checked=!!s.useBundled; $("#setCity").value=s.city||""; $("#setUnits").value=s.units||"f";
-  const save=()=>app.settings.set({contentUpdates:$("#setUpdates").checked,useBundled:$("#setBundled").checked,city:$("#setCity").value.trim(),units:$("#setUnits").value,
-    slackChannels:$("#setSlackChannels").value.trim(),nameFixes:$("#setNameFixes").value});
-  for(const id of ["#setUpdates","#setBundled","#setUnits","#setSlackChannels","#setNameFixes"]) $(id).addEventListener("change",save);
-  $("#slackConnect").addEventListener("click",()=>{ $("#slackState").textContent="Sign in to Slack in the window that opened. It closes by itself when you're done."; app.slack.connect().then(ok=>{ if(ok){ $("#setSlackNews").checked=true; radio.setTypes({news:true}); } }); });
-  $("#slackDisconnect").addEventListener("click",()=>app.slack.disconnect());
-  if($("#slackSetup")&&app.slack.setup) $("#slackSetup").addEventListener("click",()=>app.slack.setup());
-  $("#setCity").addEventListener("change",save);
-  $("#checkNow").addEventListener("click",()=>app.checkNow());
-  $("#bouncerLog").addEventListener("click",()=>app.showBouncerLog&&app.showBouncerLog());
-  const paint=st=>{
-    const e=st.engine||{};
-    $("#stEngine").textContent=`v${MDFM.VERSION} (${e.source==="updated"?"updated from the repo":"came with the app"})`;
-    const bz=st.bouncer; $("#stLive").textContent=`Location: ${st.live.location} · Weather: ${st.live.weather} · Sports: ${st.live.sports}`+(bz?` · Bouncer: ${bz.label}${bz.blocked?` (${bz.blocked} blocked)`:""}${bz.problem?` · ${bz.problem}`:""}`:"");
+  const geoWhy=e=>e&&e.code===1?"not allowed (System Settings → Privacy & Security → Location Services → this app)":e&&e.code===3?"timed out":"unavailable";
+  if(liveOK&&has(app.coords)){ if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>app.coords(p.coords.latitude,p.coords.longitude),e=>{ if(has(app.geoError)) app.geoError(geoWhy(e)); }, {timeout:15000,maximumAge:3600e3,enableHighAccuracy:false});
+    else if(has(app.geoError)) app.geoError("unavailable"); }
+  const fill=s=>{ s=s||{}; $("#setSlackChannels").value=s.slackChannels||""; $("#setNameFixes").value=s.nameFixes||""; $("#setCity").value=s.city||""; $("#setUnits").value=s.units||"f"; };
+  if(S&&has(S.get)) Promise.resolve(S.get()).then(fill).catch(()=>{});
+  if(app.settings&&has(app.settings.get)&&has(app.checkNow)) Promise.resolve(app.settings.get()).then(s=>{ s=s||{}; $("#setUpdates").checked=!!s.contentUpdates; $("#setBundled").checked=!!s.useBundled; }).catch(()=>{});
+  const liveVals=()=>({city:$("#setCity").value.trim(),units:$("#setUnits").value,slackChannels:$("#setSlackChannels").value.trim(),nameFixes:$("#setNameFixes").value});
+  const save=()=>{ const own={contentUpdates:$("#setUpdates").checked,useBundled:$("#setBundled").checked};
+    if(LS){ LS.set(liveVals()); if(has(app.checkNow)&&app.settings&&has(app.settings.set)) app.settings.set(own); }
+    else if(app.settings&&has(app.settings.set)) app.settings.set({...own,...liveVals()}); };
+  for(const id of ["#setUpdates","#setBundled","#setUnits","#setSlackChannels","#setNameFixes","#setCity"]) $(id).addEventListener("change",save);
+  if(slackOK){
+    $("#slackConnect").addEventListener("click",()=>{ $("#slackState").textContent="Sign in to Slack in the window that opened. It closes by itself when you're done.";
+      app.slack.connect().then(ok=>{ if(ok){ const n=$("#setSlackNews"); if(n) n.checked=true; radio.setTypes({news:true}); } }).catch(e=>{ $("#slackState").textContent=`Couldn't connect Slack: ${(e&&e.message)||e}`; }); });
+    $("#slackDisconnect").addEventListener("click",()=>app.slack.disconnect());
+    if($("#slackSetup")&&has(app.slack.setup)) $("#slackSetup").addEventListener("click",()=>app.slack.setup()); }
+  if(has(app.checkNow)) $("#checkNow").addEventListener("click",()=>app.checkNow());
+  if(logFn) $("#bouncerLog").addEventListener("click",()=>logFn());
+  const paint=st=>{ if(!st) return;
+    const e=st.engine; if(e) $("#stEngine").textContent=`v${MDFM.VERSION} (${e.source==="updated"?"updated from the repo":"came with the app"})`;
+    const bz=st.bouncer; if(st.live) $("#stLive").textContent=`Location: ${st.live.location} · Weather: ${st.live.weather} · Sports: ${st.live.sports}`+(bz?` · Bouncer: ${bz.label}${bz.blocked?` (${bz.blocked} blocked)`:""}${bz.problem?` · ${bz.problem}`:""}`:"");
     const fpS=st.futureproofer; if(fpS){ $("#stLive").textContent+=` · Futureproofer: ${fpS.label}`;
       const ul=$("#fpList"); ul.textContent="";
       for(const r of fpS.results){ const li=document.createElement("li"); li.className=r.level==="bad"?"bad":r.level==="warn"?"warn":r.level==="ok"?"ok":"";
         const dot=document.createElement("i"); dot.className="dot"; const b=document.createElement("b"); b.textContent=r.title+":"; const sp=document.createElement("span"); sp.textContent=r.summary||"";
         li.append(dot,b,sp); if(r.action&&r.action.url){ const btn=document.createElement("button"); btn.type="button"; btn.className="btn"; btn.textContent=r.action.label||"Open"; btn.onclick=()=>app.open(r.action.url); li.append(btn); }
         ul.append(li); } }
-    const sl=st.slack; if(sl){ $("#slackConnect").hidden=sl.connected; $("#slackDisconnect").hidden=!sl.connected; $("#slackConnect").disabled=!sl.ready; if($("#slackSetup")) $("#slackSetup").hidden=!sl.builder;
-      $("#slackState").textContent=!sl.ready?"Slack news isn't switched on for RentVision yet. When MedDev switches it on, Connect Slack works here without an update.":sl.connected?`Connected. News: ${sl.news}.`:"Not connected. When connected, the radio reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour (two minutes at most). Read-only."; }
-    $("#stUpd").textContent=`New content: ${st.result}${st.lastCheck?` · checked ${new Date(st.lastCheck).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}`:""}`+(st.appUpdate?` · App ${st.appUpdate.version} is available`:"");
-    const b=$("#appUpd"); b.hidden=!st.appUpdate; b.onclick=()=>st.appUpdate&&app.open(st.appUpdate.download||st.appUpdate.url);
+    const sl=st.slack; if(sl&&slackOK){ $("#slackConnect").hidden=sl.connected; $("#slackDisconnect").hidden=!sl.connected; $("#slackConnect").disabled=!sl.ready; if($("#slackSetup")) $("#slackSetup").hidden=!sl.builder;
+      $("#slackState").textContent=!sl.ready?"Slack news isn't switched on for RentVision yet. When MedDev switches it on, Connect Slack works here without an update.":sl.connected?`Connected. News: ${sl.news}.`:st.note&&/slack/i.test(st.note)?st.note:"Not connected. When connected, the radio reads the newest posts from #general, #littlevisionaries and #animal-pics at the top of each hour (two minutes at most). Read-only."; }
+    if("result" in st) $("#stUpd").textContent=`New content: ${st.result}${st.lastCheck?` · checked ${new Date(st.lastCheck).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}`:""}`+(st.appUpdate?` · App ${st.appUpdate.version} is available`:"");
+    if(has(app.checkNow)){ const b=$("#appUpd"); b.hidden=!st.appUpdate; b.onclick=()=>st.appUpdate&&app.open(st.appUpdate.download||st.appUpdate.url); }
   };
-  app.onStatus(paint); app.getStatus().then(paint);
+  if(has(app.onStatus)) app.onStatus(paint); if(has(app.getStatus)) Promise.resolve(app.getStatus()).then(paint).catch(()=>{});
+  if(has(app.onLiveStatus)) app.onLiveStatus(paint); if(has(app.liveStatus)) Promise.resolve(app.liveStatus()).then(paint).catch(()=>{});
+  if(liveOK&&!has(app.getStatus)) $("#stLive").textContent="Live weather and sports: finding where you are…";
+  else if(!liveOK) $("#stLive").textContent="Weather and sports are the station's own made-up reports here. Live ones need the app kit's mdfm-live module in this app.";
 })();
