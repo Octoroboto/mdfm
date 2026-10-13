@@ -1,12 +1,12 @@
 {
   "name": "mdfm",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "receiver": "1.13.1",
   "files": {
     "mdfm.iife.js": {
       "path": "dist/mdfm.iife.js",
-      "bytes": 1017363,
-      "sha256": "bd5aa3124f73150b4a21084045057c2cf3b6aba1a08cbd98fdf4c47b4af5eb5b"
+      "bytes": 1022878,
+      "sha256": "3800215840551f1a5780d22cccc683864048b214a7bab003ca904aad0388fdd2"
     },
     "types.js": {
       "path": "skin/types.js",

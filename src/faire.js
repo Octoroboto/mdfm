@@ -237,7 +237,8 @@ function createFaire(R) {
 
   /* ---------- the music: made-up players and pieces ---------- */
   function artist() { const A = FAIRE_ARTISTS, r = R(); if (r < .5) return `${pick(A.first)} ${pick(A.last)}`; if (r < .7) return `${pick(A.first)} of ${pick(["Thornbury", "the Hollow", "Greywater", "the Marsh", "Highgarden", "the North Tower", "Pellingham", "the Old Mill"])}`; return pick(A.ensemble); }
-  function piece() { const r = R(), a = pick(FAIRE_PIECE.a), b = pick(FAIRE_PIECE.b); return r < .55 ? `The ${a} ${b}` : r < .8 ? `${b} of the ${a} ${pick(["Hart", "Tower", "Moon", "Queen", "Road", "Glade", "Shield", "Bell"])}` : `${a} ${b}`; }
+  function piece() { for (let i = 0; i < 8; i++) { const r = R(), a = pick(FAIRE_PIECE.a), b = pick(FAIRE_PIECE.b), t = r < .55 ? `The ${a} ${b}` : r < .8 ? `${b} of the ${a} ${pick(["Hart", "Tower", "Moon", "Queen", "Road", "Glade", "Shield", "Bell"])}` : `${a} ${b}`;
+      const w = t.toLowerCase().split(/\s+/).filter(x => x !== "the" && x !== "of"); if (new Set(w).size === w.length) return t; } return `The ${pick(FAIRE_PIECE.a)} Galliard`; }
 
   return { shows: SHOWS.map(s => ({ id: s.id, name: s.name, label: s.label || s.name, style: s.style, episodes: s.episodes.length })), HOSTS,
     show, joust, ponies, news, proclamations, heraldOpen, heraldClose, ad, adIntro, caller, ids, bardIntro, bardBack, bridge, artist, piece, archaic };

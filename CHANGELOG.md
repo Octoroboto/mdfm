@@ -2,6 +2,20 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.16.0 (2026-10-13, Rob)
+- **HEARYE 95.5's music leans about 60% toward gothic pop, fantasy pop and epic fantasy action scores.** The fantasy instruments still carry the tunes. Underneath them:
+  - **Fantasy pop** (elven, halfling, tavern, procession, herald): a pop kit, a bouncy synth bass, bright synth pads and plucked synth arpeggios, with side-chain pumping.
+  - **Gothic pop** (wizards' council, bard's lament, and a half-time den of evil): dark pads, a driving eighth-note synth bass and a big reverb snare.
+  - **Epic action score** (battle orders, glorious battle, plus some on the herald, evil and procession): trailer drums, a pulsing synth, braams and impacts.
+- **Every style:**
+  - A riser and a snare build go into each new section, and an impact lands where the full band comes in.
+  - Pieces build like pop songs: a quiet intro, a fuller first section, then the full beat.
+  - Slower styles moved to pop tempos, and elven ambience moved from 3/4 to 4/4.
+- **Show music:** show themes and outros pick up the new sound. The beds under talk get a soft synth pad but no drums.
+- **Level:** still about 3 dB under MDFM.
+- Piece titles no longer repeat a word ("Lantern of the Lantern Moon").
+- MDFM 99.9 sounds exactly as before (checked sample for sample). Other stations are unchanged.
+
 ## 1.15.0 (2026-10-13, Rob)
 - **A fourth station: HEARYE 95.5, Renn Faire Radio, the Home of High Drama.** Between WYBC 88.1 and MDFM 99.9 on the dial.
   - **Music:** procedural high-fantasy pieces in ten styles: elven ambience, halfling party, tavern jig, the wizards' council, den of evil, angelic herald, battle orders, glorious battle, bard's lament and royal procession.
