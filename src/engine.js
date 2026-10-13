@@ -1751,6 +1751,7 @@ function fBar(p,bar,t,b){   // schedules one bar of a piece
   const inst=B||sec.t==="bridge"?p.leads[1]:p.leads[0], oct=LEAD_OCT[inst]??12;
   const c={b,st:p.st,bs:p.bs,lvl:sec.t==="outro"?0:sec.lvl,i,n:sec.n,ch:fch(p,deg),sec:sec.t,bed:false,
     lead:()=>{ if(!mel) return; let prev=null; const v=sec.lvl>=3?1:.85; mel.forEach(([pos,len,d])=>{ const m=fsd(p,d)+oct; fLead(b,inst,t+pos*p.st,m,len*p.st*.95,v,prev); if(sec.lvl>=3&&p.leads[0]!==p.leads[1]&&sec.t==="A") fLead(b,p.leads[1],t+pos*p.st,m+(LEAD_OCT[p.leads[1]]??12)-oct,len*p.st*.95,.5,prev); prev=m; }); }};
+  if(MXON.hearye&&b&&b.mxId&&!(sec.t==="outro"&&i===sec.n-1)) mxBeat("hearye",b,t,p.st*p.steps,p.S.beats,p.S.sub,c.ch,bar,c.lvl,60/(p.st*p.S.sub));   // the style matrix: a full beat and a bass line under the piece
   if(sec.t==="outro"&&i===sec.n-1){ FI.strings(b,t,fch(p,0).map(x=>x-12),p.bs*1.5,.5,{att:.2,rel:2}); [0,2,4,7,9,11,14].forEach((d,k)=>FI.harp(b,t+k*.08,fsd(p,d)+12,.45,(k-3)*.12)); M.bell(b,t+.6,p.key+24,2.5,.3,0); return; }
   try{ p.S.bar(p,t,c); }catch(e){}
 }
@@ -1992,9 +1993,9 @@ function mxFxOff(){ const F=ctx&&MXF.get(ctx); if(!F||!F.length) return;
   for(const S of F){ try{ S.src.disconnect(S.in); }catch(e){} try{ S.src.connect(ST?ST.in:master); }catch(e){} try{ S.out.disconnect(); }catch(e){} try{ S.lfo.stop(); }catch(e){} }
   F.length=0; }
 function mxFxLevels(m,now,inst){ const F=MXF.get(ctx); if(!F) return; const sh=mixShares(m), w=k=>(sh.sty.find(x=>x[0]===k)||[0,0])[1];
-  const g=w("galactic"), lo=w("hiphop"), dr=w("rock"), ha=w("classical"), sl=w("country"), br=w("pop"), dry=1-.55*lo-.35*dr;
+  const g=w("galactic"), lo=w("hiphop"), dr=w("rock"), ha=w("classical"), sl=w("country"), br=w("pop"), dry=1-.4*lo-.35*dr;
   for(const S of F){ const T=(p,v)=>inst?p.setValueAtTime(v,now):p.setTargetAtTime(v,now,.4); if(dr>0) S.mkDrive(); if(ha>0) S.mkHall();
-    T(S.ph.gain,.7*g); T(S.echo.gain,.32*g); for(const [d,f] of S.lfoG) T(d.gain,f*.65*g); T(S.drive.gain,.55*dr); T(S.lofi.gain,.75*lo); T(S.pre.gain,Math.max(.25,dry)); T(S.hall.gain,.5*ha); T(S.slap.gain,.16*sl); T(S.bright.gain,4*br+2.5*sl); } }
+    T(S.ph.gain,.7*g); T(S.echo.gain,.32*g); for(const [d,f] of S.lfoG) T(d.gain,f*.65*g); T(S.drive.gain,.55*dr); T(S.lofi.gain,1.05*lo); T(S.pre.gain,Math.max(.25,dry)); T(S.hall.gain,.5*ha); T(S.slap.gain,.16*sl); T(S.bright.gain,4*br+2.5*sl); } }
 // what each instrument is, and where its loudness is: [role, index of velocity in the arguments after the bus]
 const MX_ROLE={D:{kick:["kick",1],snare:["snare",1],clap:["clap",1],snap:["snare",1],rim:["perc",1],hat:["hat",1],conga:["perc",1],tom:["tom",1],crash:["crash",1],shaker:["shaker",1],cowbell:["perc",3],b808:["bass",3],logdrum:["bass",2]},
   M:{piano:["chord",3],rhodes:["chord",3],organ:["chord",3],pad:["pad",3],choir:["pad",3],saw:["chord",3],accordion:["chord",3],brass:["chord",3],guitar:["gchord",3],bell:["lead",3],pluck:["lead",3],whistle:["lead",3],bass:["bass",3],vox:["lead",3],chop:["lead",3]},
@@ -2075,6 +2076,34 @@ function mxGroove(id,s,t0,bs){ const sh=MXSH[id]; if(!sh) return; inMorph=true;
       if(k==="country"){ for(let i=0;i<16;i+=2) D.shaker(s,t0+i*st,(i%4?.5:.8)*v); D.snap(s,t0+4*st,.35*v); D.snap(s,t0+12*st,.35*v); }
       if(k==="pop"){ D.clap(s,t0+4*st,.35*v,.3); D.clap(s,t0+12*st,.35*v,.3); } }
     if(sh.chaos>0&&R()<.15+.6*sh.chaos) mxChaos(s,t0,bs,sh.chaos);
+  }catch(e){} finally{ inMorph=false; } }
+// HEARYE's pieces have no drum kit or bass of their own, so pulling them toward a style with a beat brings one in:
+// a kick and snare (or clap) pattern in the style, an 808 (hip-hop), synth bass (pop) or picked bass (rock, country)
+// on the chord's root, built for the piece's meter. Intros and outros get a lighter version.
+const MX_BEAT_G={hiphop:1.6,pop:.62,rock:.62,country:.75,galactic:.9,classical:1};   // the beat's level per style (measured against the piece)
+const MX_BEAT={   // 16ths of a 4/4 bar: kick, snare; per tempo feel (half: half-time, about 100 BPM and up)
+  hiphop:{K:[0,6,10],K2:[0,6,10,14],S:[4,12],Sh:[8],B:"808"},pop:{K:[0,4,8,12],S:[4,12],B:"eighths"},
+  rock:{K:[0,8,10],K2:[0,3,8,10],S:[4,12],B:"eighths"},country:{K:[0,8],K2:[0,7,8],S:[4,12],B:"rootfifth"},
+  galactic:{K:[0,8],S:[12],B:"pulse"},classical:{K:[0],S:[],B:"held"}};
+function mxBeat(id,s,t0,bs,beats,sub,ch,bar,lvl,bpm){ const sh=MXSH[id]; if(!sh||!ch||!ch.length) return;
+  const compound=sub===3, N=compound?beats*6:beats*4, st=bs/N, half=!compound&&beats===4&&bpm>=100;
+  const map=x=>compound?Math.round(x/16*N/ (beats===2?1:1)):beats===4?x:Math.round(x*N/16);   // place a 4/4 slot in this meter
+  const root=ch[0], GW=GON[id];
+  inMorph=true;
+  try{ for(const [k,w] of sh.sty.slice(0,2)){ const P=MX_BEAT[k], S=MX_SUB[k]; if(!P) continue; const g=Math.sqrt(w)*(MX_GAIN[k]||1)*(MX_ST_GAIN[id]||1)*(MX_BEAT_G[k]||1);
+      const I=(t,m,dur)=>({t,m,notes:[m],dur});
+      const H=(fn,role,t,v,m,dur)=>{ if(!fn) return; if(!GW){ fn(s,I(t,m,dur),v); return; } for(const [tt,vv] of gEv(id,s,role,t,v,"X")) fn(s,I(tt,m,dur),vv); };
+      const kicks=(lvl>=3&&P.K2?P.K2:P.K).map(map).filter((x,j,a)=>x<N&&a.indexOf(x)===j), snares=(k==="hiphop"&&half?P.Sh:P.S).map(map).filter(x=>x<N);
+      const kk=lvl===0?[0]:kicks;
+      for(const x of kk) H(S.kick,"kick",t0+x*st,(x===0?1:.85)*g,root-24,.3);
+      if(lvl>=1) for(const x of snares) H(S.snare,"snare",t0+x*st,.9*g,root,.2);
+      // the low end, on the chord's root
+      const lo=pitch(root-24,28,43);
+      if(P.B==="808") kk.forEach((x,j)=>{ const nx=j+1<kk.length?kk[j+1]:N; H(S.bass,"bass",t0+x*st,.95*g,lo,(nx-x)*st*.95); });
+      else if(P.B==="eighths"){ const step=compound?3:2; for(let x=0;x<N;x+=step){ if(lvl===0&&x>0) break; const off=k==="pop"&&x%(step*2)===step; H(S.bass,"bass",t0+x*st,(x===0?.95:off?.85:.7)*g,lo+(k==="rock"&&x===N-step&&lvl>=3?7:0),st*step*.9); } }
+      else if(P.B==="rootfifth"){ H(S.bass,"bass",t0,.9*g,lo,bs*.45); if(lvl>=1) H(S.bass,"bass",t0+bs/2,.8*g,lo+7,bs*.45); }
+      else if(P.B==="pulse"){ for(let x=0;x<N;x+=compound?3:2) H(S.bass,"bass",t0+x*st,.7*g,lo,st*1.6); }
+      else if(P.B==="held") H(S.bass,"bass",t0,.8*g,lo+12,bs*.95); }
   }catch(e){} finally{ inMorph=false; } }
 const MX_SFX=["crash","applause","horse","thunder","claps","teacup","hammer","knock","zap","beeps","theremin","printer","crank"];
 function mxChaos(s,t,bs,v){ const F=mxFx(), e=R(), beat=bs/4, T=t+bs*(R()<.5?.5:.75), end=t+bs;

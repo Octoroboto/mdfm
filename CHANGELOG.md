@@ -2,6 +2,21 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.19.0 (2026-10-13, Rob)
+- **HEARYE bangerz:** pulling HEARYE 95.5 toward a style in the Style Matrix now brings in a full beat and a low end, following the piece's chords. HEARYE's pieces have no kit or bass of their own, so before this the matrix could only add hats and cymbals.
+  - **Hip-hop:** an 808 on the root that slides between the kicks, with a trap half-time snare on faster pieces (about 100 BPM and up) and a boom-bap backbeat on slower ones.
+  - **Pop:** four on the floor, claps, and a bouncy offbeat synth bass.
+  - **Rock:** a driving kick and snare, plus eighth-note bass.
+  - **Country:** a kick and snare, plus root–fifth bass.
+  - **Galactic:** a pulse bass.
+  - **Classical:** timpani and low strings.
+- **How it plays:**
+  - It builds with the piece: intros and outros get only the kick and bass.
+  - It fits 3-beat and jig-feel pieces too.
+  - Blends follow the matrix, the Groove & Key drum controls apply, and Save (MP3 and MIDI) includes it.
+- **Hip-hop's lo-fi sound loses less level** at full pull (it was about 7 dB down), on every station.
+- With every slider at zero, nothing changes.
+
 ## 1.18.1 (2026-10-13, Rob)
 - **MedDev Receiver 1.13.2:** the spray can shows its BUG SPRAY / SUGAR MIST label again when there's no room beside the radio (it had tucked out to just its tip), without covering anything clickable.
 
