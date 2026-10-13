@@ -73,7 +73,9 @@ Three stations share one audio output (volume, EQ, meters, visualizer and TUNE),
   run between shows. `setProviders({ headlines(kind, arg) })` feeds live material: `headlines("business")` and
   `headlines("gaming")` resolve `[{ title, source }]`, `headlines("wiki", "Pangolin")` resolves `{ title, extract }`. The
   shows read live headlines straight, then joke about the situation, never about named people; with no provider, or after
-  6 seconds, they make up their own (fictional companies and games). The apps provide it through `app.live("headlines:…")` /
+  6 seconds, they make up their own (fictional companies and games). Each show has several formats, its own theme
+  music and stingers (`PT` in `src/engine.js`: news, ticker, pomp, West Coast, tech, nature, noir, fantasy styles), and
+  `renderOffline("ptmusic", secs, { style, cue })` renders any of them for checks. The apps provide it through `app.live("headlines:…")` /
   `app.live("wiki:…")` (`apps/common/headlines.js`: GDELT and Wikipedia, filtered and cached).
 
 `radio.stations()`, `getStation()`, `setStation(id)`, `nextStation()`, `prevStation()` and the `station` event switch between them
