@@ -31,12 +31,12 @@
   // Newer apps render the robot voices as audio, so the volume and LOW/MID/HIGH EQ apply to them too.
   if(app&&app.tts) radio.setProviders({tts:spec=>app.tts(spec)});
   const np=$("#np"), cap=$("#cap"); let capT=0;
-  const npText=s=>s.station==="ptlk"?`${s.style} · “${s.title}” · ${s.artist}`:s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
+  const npText=s=>s.station==="ptlk"||(s.station==="hearye"&&s.talk)?`${s.style} · “${s.title}” · ${s.artist}`:s.station==="hearye"?`“${s.title}” · ${s.artist} · ${s.style.toLowerCase()}`:s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
   radio.on("nowplaying",s=>{ np.textContent=`Now playing: ${npText(s)}`; });
-  // Stations: WYBC 88.1 (Collin's ambient piano), MDFM 99.9 HD and PTLK 108.0 (talk). The arrows switch; the choice is remembered on this device.
+  // Stations: WYBC 88.1 (Collin's ambient piano), HEARYE 95.5 (Renn Faire Radio), MDFM 99.9 HD and PTLK 108.0 (talk). The arrows switch; the choice is remembered on this device.
   const stLS="mdfmStation", showStation=st=>{ if(!st) return; $("#stName").textContent=st.name; document.documentElement.dataset.station=st.id;
-    const w=st.id==="wybc", t=st.id==="ptlk"; $("#skipBtn").textContent=t?"Next show":w?"Next piece":"Next song"; $("#spotBtn").textContent=w||t?"Station ID":"Station break";
-    $("#skipBtn").title=t?"Skip to a new show":w?"A new piece":"Skip to the next song"; };
+    const w=st.id==="wybc"||st.id==="hearye", t=st.id==="ptlk"; $("#skipBtn").textContent=t?"Next show":w?"Next piece":"Next song"; $("#spotBtn").textContent=w||t?"Station ID":"Station break";
+    $("#skipBtn").title=t?"Skip to a new show":st.id==="hearye"?"On to the next piece":w?"A new piece":"Skip to the next song"; };
   if(radio.setStation){ try{ const k=localStorage.getItem(stLS); if(k) radio.setStation(k); }catch(e){}
     showStation(radio.getStation());
     radio.on("station",st=>{ showStation(st); try{ localStorage.setItem(stLS,st.id); }catch(e){}
@@ -52,6 +52,14 @@
       const ws=()=>{ const t={}; wl.querySelectorAll("input[data-wtype]").forEach(cb=>t[cb.dataset.wtype]=cb.checked); return t; };
       radio.setStationTypes("wybc",ws()); wl.addEventListener("change",()=>{ const t=ws(); radio.setStationTypes("wybc",t); try{ localStorage.setItem("wybcTypes",JSON.stringify(t)); }catch(e){} });
       $("#wybcSet").hidden=false; }
+    // HEARYE's show and segment switches (this device)
+    const hl=$("#hearyeList"), hlist=radio.stationTypeList("hearye");
+    if(hl&&hlist.length&&radio.stations().some(s=>s.id==="hearye"&&s.available)){ let ht={}; try{ ht=JSON.parse(localStorage.getItem("hearyeTypes")||"{}"); }catch(e){}
+      for(const [k,label] of hlist){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-htype="${k}"> <span></span>`; l.querySelector("span").textContent=label;
+        l.querySelector("input").checked=ht[k]!==false; hl.appendChild(l); }
+      const hs=()=>{ const t={}; hl.querySelectorAll("input[data-htype]").forEach(cb=>t[cb.dataset.htype]=cb.checked); return t; };
+      radio.setStationTypes("hearye",hs()); hl.addEventListener("change",()=>{ const t=hs(); radio.setStationTypes("hearye",t); try{ localStorage.setItem("hearyeTypes",JSON.stringify(t)); }catch(e){} });
+      $("#hearyeSet").hidden=false; }
     // PTLK's show switches (this device)
     const pl=$("#ptlkList"), plist=radio.stationTypeList("ptlk");
     if(pl&&plist.length&&radio.stations().some(s=>s.id==="ptlk"&&s.available)){ let pt={}; try{ pt=JSON.parse(localStorage.getItem("ptlkTypes")||"{}"); }catch(e){}
@@ -84,7 +92,7 @@
   // and Calm mode mutes the voice drops between songs. Skipped quietly on an older receiver.
   (A=>{ if(!A) return; A.hasSound=true;
     radio.on("caption",c=>A.caption(c.text,{who:c.who}));
-    radio.on("nowplaying",s=>A.sound(s.station==="ptlk"?`PTLK 108.0: ${s.style}, “${s.title}”, with ${s.artist}`:s.station==="wybc"?`WYBC 88.1: “${s.title}” by ${s.artist}, ambient piano`:`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
+    radio.on("nowplaying",s=>A.sound(s.station==="ptlk"?`PTLK 108.0: ${s.style}, “${s.title}”, with ${s.artist}`:s.station==="hearye"?(s.talk?`HEARYE 95.5: ${s.style}, “${s.title}”, with ${s.artist}`:`HEARYE 95.5: “${s.title}” by ${s.artist}, ${s.style.toLowerCase()}`):s.station==="wybc"?`WYBC 88.1: “${s.title}” by ${s.artist}, ambient piano`:`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
     const band=(a,i,j)=>{ let m=0; for(let k=i;k<j;k++) m=Math.max(m,a[k]||0); return Math.round(m*100)+"%"; };
     A.describe($("header.top .lcd.viz"),()=>{ if(!radio.isOn()) return "off"; const s=radio.getSpectrum&&radio.getSpectrum(); return s?`bass ${band(s,0,6)}, mids ${band(s,6,13)}, treble ${band(s,13,19)}`:"on"; },{label:"EQ"});
     A.describe($(".vu"),()=>{ const l=radio.isOn()&&radio.getLevels?radio.getLevels():null; return l?`left ${Math.round(l[0]+14)} VU, right ${Math.round(l[1]+14)} VU`:"radio off"; },{label:"VU meters"});

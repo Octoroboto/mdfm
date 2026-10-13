@@ -2,6 +2,23 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.15.0 (2026-10-13, Rob)
+- **A fourth station: HEARYE 95.5, Renn Faire Radio, the Home of High Drama.** Between WYBC 88.1 and MDFM 99.9 on the dial.
+  - **Music:** procedural high-fantasy pieces in ten styles: elven ambience, halfling party, tavern jig, the wizards' council, den of evil, angelic herald, battle orders, glorious battle, bard's lament and royal procession.
+    - Instruments: harps, lutes, flutes and tin whistles, fiddles, strings, horns, brass, a church organ, Gregorian chant, battle drums, frame drums and tambourines.
+    - Each piece gets a made-up title and players, and grows from a quiet start to the full band over two or three minutes.
+  - **Ambience:** forest, meadow, mountain, cave, tavern or fireside sounds play under every piece and fade back as the music fills in.
+  - **Hosts:** a royal crier for station IDs, a bard who introduces and back-announces the pieces and takes call-ins, and a herald who reads the realm news. In the apps, that's the Slack company news rewritten into the old tongue ("thou art", "hath", "the council this day"). Elsewhere it's made-up proclamations.
+  - **Between pieces:**
+    - Seven scripted shows with 15 or 16 written episodes each, and no repeats until every episode has aired: Why Dost Thou Clappest, Doug?, The Cauldron of Dark Desire, Hot Grog Sticky Gruel, Pestilence Today, Don't Quest-ion It, One Star Quest and Hoard and Order.
+    - Jousting matches and royal pony pageants, written live with play-by-play, scores and post-match interviews.
+    - Ads (68 written, plus more assembled from parts) and call-ins to the bard.
+  - **Show music:** every show, ad and ID has its style's theme, a soft bed under the talk, stingers and a closing cadence.
+  - **Settings:** "What plays on HEARYE 95.5" has a switch for every show and segment, plus the ambience.
+  - **Buttons and Save:** Next piece moves on, and Station ID brings the crier in. Save renders the piece on air again from the top (named "HEARYE - players - title (style)"). During a show, an ad or a call-in, Save records the whole segment in the apps.
+  - **Level:** about 3 dB under MDFM.
+- MDFM 99.9 sounds exactly as before (checked sample for sample). WYBC and PTLK are unchanged. New tests: `test/faire.test.mjs`, and the smoke test now tunes to HEARYE.
+
 ## 1.14.1 (2026-10-13, Rob)
 - **Music plays on iPhone and iPad with the ring/silent switch on silent.** iOS treats web-page audio as "ambient" sound, so the silent switch muted the music while the voices (system speech) kept playing. Pressing SOUND now asks iOS for "playback" audio (Safari 17+) and keeps a silent audio element playing (older iOS), so the station plays like a music app. Only on iOS; nothing changes anywhere else (MDFM checked sample for sample).
 

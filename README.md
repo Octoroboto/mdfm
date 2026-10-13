@@ -62,9 +62,19 @@ The look and controls come from **MedDev Receiver** (`Octoroboto/meddev-receiver
 
 ## Stations
 
-Three stations share one audio output (volume, EQ, meters, visualizer and TUNE), on the dial by frequency:
+Four stations share one audio output (volume, EQ, meters, visualizer and TUNE), on the dial by frequency:
 
 - **WYBC 88.1**: ambient piano composed live by Collin's generator (`vendor/ambient-soundtrack`), with a made-up artist per piece and a whisper DJ every 15-20 minutes. No ads, shows or news.
+- **HEARYE 95.5**: Renn Faire Radio, the Home of High Drama. Procedural high-fantasy music (`FS` in `src/engine.js`: elven
+  ambience, halfling party, tavern jig, the wizards' council, den of evil, angelic herald, battle orders, glorious battle,
+  bard's lament, royal procession) on harps, lutes, flutes, fiddles, strings, horns, brass, organ, Gregorian chant, battle
+  drums, frame drums and tambourines, over forest, meadow, mountain, cave, tavern and hearth ambience. Each piece is written
+  from a seed (a made-up title and players), so Save renders the piece on air again from the top. Between pieces: a royal
+  crier (IDs), a bard (intros, back-announces, call-ins) and a herald (realm news: the Slack news from `opts.news`, read in
+  the old tongue, or made-up proclamations without it), seven scripted shows of 15-16 episodes each (`src/faire/*.js`: Why
+  Dost Thou Clappest, Doug?, The Cauldron of Dark Desire, Hot Grog Sticky Gruel, Pestilence Today, Don't Quest-ion It, One
+  Star Quest, Hoard and Order; no repeats until every episode has aired), procedural jousting and royal show-pony broadcasts,
+  and ads, each with its style's theme, bed, stingers and closing cadence. `src/faire.js` (`createFaire`) writes the talk.
 - **MDFM 99.9 HD**: everything above.
 - **PTLK 108.0**: 100% procedural talk radio (`src/talk.js`). Nine shows, each episode written as it airs from large pools of
   names, places, plots and jokes, with running storylines (Doug's feud with Sheila Vance, Ron's mailbox, the Overnight Shipping
@@ -84,7 +94,11 @@ Three stations share one audio output (volume, EQ, meters, visualizer and TUNE),
 and `renderSong()` renders a fresh 2.5-minute performance. On PTLK, `skip()` starts a new show, `spotNow()` cuts in a station ID
 between lines and the show carries on, `onAir()` describes the show (Save records it whole in the apps, where the voices are
 audio) and `stationTypeList("ptlk")` / `setStationTypes("ptlk", { doug, biz, usb, buttons, nature, lost, hoa, ship, wizard, ids })`
-are its switches. The radio page has ◀ ▶ arrows on the lower button row and a
+are its switches. On HEARYE, `skip()` moves on to the next piece (or ends the segment on air), `spotNow()` brings the crier in,
+`renderSong()` renders the piece on air from the top, `onAir()` describes a show, ad or call-in on air, and
+`stationTypeList("hearye")` / `setStationTypes("hearye", { doug, cauldron, grog, pest, dqi, onestar, hoard, joust, ponies, news,
+ads, callers, ids, amb })` are its switches. `renderOffline("fpiece", secs, { style, seed })` and `renderOffline("fcue", secs,
+{ style, cue })` render its music for checks. The radio page has ◀ ▶ arrows on the lower button row and a
 "What plays" section per station; it remembers the station and WYBC's switches on the device.
 
 ## Sound tuning (TUNE)

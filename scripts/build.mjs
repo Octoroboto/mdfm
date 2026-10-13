@@ -10,12 +10,14 @@ const engine = read("src/engine.js").replace(/^import .*$/m, "").replace('"__VER
 const ui = read("src/ui.js").replace(/^export function /m, "function ");
 // PTLK 108.0: the procedural talk-show writer (plain function createTalk, no imports/exports)
 const talk = read("src/talk.js");
+// HEARYE 95.5: the scripted shows and pools (src/faire/*.js) and the station's writer (createFaire), plain consts and functions
+const faire = ["doug", "cauldron", "grog", "pest", "dqi", "onestar", "hoard", "pools"].map(f => read(`src/faire/${f}.js`)).join("\n") + "\n" + read("src/faire.js");
 const wx = read("src/weather.js").replace(/^export function /m, "function ") + "\n" + read("src/sports.js").replace(/^export function /m, "function ");
-if (/^\s*(import|export)\b/m.test(pack + engine + ui + wx + talk)) throw new Error("build: unexpected import/export left in src; update scripts/build.mjs");
+if (/^\s*(import|export)\b/m.test(pack + engine + ui + wx + talk + faire)) throw new Error("build: unexpected import/export left in src; update scripts/build.mjs");
 const xp = read("src/export.js") + "\n" + read("src/tune.js");
 // the MP3 encoder (lamejs, LGPL-3.0, "npm install --save-exact lamejs@1.2.1"); without it Save song reports that it's missing
 let lame = ""; try { lame = readFileSync(new URL("vendor/lamejs/lame.min.js", root), "utf8"); } catch {}
-const body = `${pack}\n${talk}\n${engine}\n${ui}\n${wx}\n${xp}\n`;
+const body = `${pack}\n${talk}\n${faire}\n${engine}\n${ui}\n${wx}\n${xp}\n`;
 // WYBC 88.1: Collin's ambient piano generator (vendor/ambient-soundtrack, no dependencies). Like lamejs it runs as a
 // plain script ahead of the strict MDFM scope and defines the global AmbientSoundtrack. Without it, WYBC is skipped.
 let amb = ""; try { amb = readFileSync(new URL("vendor/ambient-soundtrack/ambient-soundtrack.js", root), "utf8"); } catch {}

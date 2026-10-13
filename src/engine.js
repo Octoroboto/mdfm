@@ -1077,7 +1077,8 @@ function voiceSting(){
    music is back, so Save can hand over the whole thing even when pressed halfway. Voices are only in the recording when
    the app renders them as audio (opts.tts); the browser's own speech can't be captured. Up to 15 minutes. */
 const SHOW_NAME={weather:"Weather with Tabitha Snatterbean",sports:"Sports with Chip Nitro",news:"Company News",technews:"MedDev Tech News",funnelball:"Funnelball",showponies:"Show Ponies",play:"Golden Age Radio Hour",arts:"Arts and Culture",interview:"Interview",ad:"Ad break",id:"Station ID"};
-function breakInfo(sp){ if(sp.kind==="ptlk") return {kind:"ptlk",station:"ptlk",show:sp.show,episode:String(sp.title||""),title:sp.title?`${sp.show}: ${sp.title}`:sp.show,hosts:sp.hosts||""};
+function breakInfo(sp){ if(sp.kind==="hearye") return {kind:"hearye",station:"hearye",show:sp.show,episode:String(sp.title||""),title:sp.title&&sp.title!==sp.show?`${sp.show}: ${sp.title}`:sp.show,hosts:sp.hosts||""};
+  if(sp.kind==="ptlk") return {kind:"ptlk",station:"ptlk",show:sp.show,episode:String(sp.title||""),title:sp.title?`${sp.show}: ${sp.title}`:sp.show,hosts:sp.hosts||""};
   const call=sp.kind==="interview"&&sp.title==="Caller", show=sp.show||(call?"Call-in":SHOW_NAME[sp.kind])||"Station break";
   const ep=sp.kind==="ad"||sp.kind==="id"||call||!sp.title||sp.title===show?"":String(sp.title); return {kind:sp.kind,show,episode:ep,title:ep?`${show}: ${ep}`:show}; }
 function recStart(sp){ recStop(true); if(!ctx||!recIn||typeof ctx.createScriptProcessor!=="function") return;
@@ -1179,7 +1180,7 @@ function primeSpeech(){ if(speechPrimed||!HAS_TTS||typeof opts.tts==="function")
 let lastRebuild=-1e9;
 function watchAudio(){ if(opts.audioContext||typeof window==="undefined"||!ctx) return; const c=ctx, t0=c.currentTime, g=gen;
   setTimeout(()=>{ if(!on||gen!==g||ctx!==c||c.currentTime-t0>.25) return; const now=Date.now(); if(now-lastRebuild<8000){ emit("caption",{who:"MDFM",text:"Can't reach the speakers. Check your sound output, then press SOUND again."}); return; } lastRebuild=now; rebuildAudio(); },1600); }
-function rebuildAudio(){ const old=ctx; recStop(true); clearTimeout(wybcT); if(amb){ try{ amb.inst.stop(); }catch(e){} amb=null; } ambIn=null; clearInterval(timer); for(const s of songs) try{ s.bus.disconnect(); }catch(e){} songs=[]; bed=null; speaking=false; voiceSrc=null;
+function rebuildAudio(){ const old=ctx; recStop(true); if(fair){ fair.dead=true; clearTimeout(fair.t); clearTimeout(fair.pt); if(fair.amb) fair.amb.dead=true; fair=null; } clearTimeout(wybcT); if(amb){ try{ amb.inst.stop(); }catch(e){} amb=null; } ambIn=null; clearInterval(timer); for(const s of songs) try{ s.bus.disconnect(); }catch(e){} songs=[]; bed=null; speaking=false; voiceSrc=null;
   ctx=null; try{ old&&old.close&&old.close().catch(()=>{}); }catch(e){} on=false; setOn(true); }
 if(typeof navigator!=="undefined"&&navigator.mediaDevices&&typeof navigator.mediaDevices.addEventListener==="function")
   navigator.mediaDevices.addEventListener("devicechange",()=>{ if(on) watchAudio(); });
@@ -1193,13 +1194,15 @@ const STATIONS=[
   {id:"mdfm",name:"MDFM 99.9 HD",freq:"99.9",tagline:"Hip hop, R&B, pop, dance and a DJ set",style:null},
   {id:"ptlk",name:"PTLK 108.0",freq:"108.0",tagline:"All talk. Every show written live.",style:"Talk radio"},
 ];
+STATIONS.splice(1,0,{id:"hearye",name:"HEARYE 95.5",freq:"95.5",tagline:"Renn Faire Radio. The Home of High Drama.",style:"Fantasy"});   // by frequency: 88.1, 95.5, 99.9, 108.0
 const AMB=()=>typeof AmbientSoundtrack!=="undefined"?AmbientSoundtrack:(typeof globalThis!=="undefined"&&globalThis.AmbientSoundtrack)||null;
 const TALK=typeof createTalk==="function"?createTalk(R):null;   // PTLK's show writer; without it PTLK is skipped
 const STATION_TYPES={ wybc:[["ids","The whisper DJ"],["strings","Light strings"],["winds","Bass clarinet and bassoon"],["hall","Far-off concert hall sounds"],["room","Room tone and tape grain"]],
-  ptlk:TALK?[...TALK.shows.map(x=>[x.id,x.label]),["ids","Station IDs"]]:[] };
+  ptlk:TALK?[...TALK.shows.map(x=>[x.id,x.label]),["ids","Station IDs"]]:[],
+  hearye:typeof createFaire==="function"?[...createFaire(Math.random).shows.map(x=>[x.id,x.label]),["joust","The Royal Joust"],["ponies","The Royal Pony Pageant"],["news","Realm news (from Slack)"],["ads","Ads from the merchants"],["callers","Call-ins to the bard"],["ids","The crier and the bard"],["amb","Forest and meadow sounds"]]:[] };
 const wybcTypes={ids:true,strings:true,winds:true,hall:true,room:true};
 const ptlkTypes=Object.fromEntries(STATION_TYPES.ptlk.map(([k])=>[k,true]));
-const stationOk=id=>id==="wybc"?!!AMB():id==="ptlk"?!!TALK:id==="mdfm";
+const stationOk=id=>id==="wybc"?!!AMB():id==="ptlk"?!!TALK:id==="hearye"?typeof createFaire==="function":id==="mdfm";
 const AMB_LEVEL=4.2;   // the piece is soft by design (about -27 dB average): this brings it to about 3 dB under MDFM (a quiet station, not a dead one), under the limiter
 const PIECES=["Where Ya Been","Porch Light","The Long Way Round","Postcard, Unsent","Night Ferry","Back Before Dark","Small Hours","The Map Room",
   "Quiet Miles","Window Seat","Somewhere Off the Interstate","Left the Light On","Slow Train North","Kitchen at 2 a.m.","Rain on the Map","Pinned, Not Posted"];
@@ -1259,11 +1262,13 @@ function leaveStation(id,t){   // tune away: everything that station had going s
     setTimeout(()=>{ for(const x of old) try{ x.bus.disconnect(); x.rvf.disconnect(); }catch(e){} if(b){ b.stopped=true; try{ b.bus.disconnect(); }catch(e){} } },1500); }
   else if(id==="wybc") wybcOff(1.2);
   else if(id==="ptlk") ptlkOff();
+  else if(id==="hearye") fairOff();
 }
 function enterStation(id,t){
   if(id==="mdfm"){ fadeTo(musicDuck.gain,1,.3,t); startSong(t+.3,0); lastSpot=t; clearInterval(timer); timer=setInterval(tick,40); tick(); }
   else if(id==="wybc") wybcOn();
   else if(id==="ptlk") ptlkOn();
+  else if(id==="hearye") fairOn();
 }
 function setStation(id){
   const s=stationInfo(id); if(!s||!s.available||id===station) return station; const was=station; station=id;
@@ -1517,12 +1522,407 @@ async function renderAmbient(secs){
   const k=pk>0?Math.min(8,.89/pk):1; for(let c=0;c<2;c++){ const d=buffer.getChannelData(c); for(let i=0;i<d.length;i++) d[i]*=k; }
   return buffer;
 }
+/* ---------- HEARYE 95.5: Renn Faire Radio, the Home of High Drama ----------
+   Procedural high-fantasy music (harps, lutes, flutes, fiddles, strings, horns, organ, chant, battle drums, tambourines)
+   over forest, meadow and mountain ambience, with scripted shows, jousting, show ponies, realm news, ads and call-ins
+   between the pieces (src/faire.js writes them). Everything plays into its own gain into the MDFM chain (pre), so
+   volume, EQ, TUNE, the limiter, the meters and Save all apply. Each piece is written from a seed, so Save renders
+   the same piece that's on air, from the top. */
+const FAIRE=typeof createFaire==="function"?createFaire(R):null;
+const F_LEVEL=1.5;   // the station's trim into the chain (measured: about 3 dB under MDFM)
+const FG=new WeakMap();   // per AudioContext (live, or an offline render): the station's input and its long hall reverb
+function fg(){ let g=FG.get(ctx); if(!g){ g={in:G(F_LEVEL),rev:ctx.createConvolver()}; g.in.connect(pre); g.rev.buffer=makeIR(ctx,2.8,1.9); const rl=filt("lowpass",5200),rg=G(.55); g.rev.connect(rl); rl.connect(rg); rg.connect(g.in); FG.set(ctx,g); } return g; }
+function fBus(level){ const g=G(level); g.connect(fg().in); const b=makeBus(g,fg().rev); b.gain=g; return b; }
+const srand=s=>()=>{ s=(s+0x6D2B79F5)>>>0; let t=s; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; };
+// the fantasy instruments (MDFM's brass, organ, bells, choir and PTLK's lute, flute and timpani do the rest)
+const FI={
+  harp(b,t,m,v=1,pn=0){ const f=mtof(m), dec=Math.max(.9,Math.min(3.2,2.6-(m-60)*.04)), p=pan(pn), out=G(1); out.connect(p); p.connect(b.mu); to(out,b,.5);
+    for(const [h,a,dk,ty] of [[1,.09,1,"triangle"],[3,.014,.35,"sine"]]){ const o=osc(ty,f*h), g=ctx.createGain(); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(a*v,t+.003); g.gain.exponentialRampToValueAtTime(.0001,t+dec*dk); o.connect(g); g.connect(out); o.start(t); o.stop(t+dec*dk+.05); } },
+  strings(b,t,notes,dur,v=1,o={}){ if((o.att??.35)<.05&&dur<.4){ const lp=filt("lowpass",o.bright||1900,.6), g=ctx.createGain(), pk=.034*v/Math.sqrt(notes.length), e=t+dur;   // spiccato: light on the CPU
+      g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(pk,t+.008); g.gain.setValueAtTime(pk*.8,e); g.gain.exponentialRampToValueAtTime(.0001,e+(o.rel??.1)); lp.connect(g); g.connect(b.mu); to(g,b,o.rv??.3);
+      notes.forEach(m=>{ const x=osc("sawtooth",mtof(m)); x.detune.value=rr(-5,5); x.connect(lp); x.start(t); x.stop(e+(o.rel??.1)+.05); }); return; }
+    const att=o.att??.35, rel=o.rel??.6, end=t+Math.max(att,dur), lp=filt("lowpass",o.bright||1900,.6), g=ctx.createGain(), lfo=osc("sine",5.3), lg=G(o.vib??7), pk=.026*v/Math.sqrt(notes.length);
+    g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(pk,t+att); g.gain.setValueAtTime(pk,end); g.gain.exponentialRampToValueAtTime(.0001,end+rel);
+    lp.connect(g); g.connect(b.mu); to(g,b,o.rv??.55); lfo.connect(lg); lfo.start(t); lfo.stop(end+rel+.1);
+    notes.forEach((m,i)=>{ for(const dt of (o.thin||notes.length>2?[-7,7]:[-9,0,8])){ const x=osc("sawtooth",mtof(m)), pn=pan(Math.max(-.8,Math.min(.8,((i/(notes.length-1||1))-.5)*.7+dt/40))); x.detune.value=dt; lg.connect(x.detune); x.connect(pn); pn.connect(lp); x.start(t); x.stop(end+rel+.1); } }); },
+  fiddle(b,t,m,dur,v=1,prev=null){ const f=mtof(m), a=osc("sawtooth",f), c=osc("sawtooth",f*1.004), hp=filt("highpass",260), bp=filt("peaking",2400,1.2), lp=filt("lowpass",4200,.7), g=ctx.createGain(), lfo=osc("sine",5.6), lg=ctx.createGain();
+    bp.gain.value=5; lg.gain.setValueAtTime(0,t); lg.gain.linearRampToValueAtTime(f*.011,t+Math.max(.05,Math.min(.5,dur*.6))); lfo.connect(lg); lg.connect(a.frequency); lg.connect(c.frequency);
+    if(prev!=null&&prev!==m){ a.frequency.setValueAtTime(mtof(prev),t); a.frequency.exponentialRampToValueAtTime(f,t+.06); c.frequency.setValueAtTime(mtof(prev)*1.004,t); c.frequency.exponentialRampToValueAtTime(f*1.004,t+.06); }
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.042*v,t+.05); g.gain.setValueAtTime(.036*v,t+Math.max(.06,dur)); g.gain.exponentialRampToValueAtTime(.0001,t+dur+.18);
+    a.connect(hp); c.connect(hp); hp.connect(bp); bp.connect(lp); lp.connect(g); g.connect(b.mu); to(g,b,.4); for(const x of [a,c,lfo]){ x.start(t); x.stop(t+dur+.25); } },
+  chant(b,t,m,dur,v=1,vw="o"){   // a few monks in unison (Gregorian chant), with one an octave down for weight
+    const mix=G(1), out=G(1), g=ctx.createGain(), f=mtof(m), vow=VOW[vw]||VOW.o, end=t+dur;
+    vow.slice(0,2).forEach((F,k)=>{ const bp=filt("bandpass",F*(m>64?1:.86),[6,9][k]), fgn=G([2.6,1.2][k]); mix.connect(bp); bp.connect(fgn); fgn.connect(out); });
+    [[0,-7,1],[0,7,1],[-12,-3,.5]].forEach(([iv,dt,a])=>{ const o=osc("sawtooth",mtof(m+iv)), og=G(a); o.detune.value=dt; o.connect(og); og.connect(mix); o.start(t); o.stop(end+.7); });
+    const pk=.055*v; g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(pk,t+.18); g.gain.setValueAtTime(pk,end); g.gain.exponentialRampToValueAtTime(.0001,end+.6);
+    out.connect(g); g.connect(b.mu); to(g,b,.75); void f; },
+  horn(b,t,notes,dur,v=1){ const lp=filt("lowpass",500,.9), g=ctx.createGain(), pk=.06*v/Math.sqrt(notes.length);
+    lp.frequency.setValueAtTime(380,t); lp.frequency.exponentialRampToValueAtTime(1500,t+.09); lp.frequency.exponentialRampToValueAtTime(950,t+dur+.2);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(pk,t+.07); g.gain.setValueAtTime(pk*.9,t+Math.max(.08,dur)); g.gain.exponentialRampToValueAtTime(.0001,t+dur+.35);
+    lp.connect(g); g.connect(b.mu); to(g,b,.55); notes.forEach(m=>{ for(const [ty,dt,a] of [["sawtooth",-5,1],["sawtooth",5,1],["triangle",0,1.4]]){ const o=osc(ty,mtof(m)), og=G(a); o.detune.value=dt; o.connect(og); og.connect(lp); o.start(t); o.stop(t+dur+.4); } }); },
+  shawm(b,t,m,dur,v=1){ const f=mtof(m), a=osc("square",f), c=osc("sawtooth",f*1.003), bp=filt("bandpass",1300,1.4), pk2=filt("peaking",2800,2), lp=filt("lowpass",5000), g=ctx.createGain(), lfo=osc("sine",5), lg=G(f*.006);
+    pk2.gain.value=6; lfo.connect(lg); lg.connect(a.frequency); lg.connect(c.frequency); a.connect(bp); c.connect(bp); bp.connect(pk2); pk2.connect(lp); lp.connect(g); g.connect(b.mu); to(g,b,.35);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.05*v,t+.03); g.gain.setValueAtTime(.045*v,t+Math.max(.04,dur)); g.gain.exponentialRampToValueAtTime(.0001,t+dur+.1); for(const x of [a,c,lfo]){ x.start(t); x.stop(t+dur+.15); } },
+  drone(b,t,notes,dur,v=1){ const bp=filt("bandpass",900,.8), lp=filt("lowpass",2400), g=ctx.createGain(); bp.connect(lp); lp.connect(g); g.connect(b.mu); to(g,b,.35);
+    g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(.016*v,t+.4); g.gain.setValueAtTime(.016*v,t+dur); g.gain.linearRampToValueAtTime(.0001,t+dur+.4);
+    notes.forEach(m=>{ for(const [ty,dt] of [["sawtooth",-4],["square",5]]){ const o=osc(ty,mtof(m)); o.detune.value=dt; o.connect(bp); o.start(t); o.stop(t+dur+.5); } }); },
+  drum(b,t,v=1,f=58){ const o=osc("sine",f*2.2), g=ctx.createGain(); o.frequency.setValueAtTime(f*2.2,t); o.frequency.exponentialRampToValueAtTime(f,t+.12); env(g,t,.002,.9*v,.9); o.connect(g); g.connect(b.dr); o.start(t); o.stop(t+1);
+    const n=nz(t,.4), lp=filt("lowpass",700), ng=ctx.createGain(); env(ng,t,.001,.35*v,.25); n.connect(lp); lp.connect(ng); ng.connect(b.dr); to(g,b,.3); to(ng,b,.4); duck(b,t,.85); },
+  frame(b,t,v=1,hi=false){ const f=hi?170:95, o=osc("sine",f*1.3), g=ctx.createGain(); o.frequency.setValueAtTime(f*1.3,t); o.frequency.exponentialRampToValueAtTime(f*.75,t+.18); env(g,t,.002,.55*v,hi?.14:.24); o.connect(g); g.connect(b.dr); o.start(t); o.stop(t+.3);
+    if(!hi){ const n=nz(t,.08), bp=filt("bandpass",500,1), ng=ctx.createGain(); env(ng,t,.001,.12*v,.06); n.connect(bp); bp.connect(ng); ng.connect(b.dr); } to(g,b,.2); },
+  tamb(b,t,v=1,shake=false){ for(let k=0;k<(shake?2:1);k++){ const tt=t+k*.03, n=nz(tt,.2), hp=filt("highpass",rr(6500,8000),1.5), g=ctx.createGain();
+    env(g,tt,.001,(shake?.07:.12)*v,shake?.09:.16); n.connect(hp); hp.connect(g); g.connect(b.dr); } },
+};
+FI.pipe=(b,t,m,dur,v=1)=>{ const o=osc("sine",mtof(m)), g=ctx.createGain(); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.065*v,t+.025); g.gain.setValueAtTime(.06*v,t+Math.max(.03,dur*.8)); g.gain.exponentialRampToValueAtTime(.0001,t+dur+.06); o.connect(g); g.connect(b.mu); to(g,b,.35); o.start(t); o.stop(t+dur+.1); };   // a quick tin-whistle note
+FI.lute=(b,t,m,v=1)=>PI.lute(b,t,m,v);
+// a small church organ: three pipes a note, no tremolo (lighter than MDFM's tonewheel organ)
+FI.organ=(b,t,notes,dur,v=1)=>{ const lp=filt("lowpass",2600,.5), g=ctx.createGain(), pk=.05*v; g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(pk,t+.08); g.gain.setValueAtTime(pk,t+dur); g.gain.linearRampToValueAtTime(.0001,t+dur+.35);
+  lp.connect(g); g.connect(b.mu); to(g,b,.6); notes.forEach(m=>{ for(const [h,a,ty] of [[1,.9,"sine"],[2,.45,"triangle"],[4,.14,"sine"]]){ const o=osc(ty,mtof(m)*h), og=G(a/notes.length*1.7); o.connect(og); og.connect(lp); o.start(t); o.stop(t+dur+.4); } }); };
+// a strummed chord: one filter and envelope for the whole chord (light on the CPU), strings a hair apart
+FI.strum=(b,t,notes,v=1,gap=.022)=>{ const lp=filt("lowpass",3400,1.2), g=ctx.createGain(), pk=.075*v/Math.sqrt(notes.length); lp.frequency.setValueAtTime(3600,t); lp.frequency.exponentialRampToValueAtTime(800,t+.4);
+  g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(pk,t+.004); g.gain.exponentialRampToValueAtTime(.0001,t+.75); lp.connect(g); g.connect(b.mu); to(g,b,.3);
+  notes.forEach((m,k)=>{ const o=osc("sawtooth",mtof(m)), og=G(.55); o.connect(og); og.connect(lp); o.start(t+k*gap); o.stop(t+.8); }); };
+// a string ostinato: one bowed line, retuned and re-bowed every step (one voice for the whole bar instead of one per note)
+FI.ostinato=(b,t,notes,step,v=1,bright=2000)=>{ const a=osc("sawtooth",mtof(notes[0])), c=osc("sawtooth",mtof(notes[0])), lp=filt("lowpass",bright,.7), g=ctx.createGain(), pk=.036*v; c.detune.value=8; a.detune.value=-6;
+  g.gain.setValueAtTime(.0001,t); notes.forEach((m,k)=>{ const tt=t+k*step, f=mtof(m); a.frequency.setValueAtTime(f,tt); c.frequency.setValueAtTime(f,tt); g.gain.setValueAtTime(.0001,tt); g.gain.exponentialRampToValueAtTime(pk*(k%4===0?1:.75),tt+.008); g.gain.exponentialRampToValueAtTime(pk*.25,tt+step*.8); });
+  const e=t+notes.length*step; g.gain.exponentialRampToValueAtTime(.0001,e+.08); a.connect(lp); c.connect(lp); lp.connect(g); g.connect(b.mu); to(g,b,.25); for(const x of [a,c]){ x.start(t); x.stop(e+.12); } }; FI.flute=(b,t,m,dur,v=1)=>PI.flute(b,t,m,dur,v);
+function fLead(b,inst,t,m,dur,v,prev){
+  switch(inst){ case "flute": if(dur<.3) FI.pipe(b,t,m,dur,v); else PI.flute(b,t,m,dur,v); break; case "fiddle": FI.fiddle(b,t,m,dur,v,prev); break; case "harp": FI.harp(b,t,m,v*1.25,.15); break; case "lute": PI.lute(b,t,m,v*1.1); break;
+    case "horn": FI.horn(b,t,[m],dur,v); break; case "brass": M.brass(b,t,[m],dur,v*.9); break; case "chant": FI.chant(b,t,m,dur,v,"o"); break; case "choir": FI.chant(b,t,m,dur,v*.9,"a"); break;
+    case "shawm": FI.shawm(b,t,m,dur,v); break; case "bells": M.bell(b,t,m,dur,v*.8,0); break; case "strings": FI.strings(b,t,[m],dur,v*1.5,{att:.1,rel:.3,thin:true}); break; }
+}
+const LEAD_OCT={flute:12,fiddle:12,harp:12,lute:12,horn:0,brass:12,chant:0,choir:0,shawm:12,bells:24,strings:12};
+const FMODES={ionian:[0,2,4,5,7,9,11],dorian:[0,2,3,5,7,9,10],phrygian:[0,1,3,5,7,8,10],lydian:[0,2,4,6,7,9,11],mixolydian:[0,2,4,5,7,9,10],aeolian:[0,2,3,5,7,8,10],harmonic:[0,2,3,5,7,8,11]};
+const fsd=(p,d)=>p.key+p.sc[((d%7)+7)%7]+12*Math.floor(d/7);
+const fch=(p,d)=>[fsd(p,d),fsd(p,d+2),fsd(p,d+4)];
+/* The styles. Each: tempo, meter (beats x sub steps), modes, keys, progressions (scale degrees, a chord a bar), two lead
+   instruments (A and B sections), rhythm cells for the tune (steps), its scene, and bar(): what plays in one bar at a
+   given level (0 sparse intro/outro, 1, 2, 3 full; c.bed = accompaniment only, under talk). */
+const FS={
+  elven:{name:"Elven ambience",scene:"forest",bpm:[62,72],beats:3,sub:2,modes:["lydian","ionian","dorian"],keys:[59,64],gain:1.25,
+    progs:[[0,4,5,3],[0,3,4,0],[0,5,3,4],[0,1,4,0],[0,2,3,4]],leads:[["flute","strings"],["flute","harp"],["harp","choir"]],
+    cells:[[[0,2],[2,2],[4,2]],[[0,4],[4,2]],[[0,6]],[[0,3],[3,1],[4,2]],[[0,2],[2,4]]],
+    bar(p,t,c){ const s=c.st, ch=c.ch, lv=c.lvl;
+      FI.strings(c.b,t,ch.map(x=>x-12),c.bs,lv===0?.45:.65,{att:.8,rel:1.2,bright:1400});
+      if(lv>0||c.i%2===0) [0,1,2,3,2,1].forEach((ix,k)=>FI.harp(c.b,t+k*s,(ix===3?ch[0]+12:ch[ix])+12,lv===0?.45:.6,(k-2.5)*.15));
+      if(lv>=2) FI.strings(c.b,t,[ch[0]-24],c.bs,.7,{att:.5,rel:.8,bright:900,thin:true});
+      if(lv>=3){ M.choir(c.b,t,ch,c.bs*.95,.4); if(c.i%2===0) FI.frame(c.b,t,.25); }
+      if((lv===0||lv===3)&&p.rnd()<.5) [0,7,12].forEach((iv,k)=>M.bell(c.b,t+(3+k)*s,ch[0]+24+iv,.8,.22,(k-1)*.4));
+      if(lv>=1&&!c.bed) c.lead(); }},
+  halfling:{name:"Halfling party",scene:"meadow",bpm:[104,118],beats:2,sub:3,modes:["mixolydian","ionian","dorian"],keys:[60,67],gain:1,
+    progs:[[0,6,0,4],[0,3,0,4],[0,4,5,4],[0,3,6,0],[0,0,3,4]],leads:[["flute","fiddle"],["fiddle","flute"],["flute","shawm"]],
+    cells:[[[0,1],[1,1],[2,1],[3,1],[4,1],[5,1]],[[0,2],[2,1],[3,2],[5,1]],[[0,3],[3,1],[4,1],[5,1]],[[0,1],[1,1],[2,1],[3,3]],[[0,2],[2,1],[3,1],[4,1],[5,1]]],
+    bar(p,t,c){ return FS.tavern.jig(p,t,c,false); }},
+  tavern:{name:"Tavern jig",scene:"tavern",bpm:[112,126],beats:2,sub:3,modes:["dorian","aeolian","mixolydian"],keys:[57,64],gain:1,
+    progs:[[0,6,0,6],[0,3,6,4],[0,6,5,4],[0,3,0,4]],leads:[["fiddle","flute"],["fiddle","shawm"]],
+    cells:[[[0,1],[1,1],[2,1],[3,1],[4,1],[5,1]],[[0,2],[2,1],[3,2],[5,1]],[[0,1],[1,1],[2,1],[3,2],[5,1]],[[0,3],[3,1],[4,1],[5,1]]],
+    bar(p,t,c){ return FS.tavern.jig(p,t,c,true); },
+    jig(p,t,c,dark){ const s=c.st, ch=c.ch, lv=c.lvl, b=c.b;
+      if(lv===0){ FI.drone(b,t,[ch[0]-12,ch[0]-5],c.bs,.8); if(c.i%2===0) FI.strum(b,t,ch,.7,.03); if(!c.bed&&c.n-c.i<=2) c.lead(); return; }
+      FI.strum(b,t,ch,.8); FI.strum(b,t+3*s,ch,.65); FI.lute(b,t+2*s,ch[2]+12,.35); FI.lute(b,t+5*s,ch[1]+12,.35);
+      FI.lute(b,t,ch[0]-12,.6); FI.lute(b,t+3*s,ch[0]-5,.5);
+      FI.frame(b,t,.7); FI.frame(b,t+2*s,.3,true); FI.frame(b,t+3*s,.55); FI.frame(b,t+5*s,.3,true);
+      if(lv>=2){ FI.tamb(b,t+3*s,.6); if(dark) FI.drone(b,t,[ch[0]-12],c.bs,.5); }
+      if(lv>=3){ FI.tamb(b,t+s,.35,true); FI.tamb(b,t+4*s,.35,true); M.accordion(b,t,ch,s*1.6,.6); M.accordion(b,t+3*s,ch,s*1.6,.5); }
+      if(!c.bed) c.lead(); }},
+  council:{name:"The wizards' council",scene:"night",bpm:[74,86],beats:4,sub:2,modes:["dorian","aeolian","phrygian"],keys:[55,61],gain:1.2,
+    progs:[[0,5,3,4],[0,3,5,4],[0,6,5,4],[0,2,3,4],[0,5,1,4]],leads:[["bells","chant"],["flute","chant"],["bells","strings"]],
+    cells:[[[0,2],[2,2],[4,4]],[[0,4],[4,2],[6,2]],[[0,3],[3,1],[4,4]],[[0,8]],[[0,2],[2,1],[3,1],[4,4]]],
+    bar(p,t,c){ const s=c.st, ch=c.ch, lv=c.lvl, b=c.b;
+      FI.organ(b,t,ch.map(x=>x-12),c.bs*.96,lv===0?.4:.55);
+      if(lv>=1) [0,2,1,2,0,2,1,2].forEach((ix,k)=>FI.harp(b,t+k*s,ch[ix]+12,.42,(k%2?.3:-.3)));
+      if(lv>=2){ FI.strings(b,t,[ch[0]-24],c.bs,.75,{att:.3,rel:.6,bright:900,thin:true}); PI.timp(b,t,ch[0]-24,.45); }
+      if(lv>=3){ M.choir(b,t,ch,c.bs*.95,.45); if(c.i===c.n-1) PI.roll(b,t+4*s,ch[0]-24,4*s,.5); }
+      if((lv===0||c.i%4===3)&&p.rnd()<.6) [0,3,7,10].forEach((iv,k)=>M.bell(b,t+(4+k)*s,ch[0]+24+iv,.7,.2,(k-1.5)*.3));
+      if(lv>=1&&!c.bed) c.lead(); }},
+  evil:{name:"Den of evil",scene:"cave",bpm:[64,76],beats:4,sub:2,modes:["phrygian","harmonic"],keys:[49,55],gain:.8,
+    progs:[[0,1,0,1],[0,5,1,0],[0,6,5,1],[0,3,1,0],[0,1,6,4]],leads:[["chant","horn"],["chant","strings"]],
+    cells:[[[0,4],[4,4]],[[0,2],[2,2],[4,4]],[[0,6],[6,2]],[[0,8]],[[0,3],[3,1],[4,4]]],
+    bar(p,t,c){ const s=c.st, ch=c.ch, lv=c.lvl, b=c.b;
+      FI.organ(b,t,[ch[0]-12,ch[0]-5],c.bs*.97,lv===0?.45:.6);
+      if(lv>=1){ FI.drum(b,t,.8,46); FI.drum(b,t+4*s,.55,46); }
+      if(lv>=2) FI.strings(b,t,[ch[0]+1,ch[0]+6],c.bs,.45,{att:.6,rel:.8,bright:1300,vib:18});
+      if(lv>=3){ FI.drum(b,t+6*s,.5,52); FI.drum(b,t+7*s,.6,52); [0,3].forEach(k=>FI.strings(b,t+k*s*2,ch.map(x=>x),s*.8,.9,{att:.01,rel:.12,bright:2400})); }
+      if(c.i%2===0) M.bell(b,t,ch[0]-12+12,2.4,lv===0?.3:.4,0);
+      if(lv>=1&&!c.bed) c.lead(); }},
+  herald:{name:"Angelic herald",scene:"heights",bpm:[70,82],beats:4,sub:2,modes:["ionian","lydian"],keys:[60,65],gain:1.1,
+    progs:[[0,4,5,3],[0,3,4,4],[3,4,0,0],[0,5,3,4],[0,2,3,4]],leads:[["brass","choir"],["choir","brass"],["horn","choir"]],
+    cells:[[[0,2],[2,2],[4,4]],[[0,3],[3,1],[4,4]],[[0,4],[4,4]],[[0,2],[2,1],[3,1],[4,2],[6,2]]],
+    bar(p,t,c){ const s=c.st, ch=c.ch, lv=c.lvl, b=c.b;
+      FI.organ(b,t,ch.map(x=>x-12),c.bs*.96,lv===0?.35:.45);
+      if(c.i===0&&lv>0) [0,1,2,3,4,5,6,7,8,9].forEach(k=>FI.harp(b,t+k*.05,fsd(p,k+7),.4,(k-5)*.08));
+      if(lv>=1) M.choir(b,t,ch,c.bs*.95,.4);
+      if(lv>=2){ PI.timp(b,t,ch[0]-24,.5); FI.strings(b,t,[ch[0]-24,ch[0]-12],c.bs,.6,{att:.3,rel:.6,bright:1200,thin:true}); }
+      if(lv>=3){ M.brass(b,t,ch,s*1.5,.55); M.brass(b,t+4*s,ch,s*1.2,.45); M.bell(b,t,ch[0]+24,1.5,.35,0); }
+      if(lv===0&&p.rnd()<.6) M.bell(b,t+4*s,ch[2]+24,1.2,.25,.3);
+      if(lv>=1&&!c.bed) c.lead(); }},
+  orders:{name:"Battle orders",scene:"mountain",bpm:[94,108],beats:4,sub:2,modes:["aeolian","dorian"],keys:[50,57],gain:.62,
+    progs:[[0,0,5,6],[0,6,5,4],[0,3,6,4],[0,5,6,0],[0,4,0,6]],leads:[["horn","brass"],["horn","strings"]],
+    cells:[[[0,3],[3,1],[4,4]],[[0,2],[2,2],[4,2],[6,2]],[[0,1],[1,1],[2,2],[4,4]],[[0,4],[4,3],[7,1]]],
+    bar(p,t,c){ const s=c.st, ch=c.ch, lv=c.lvl, b=c.b, h=s/2;
+      FI.drum(b,t,.8,50); if(lv>=1) FI.drum(b,t+4*s,.6,50);
+      if(lv>=1){ for(const [x,v] of [[0,.55],[3,.3],[4,.45],[6,.3],[6.5,.25],[7,.35],[7.5,.3]]) D.snare(b,t+x*s,v,.12,.8); }
+      if(lv>=1) FI.ostinato(b,t,[ch[0]-12,ch[0]-12,ch[2]-24,ch[0]-12,ch[0]-12,ch[0]-12,ch[2]-24,ch[2]-24],s,.8,1600);
+      if(lv>=2){ FI.strings(b,t,ch.map(x=>x-12),c.bs,.5,{att:.4,rel:.6,bright:1400}); if(c.i===0) D.crash(b,t,.5); }
+      if(lv>=3){ PI.timp(b,t,ch[0]-24,.7); PI.timp(b,t+4*s,ch[0]-24,.6); for(let k=0;k<4;k++) D.snare(b,t+6*s+k*h,.2+.08*k,.1,.8); }
+      if(lv===0){ FI.drum(b,t+4*s,.4,50); if(c.i%2===1) FI.horn(b,t,[ch[0],ch[2]],c.bs*.7,.6); }
+      if(lv>=1&&!c.bed) c.lead(); }},
+  battle:{name:"Glorious battle",scene:"mountain",bpm:[122,138],beats:4,sub:2,modes:["aeolian","harmonic","dorian"],keys:[50,56],gain:.43,
+    progs:[[0,5,6,0],[0,6,5,6],[0,3,6,4],[0,5,3,4],[0,6,3,4]],leads:[["brass","choir"],["horn","choir"],["strings","brass"]],
+    cells:[[[0,3],[3,1],[4,4]],[[0,2],[2,2],[4,4]],[[0,4],[4,2],[6,2]],[[0,1],[1,1],[2,2],[4,4]]],
+    bar(p,t,c){ const s=c.st, ch=c.ch, lv=c.lvl, b=c.b, h=s/2;
+      if(lv===0){ FI.strings(b,t,ch.map(x=>x-12),c.bs,.5,{att:.6,rel:1,bright:1200}); FI.drum(b,t,.6,48); if(c.i%2) PI.roll(b,t+4*s,ch[0]-24,4*s,.45); if(!c.bed&&c.n-c.i<=2) c.lead(); return; }
+      FI.ostinato(b,t,Array.from({length:16},(_,k)=>[ch[0],ch[0],ch[2],ch[0]][k%4]-12),h,lv>=2?.95:.75);
+      FI.drum(b,t,.9,48); FI.drum(b,t+3*s,.6,48); FI.drum(b,t+4*s,.8,48);
+      if(lv>=2){ D.snare(b,t+2*s,.45,.25); D.snare(b,t+6*s,.45,.25); FI.drum(b,t+7*s,.5,56); FI.drum(b,t+7.5*s,.55,60); if(c.i===0) D.crash(b,t,.7); }
+      if(lv>=3){ M.brass(b,t,ch,s*1.5,.6); M.brass(b,t+3*s,ch,s*1.4,.5); M.choir(b,t,ch,c.bs*.95,.45); PI.timp(b,t,ch[0]-24,.7); }
+      if(!c.bed) c.lead(); }},
+  lament:{name:"Bard's lament",scene:"hearth",bpm:[58,68],beats:3,sub:2,modes:["aeolian","dorian"],keys:[57,62],gain:1.35,
+    progs:[[0,5,3,4],[0,3,5,4],[0,6,5,4],[0,4,5,0],[0,2,5,4]],leads:[["fiddle","flute"],["flute","fiddle"]],
+    cells:[[[0,2],[2,2],[4,2]],[[0,4],[4,2]],[[0,3],[3,1],[4,2]],[[0,6]]],
+    bar(p,t,c){ const s=c.st, ch=c.ch, lv=c.lvl, b=c.b;
+      [0,2,1,2,0,2].forEach((ix,k)=>FI.lute(b,t+k*s,(k===0?ch[0]:ch[ix]+12),lv===0?.45:.55));
+      if(lv>=1) FI.strings(b,t,[ch[0]-24],c.bs,.7,{att:.5,rel:.9,bright:800,thin:true});
+      if(lv>=2) [1,3,5].forEach(k=>FI.harp(b,t+k*s,ch[(k+1)%3]+24,.3,.3));
+      if(lv>=3){ FI.strings(b,t,ch.map(x=>x),c.bs,.45,{att:.7,rel:1,bright:1500}); if(c.i%2===0) FI.frame(b,t,.3); }
+      if(lv>=1&&!c.bed) c.lead(); }},
+  procession:{name:"Royal procession",scene:"meadow",bpm:[86,98],beats:4,sub:2,modes:["ionian","mixolydian"],keys:[58,65],gain:1,
+    progs:[[0,3,4,0],[0,4,5,3],[3,4,0,0],[0,5,3,4],[0,6,3,0]],leads:[["shawm","brass"],["brass","shawm"],["shawm","fiddle"]],
+    cells:[[[0,2],[2,2],[4,2],[6,2]],[[0,3],[3,1],[4,4]],[[0,2],[2,1],[3,1],[4,4]],[[0,4],[4,2],[6,2]]],
+    bar(p,t,c){ const s=c.st, ch=c.ch, lv=c.lvl, b=c.b;
+      FI.drone(b,t,[p.key-12,p.key-5],c.bs,lv===0?.6:.8);
+      if(lv>=1){ [0,2,4,6].forEach(k=>FI.frame(b,t+k*s,k%4?.4:.6)); FI.frame(b,t+7*s,.25,true); [0,4].forEach(k=>FI.strum(b,t+k*s,ch,.65)); }
+      if(lv>=2){ FI.tamb(b,t+2*s,.5); FI.tamb(b,t+6*s,.5); FI.lute(b,t,ch[0]-12,.6); FI.lute(b,t+4*s,ch[0]-5,.5); }
+      if(lv>=3){ M.brass(b,t,ch,s*1.6,.45); M.brass(b,t+4*s,ch,s*1.2,.4); if(c.i%4===0) M.bell(b,t,p.key+24,1.6,.3,0); }
+      if(lv===0&&c.i%2===0) M.bell(b,t,p.key+12,2.4,.25,0);
+      if(lv>=1&&!c.bed) c.lead(); }},
+};
+const FS_KEYS=Object.keys(FS);
+/* A piece: picked from a seed, so the same seed always writes the same piece (Save renders it again from the top). */
+function fMotif(p,rnd,prog,end){   // a 4-bar phrase over prog, in scale degrees: steps mostly, chord tones on the downbeats, ends on the tonic
+  const out=[]; let d=rnd()<.5?2:4; const cells=p.S.cells;
+  for(let bar=0;bar<4;bar++){ const cell=cells[Math.floor(rnd()*cells.length)], deg=prog[bar], notes=[];
+    cell.forEach(([pos,len],k)=>{ if(pos===0){ const tones=[deg,deg+2,deg+4,deg+7,deg-3]; let best=tones[0]; for(const x of tones) if(Math.abs(x-d)<Math.abs(best-d)) best=x; d=best; }
+      else { const r=rnd(); d+=r<.38?1:r<.76?-1:r<.86?2:r<.94?-2:(rnd()<.5?3:-3); }
+      if(d>9) d-=2; if(d<-2) d+=2;
+      if(bar===3&&k===cell.length-1&&end) d=d>3?7:0;
+      notes.push([pos,len,d]); });
+    out.push(notes); }
+  return out;
+}
+function fPiece(style,seed,target){
+  const rnd=srand(seed>>>0), S=FS[style], pk=a=>a[Math.floor(rnd()*a.length)];
+  const p={style,seed,S,rnd,name:S.name,bpm:Math.round(S.bpm[0]+rnd()*(S.bpm[1]-S.bpm[0])),mode:pk(S.modes)};
+  p.sc=FMODES[p.mode]; p.key=Math.round(S.keys[0]+rnd()*(S.keys[1]-S.keys[0]));
+  p.st=60/p.bpm/(S.sub===3?3:2); p.steps=S.beats*S.sub; p.bs=p.st*p.steps;
+  p.target=target||150; p.progA=pk(S.progs); do p.progB=pk(S.progs); while(p.progB===p.progA&&S.progs.length>1);
+  p.leads=pk(S.leads);
+  p.mA=fMotif(p,rnd,p.progA,false); p.mA2=[...p.mA.slice(0,2),...fMotif(p,rnd,p.progA,true).slice(2)];
+  p.mB=fMotif(p,rnd,p.progB,false); p.mB2=[...p.mB.slice(0,2),...fMotif(p,rnd,p.progB,true).slice(2)];
+  const T=target||150, secs=[["intro",4,0],["A",8,1],["A",8,2],["B",8,2],["bridge",4,1],["A",8,3]];
+  let bars=secs.reduce((a,x)=>a+x[1],0)+4, k=0; while(bars*p.bs<T-p.bs*4&&k<12){ secs.push(k%2?["A",8,3]:["B",8,3]); bars+=8; k++; }
+  secs.push(["outro",4,0]); let at=0; p.secs=secs.map(([t,n,l])=>{ const x={t,n,lvl:l,at}; at+=n; return x; }); p.bars=at; p.len=at*p.bs+3.5;
+  return p;
+}
+function fBar(p,bar,t,b){   // schedules one bar of a piece
+  const sec=p.secs.find(x=>bar>=x.at&&bar<x.at+x.n); if(!sec) return; const i=bar-sec.at;
+  const B=sec.t==="B", prog=B?p.progB:p.progA, deg=sec.t==="outro"?0:sec.t==="intro"?(i<2?0:prog[i%4]):prog[i%4];
+  const mel=sec.t==="A"?(i<4?p.mA:p.mA2)[i%4]:B?(i<4?p.mB:p.mB2)[i%4]:sec.t==="bridge"?p.mB[i%4]:sec.t==="intro"&&i>=sec.n-2?p.mA[(i+2)%4]:null;
+  const inst=B||sec.t==="bridge"?p.leads[1]:p.leads[0], oct=LEAD_OCT[inst]??12;
+  const c={b,st:p.st,bs:p.bs,lvl:sec.t==="outro"?0:sec.lvl,i,n:sec.n,ch:fch(p,deg),sec:sec.t,bed:false,
+    lead:()=>{ if(!mel) return; let prev=null; const v=sec.lvl>=3?1:.85; mel.forEach(([pos,len,d])=>{ const m=fsd(p,d)+oct; fLead(b,inst,t+pos*p.st,m,len*p.st*.95,v,prev); if(sec.lvl>=3&&p.leads[0]!==p.leads[1]&&sec.t==="A") fLead(b,p.leads[1],t+pos*p.st,m+(LEAD_OCT[p.leads[1]]??12)-oct,len*p.st*.95,.5,prev); prev=m; }); }};
+  if(sec.t==="outro"&&i===sec.n-1){ FI.strings(b,t,fch(p,0).map(x=>x-12),p.bs*1.5,.5,{att:.2,rel:2}); [0,2,4,7,9,11,14].forEach((d,k)=>FI.harp(b,t+k*.08,fsd(p,d)+12,.45,(k-3)*.12)); M.bell(b,t+.6,p.key+24,2.5,.3,0); return; }
+  try{ p.S.bar(p,t,c); }catch(e){}
+}
+/* Ambience: forests, meadows, mountains, a cave, a tavern, a hearth. Continuous beds (wind, a stream, rain, a crowd) and
+   events (birds, crickets, owls, drips, a far-off eagle, a distant bell, glass clinks, a crackling fire), scheduled a second ahead. */
+const SCENE_GAIN={forest:2.2,meadow:3.5,night:4.5,cave:1.6,heights:3,mountain:1.7,tavern:2,hearth:2};   // evens the scenes out (about -32 dB at full)
+const AMB_SEC=[1,.6,.4,.32], SEC_GAIN=[1.8,1.15,1,.92];   // by section level (0 intro/outro .. 3 full): the ambience recedes as the music fills in, and the quiet sections come up a little
+const SCENES={forest:{wind:.45,leaves:.8,birds:9,stream:.7,owl:.6,shimmer:2},meadow:{wind:.35,birds:16,crickets:5,bell:.4},night:{wind:.3,crickets:10,owl:2,shimmer:2.5},
+  cave:{wind:.5,low:1,drips:14},heights:{wind:.6,birds:5,bell:1.2},mountain:{wind:1.1,low:.5,eagle:1.2},tavern:{murmur:1,clinks:7,fire:.5},hearth:{fire:1,rain:.8}};
+function ambBed(A,kind,lvl){ const n=ctx.createBufferSource(); n.buffer=noiseBuf; n.loop=true; n.start(ctx.currentTime,R()*1.5); A.src.push(n); const g=G(0); g.connect(A.bus);
+  if(kind==="wind"){ const bp=filt("bandpass",420,.6); n.connect(bp); bp.connect(g); return {g,f:bp.frequency,base:.05*lvl,lo:250,hi:900}; }
+  if(kind==="leaves"){ const hp=filt("highpass",3200); n.connect(hp); hp.connect(g); return {g,base:.012*lvl}; }
+  if(kind==="low"){ const lp=filt("lowpass",160); n.connect(lp); lp.connect(g); return {g,base:.12*lvl}; }
+  if(kind==="stream"){ const bp=filt("bandpass",2300,.5), hp=filt("highpass",800); n.connect(bp); bp.connect(hp); hp.connect(g); return {g,base:.03*lvl,flutter:true}; }
+  if(kind==="rain"){ const hp=filt("highpass",1800), lp=filt("lowpass",7000); n.connect(hp); hp.connect(lp); lp.connect(g); return {g,base:.022*lvl}; }
+  if(kind==="fire"){ const lp=filt("lowpass",300); n.connect(lp); lp.connect(g); return {g,base:.035*lvl}; }
+  if(kind==="murmur"){ const mix=G(1); for(const [f,q] of [[330,3],[720,4],[1450,5]]){ const bp=filt("bandpass",f,q); n.connect(bp); bp.connect(mix); } mix.connect(g); return {g,base:.06*lvl,flutter:true,slow:true}; }
+}
+const AMB_EV={
+  birds(A,t){ const sp=Math.floor(R()*3), p=pan(rr(-.8,.8)), g=ctx.createGain(); g.gain.value=0; p.connect(A.b.mu); g.connect(p); to(g,A.b,.25); const o=osc("sine",3000); o.connect(g); let tt=t;
+    const n=sp===2?2:ri(2,6); for(let k=0;k<n;k++){ const f0=sp===0?rr(2400,3200):sp===1?rr(3600,4200):(k?1900:2400), f1=sp===0?f0*rr(1.3,1.6):sp===1?f0*.9:f0*.92, d=sp===1?.05:sp===0?rr(.06,.12):.22;
+      o.frequency.setValueAtTime(f0,tt); o.frequency.exponentialRampToValueAtTime(f1,tt+d); g.gain.setValueAtTime(.0001,tt); g.gain.linearRampToValueAtTime(.014,tt+.01); g.gain.linearRampToValueAtTime(.0001,tt+d); tt+=d+(sp===1?.03:rr(.05,.16)); }
+    o.start(t); o.stop(tt+.1); },
+  crickets(A,t){ const o=osc("sine",rr(4200,4700)), g=ctx.createGain(), p=pan(rr(-.7,.7)); g.gain.value=0; o.connect(g); g.connect(p); p.connect(A.b.mu); let tt=t;
+    for(let c=0;c<ri(2,5);c++){ for(let k=0;k<3;k++){ g.gain.setValueAtTime(.006,tt); g.gain.setValueAtTime(0,tt+.018); tt+=.034; } tt+=rr(.25,.4); } o.start(t); o.stop(tt+.05); },
+  owl(A,t){ const g=ctx.createGain(), lp=filt("lowpass",900), p=pan(rr(-.6,.6)); g.gain.value=0; lp.connect(g); g.connect(p); p.connect(A.b.mu); to(g,A.b,.6); const o=osc("sine",370); o.connect(lp); let tt=t;
+    for(let k=0;k<ri(2,4);k++){ const d=k===1?.2:.38; o.frequency.setValueAtTime(380,tt); o.frequency.exponentialRampToValueAtTime(335,tt+d); g.gain.setValueAtTime(.0001,tt); g.gain.linearRampToValueAtTime(.022,tt+.06); g.gain.linearRampToValueAtTime(.0001,tt+d); tt+=d+(k===0?.15:.3); }
+    o.start(t); o.stop(tt+.1); },
+  shimmer(A,t){ const pent=[0,2,4,7,9], k0=A.key||62; for(let k=0;k<ri(3,5);k++) M.bell(A.b,t+k*rr(.14,.3),k0+24+pent[ri(0,4)]+(R()<.4?12:0),1.4,.12,rr(-.6,.6)); },
+  drips(A,t){ const f=rr(1100,2100), o=osc("sine",f), g=ctx.createGain(), p=pan(rr(-.7,.7)); o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*.55,t+.05); env(g,t,.001,.03,.08); o.connect(g); g.connect(p); p.connect(A.b.mu); to(g,A.b,1); o.start(t); o.stop(t+.15); },
+  eagle(A,t){ const o=osc("sawtooth",2300), lp=filt("lowpass",2600), g=ctx.createGain(), lfo=osc("sine",22), lg=G(60), p=pan(rr(-.7,.7)); lfo.connect(lg); lg.connect(o.frequency);
+    o.frequency.setValueAtTime(2300,t); o.frequency.exponentialRampToValueAtTime(1400,t+1); g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(.005,t+.08); g.gain.exponentialRampToValueAtTime(.0001,t+1.05);
+    o.connect(lp); lp.connect(g); g.connect(p); p.connect(A.b.mu); to(g,A.b,1.2); o.start(t); lfo.start(t); o.stop(t+1.1); lfo.stop(t+1.1); },
+  bell(A,t){ M.bell(A.b,t,(A.key||62)+rr(0,1)*0+12,2.6,.18,rr(-.5,.5)); M.bell(A.b,t+1.4,(A.key||62)+7,2.6,.12,rr(-.5,.5)); },
+  clinks(A,t){ const m=ri(94,100); M.bell(A.b,t,m,.12,.14,rr(-.6,.6)); if(R()<.6) M.bell(A.b,t+rr(.06,.12),m+ri(-2,3),.1,.1,rr(-.6,.6)); },
+  fire(A,t){ for(let k=0;k<ri(2,7);k++){ const tt=t+R()*.9, n=nz(tt,.01), hp=filt("highpass",rr(1500,4000)), g=ctx.createGain(), p=pan(rr(-.4,.4)); env(g,tt,.0005,rr(.02,.06),.006); n.connect(hp); hp.connect(g); g.connect(p); p.connect(A.b.mu); } },
+};
+function ambNew(scene,key,level){
+  const sc=SCENES[scene]||SCENES.forest, out=G(.0001); out.connect(fg().in);
+  const A={scene,key,out,b:makeBus(out,fg().rev),bus:null,src:[],beds:[],next:0,level:level??1,sg:SCENE_GAIN[scene]??2,dead:false}; A.bus=A.b.bus;
+  for(const k of ["wind","leaves","low","stream","rain","fire","murmur"]) if(sc[k]) A.beds.push(ambBed(A,k,sc[k]));
+  A.ev=Object.keys(AMB_EV).filter(k=>sc[k]).map(k=>[k,sc[k]]); A.next=ctx.currentTime; return A;
+}
+function ambRun(A,until){   // schedules the scene up to `until` (live: a second ahead; offline: the whole render)
+  while(A.next<until){ const t=A.next, w=Math.min(1,until-t), sl=x=>x.slow?.9:.18;
+    for(const x of A.beds){ const v=x.base*(x.flutter?rr(.7,1.15):rr(.55,1.25)); x.g.gain.setTargetAtTime(v,t,x.f?1.2:sl(x)); if(x.f) x.f.setTargetAtTime(rr(x.lo,x.hi),t,1.5); }
+    for(const [k,rate] of A.ev) if(R()<rate*w/60) try{ AMB_EV[k](A,t+R()*w); }catch(e){}
+    A.next+=w; }
+}
+function ambFade(A,v,sec){ if(!A||!ctx) return; try{ fadeTo(A.out.gain,Math.max(.0001,v*A.sg),sec,ctx.currentTime); }catch(e){} }
+function ambKill(A,sec){ if(!A||A.dead) return; A.dead=true; ambFade(A,.0001,sec); setTimeout(()=>{ for(const s of A.src) try{ s.stop(); }catch(e){} try{ A.out.disconnect(); }catch(e){} },sec*1000+200); }
+/* Show music: every show, ad and ID gets its own style's theme (a few bars of the style, always the same for that
+   style, ending on a hit), a bed (the accompaniment, softly), stingers and a closing cadence. */
+const FCUE={}; function fCueP(style){ return FCUE[style]||(FCUE[style]=fPiece(style,[...style].reduce((a,c)=>a*31+c.charCodeAt(0),7)>>>0,60)); }
+const F_STINGS=[
+  (p,b,t)=>{ const ch=fch(p,0); [0,2,4,7,9,11,14].forEach((d,k)=>FI.harp(b,t+k*.05,fsd(p,d)+12,.6,(k-3)*.12)); FI.strings(b,t+.35,ch.map(x=>x-12),.9,.8,{att:.05,rel:.8}); M.bell(b,t+.35,p.key+24,1.2,.35,0); return 1.8; },
+  (p,b,t)=>{ const ch=fch(p,0), m=fsd(p,4)+12; [[0,m,.14],[.16,m,.14],[.32,fsd(p,7)+12,.7]].forEach(([d,x,l])=>FI.horn(b,t+d,[x,x-7],l,.9)); FI.drum(b,t+.32,1,52); PI.timp(b,t+.32,p.key-24,.8); return 1.6; },
+  (p,b,t)=>{ for(let k=0;k<6;k++) FI.drum(b,t+k*.09,.35+k*.1,60); M.brass(b,t+.55,fch(p,0),.8,.8); FI.drum(b,t+.55,1,48); D.crash(b,t+.55,.5); return 1.7; },
+  (p,b,t)=>{ [0,2,4,7].forEach((d,k)=>PI.lute(b,t+k*.07,fsd(p,d)+12,.8)); FI.tamb(b,t+.3,.8,true); PI.flute(b,t+.3,fsd(p,7)+12,.7,1); M.bell(b,t+.3,p.key+24,.9,.3,0); return 1.4; },
+  (p,b,t)=>{ M.organ(b,t,fch(p,0).map(x=>x-12),1.2,.8,1); FI.chant(b,t,fsd(p,4)-12,1.1,.9,"o"); M.bell(b,t,p.key+12,1.6,.35,0); return 1.6; },
+];
+const F_STYLE_STINGS={elven:[0,3,4],halfling:[3,0,2],tavern:[3,2,0],council:[4,0,1],evil:[4,2,1],herald:[1,0,2],orders:[1,2],battle:[2,1],lament:[0,3],procession:[1,3,2]};
+const F_STING_GAIN=[2.5,1,.6,1.4,1.25], F_BED_GAIN={elven:2,lament:2,halfling:.8,tavern:.75,evil:.32,orders:.3,battle:.17};   // measured: every sting about the same loudness, every bed about -29 dB under the voices
+const F_CUE_GAIN={battle:1,orders:1,evil:1.1,council:1.15,elven:1.25,lament:1.3,herald:1.05,halfling:1,tavern:1,procession:1};
+function fCue(style,kind,t,level=1){   // plays one cue; returns its length in seconds
+  const p=fCueP(style), gn=(F_CUE_GAIN[style]??1)*level;
+  if(kind==="theme"){ const b=fBus(gn), n=Math.max(2,Math.min(4,Math.floor(7/p.bs))), at=p.secs.find(x=>x.t==="A"&&x.lvl===3).at;
+    for(let k=0;k<n;k++) fBar(p,at+k,t+k*p.bs,b); const e=t+n*p.bs; FI.strings(b,e,fch(p,0).map(x=>x-12),1.4,.9,{att:.03,rel:1}); M.bell(b,e,p.key+24,1.6,.35,0); FI.drum(b,e,.8,50); return n*p.bs+1.6; }
+  if(kind==="sting"||kind==="id"){ const list=kind==="id"?[1,0]:F_STYLE_STINGS[style]||[0], key=kind+style; let dk=fStingDeck[key]; if(!dk||!dk.length) dk=fStingDeck[key]=[...list].sort(()=>R()-.5);
+    const i=dk.pop(); return F_STINGS[i](kind==="id"?fCueP("herald"):p,fBus((kind==="id"?F_CUE_GAIN.herald:gn)*F_STING_GAIN[i]),t); }
+  if(kind==="outro"){ const b=fBus(gn); const d=p.progA[3]; fBar({...p},p.secs.find(x=>x.t==="A"&&x.lvl===3).at+3,t,b); const e=t+p.bs; FI.strings(b,e,fch(p,0).map(x=>x-12),1.8,.9,{att:.05,rel:1.4}); [0,2,4,7].forEach((x,k)=>FI.harp(b,e+k*.06,fsd(p,x)+12,.5)); FI.drum(b,e,.7,50); M.bell(b,e,p.key+24,2,.3,0); void d; return p.bs+2.2; }
+  return 0;
+}
+const fStingDeck={};
+// the bed under talk: the style's accompaniment, a bar at a time, softly, stopping by itself after 50 seconds
+function fBedOn(st,style,t0){ if(!st||st.bed) return; const p=fCueP(style), b=fBus(.0001), bed={b,p,next:t0,bar:0,stop:false,until:Date.now()+50000};
+  b.gain.gain.setValueAtTime(.0001,ctx.currentTime); b.gain.gain.linearRampToValueAtTime(.32*(F_CUE_GAIN[style]??1)*(F_BED_GAIN[style]??1),t0+.8); st.bed=bed;
+  const at=p.secs.find(x=>x.t==="A"&&x.lvl===2).at;
+  const pump=()=>{ if(bed.stop||!ctx||st.dead) return fBedOff(st,1.5,bed); if(Date.now()>bed.until) return fBedOff(st,3,bed);
+    while(bed.next<ctx.currentTime+1.5){ const t=Math.max(bed.next,ctx.currentTime+.05); const c={b,st:p.st,bs:p.bs,lvl:2,i:bed.bar%8,n:8,ch:fch(p,p.progA[bed.bar%4]),sec:"A",bed:true,lead:()=>{}}; try{ p.S.bar(p,t,c); }catch(e){} bed.bar++; bed.next=t+p.bs; }
+    bed.t=setTimeout(pump,400); };
+  pump(); }
+function fBedOff(st,fade=1.6,which){ const bed=which||(st&&st.bed); if(!bed) return; if(st&&st.bed===bed) st.bed=null; if(bed.off) return; bed.off=bed.stop=true; clearTimeout(bed.t);
+  try{ fadeTo(bed.b.gain.gain,.0001,fade,ctx.currentTime); }catch(e){} setTimeout(()=>{ try{ bed.b.gain.disconnect(); }catch(e){} },fade*1000+4000); }
+/* The station: piece, then (every piece or two) a break, then the next piece. Breaks are a list of lines played one at
+   a time (like PTLK), so a station ID can cut in between lines; music cues, nowplaying and the Save recording ride along. */
+const fairTypes=FAIRE?Object.fromEntries([...FAIRE.shows.map(s=>s.id),"joust","ponies","news","ads","callers","ids","amb"].map(k=>[k,true])):{};
+let fair=null;
+function fairCast(extra){ return talkCast({crier:FAIRE.HOSTS.crier,bard:FAIRE.HOSTS.bard,herald:FAIRE.HOSTS.herald,...extra}); }
+function fairStyleNext(){ const st=fair; let c=FS_KEYS.filter(k=>!st.recent.includes(k)); if(!c.length) c=FS_KEYS; const s=pick(c); st.recent.push(s); while(st.recent.length>4) st.recent.shift(); return s; }
+function fairMakeNext(){ const st=fair; if(!st||st.next) return st&&st.next; const style=fairStyleNext(), p=fPiece(style,Math.floor(R()*4294967296),rr(125,165));
+  p.title=FAIRE.piece(); p.artist=FAIRE.artist(); st.next=p; return p; }
+function fairOn(){ fairOff(); if(!FAIRE) return; fair={n:0,recent:[],next:null,piece:null,lines:null,i:0,cast:null,since:0,gap:1,bed:null,dead:false,amb:null,mode:"talk",talkRecent:[],t:0};
+  const st=fair; fairMakeNext(); const L=[]; if(fairTypes.ids) L.push(["music","id"],["crier",FAIRE.ids()]); L.push(["piece"]); if(fairTypes.ids) L.push(["pause",2500],["bard",FAIRE.bardIntro(fairNp(st.next))]);
+  st.t=setTimeout(()=>fairRun(st,L),600); }
+function fairOff(){ const st=fair; if(!st) return; st.dead=true; clearTimeout(st.t); clearTimeout(st.pt); fBedOff(st,.8); fairPieceEnd(st,1.2,true); ambKill(st.amb,1.2); st.amb=null; fair=null; }
+const fairNp=p=>({title:p.title,artist:p.artist});
+function fairAmb(st,scene,key){ if(!fairTypes.amb){ if(st.amb){ ambKill(st.amb,2); st.amb=null; } return; }
+  if(st.amb&&st.amb.scene===scene) return; const old=st.amb; st.amb=ambNew(scene,key); ambFade(st.amb,1,4); if(old) ambKill(old,4);
+  const A=st.amb, run=()=>{ if(A.dead||st.dead) return; ambRun(A,ctx.currentTime+1.2); A.t=setTimeout(run,500); }; run(); }
+function fairAmbLevel(st,v,sec=2){ if(st&&st.amb) ambFade(st.amb,v,sec); }
+function fairPieceStart(st){ const p=fairMakeNext(); st.next=null; if(!p) return; st.mode="piece"; const t0=ctx.currentTime+.15;
+  const b=fBus(.0001), lv0=p.S.gain*SEC_GAIN[0]; b.gain.gain.setValueAtTime(.0001,ctx.currentTime); b.gain.gain.linearRampToValueAtTime(lv0,t0+.3);
+  const pc={p,b,next:t0,bar:0,t0,done:false,lv:lv0,pend:[]}; st.piece=pc; st.since++;
+  fairAmb(st,p.S.scene,p.key); fairAmbLevel(st,1,2);
+  nowPlaying={station:"hearye",title:p.title,style:p.name,artist:p.artist,bpm:p.bpm}; emit("nowplaying",nowPlaying);
+  const pump=()=>{ if(st.dead||st.piece!==pc) return;
+    while(pc.bar<p.bars&&pc.next<ctx.currentTime+1.6){ const sec=p.secs.find(x=>pc.bar>=x.at&&pc.bar<x.at+x.n); if(sec&&pc.bar===sec.at&&pc.bar>0) pc.pend.push([pc.next,sec.t==="outro"?0:sec.lvl]);
+      fBar(p,pc.bar,pc.next,b); pc.bar++; pc.next+=p.bs; }
+    while(pc.pend.length&&pc.pend[0][0]<=ctx.currentTime+.05){ const l=pc.pend.shift()[1]; pc.lv=p.S.gain*SEC_GAIN[l]; if(!pc.duck) fadeTo(b.gain.gain,pc.lv,2,ctx.currentTime); if(st.mode==="piece") fairAmbLevel(st,AMB_SEC[l],3); }
+    if(pc.bar>=p.bars){ if(ctx.currentTime>pc.next+2.4){ fairPieceEnd(st,.5); fairAfterPiece(st); return; } }
+    st.pt=setTimeout(pump,300); };
+  pump(); }
+function fairPieceEnd(st,fade,quiet){ const pc=st&&st.piece; if(!pc) return; st.piece=null; clearTimeout(st.pt); try{ fadeTo(pc.b.gain.gain,.0001,fade,ctx.currentTime); }catch(e){} setTimeout(()=>{ try{ pc.b.gain.disconnect(); }catch(e){} },fade*1000+4500); st.last=pc.p; void quiet; }
+function fairAfterPiece(st){ if(st.dead||!on) return; st.mode="talk"; const prev=st.last, nx=fairMakeNext(), L=[], talky=Object.keys(fairTypes).some(k=>k!=="ids"&&k!=="amb"&&fairTypes[k]);
+  if(talky&&st.since>=st.gap){ st.since=0; st.gap=R()<.45?1:2;
+    if(fairTypes.ids&&prev) L.push(["bard",FAIRE.bardBack(fairNp(prev))]);
+    if(fairTypes.ids&&R()<.5) L.push(["music","id"],["crier",FAIRE.ids()]);
+    L.push(...fairSegment(st));
+    if(fairTypes.ids) L.push(["piece"],["pause",2500],["bard",FAIRE.bardIntro(fairNp(nx))]); else L.push(["piece"]); }
+  else if(fairTypes.ids&&prev&&R()<.4) L.push(["bard",FAIRE.bardBack(fairNp(prev))],["piece"],["pause",2500],["bard",R()<.5?FAIRE.bardIntro(fairNp(nx)):FAIRE.bridge()]);
+  else L.push(["pause",1500],["piece"]);
+  fairRun(st,L); }
+// one talk segment (a show, the joust, the ponies, the news, a caller or an ad block), with its music, and maybe ads after
+function fairSegment(st){
+  const W=[]; const shows=FAIRE.shows.filter(s=>fairTypes[s.id]&&!st.talkRecent.includes(s.id));
+  if(shows.length) W.push(["show",4]); if(fairTypes.joust) W.push(["joust",1.1]); if(fairTypes.ponies) W.push(["ponies",.9]); if(fairTypes.callers) W.push(["callers",1.4]); if(fairTypes.ads) W.push(["ads",1.3]);
+  if(fairTypes.news&&Date.now()-(st.lastNews||0)>20*60e3) W.push(["news",1.2]);
+  if(!W.length) return []; let r=R()*W.reduce((a,x)=>a+x[1],0), k=W[0][0]; for(const [x,w] of W){ if((r-=w)<=0){ k=x; break; } }
+  let L=[];
+  if(k==="show"){ const s=pick(shows); st.talkRecent.push(s.id); while(st.talkRecent.length>Math.min(3,FAIRE.shows.length-1)) st.talkRecent.shift(); L=fairShowLines(FAIRE.show(s.id)); }
+  else if(k==="joust") L=fairShowLines(FAIRE.joust()); else if(k==="ponies") L=fairShowLines(FAIRE.ponies());
+  else if(k==="callers"){ const c=FAIRE.caller(); L=[["style","lament"],["np",{title:"Call-in",style:"The Bard's Hearth",artist:FAIRE.HOSTS.bard.name}],["rec",{show:"The Bard's Hearth",title:"Call-in",hosts:FAIRE.HOSTS.bard.name}],["cast",c.cast],["music","sting"],["music","bedOn"],...c.lines,["music","bedOff"],["recstop"]]; }
+  else if(k==="news"){ st.lastNews=Date.now(); L=[["style","herald"],["np",{title:"Tidings of the realm",style:"Realm news",artist:FAIRE.HOSTS.herald.name}],["rec",{show:"Realm news",title:"Tidings of the realm",hosts:FAIRE.HOSTS.herald.name}],["music","theme"],["herald",FAIRE.heraldOpen()],["news"],["music","bedOn"],["herald",FAIRE.heraldClose()],["music","outro"],["recstop"]]; }
+  if(k!=="ads"&&fairTypes.ads&&R()<.45) L.push(...fairAdLines(R()<.6?1:2));
+  if(k==="ads") L=fairAdLines(R()<.5?2:3);
+  return L;
+}
+function fairAdLines(n){ const L=[["crier",FAIRE.adIntro()]]; for(let i=0;i<n;i++){ const a=FAIRE.ad(), sty=pick(["tavern","halfling","procession","herald","lament","council"]);
+    L.push(["style",sty],["np",{title:a.title,style:"Ad",artist:"A word from our patrons"}],["rec",{show:"Ad",title:a.title,hosts:"Hear Ye patrons",ad:true}],["cast",a.cast],["music","sting"],["music","bedOn"],...a.lines,["music","bedOff"],["recstop"]); }
+  return L; }
+// a scripted show (or the joust, or the ponies): the crier's intro, the theme with its bed under the opening lines, a stinger at every segment break, the bed back under the sign-off, the closing cadence
+function fairShowLines(ep){ const spoken=l=>!["sfx","music","pause","seg"].includes(l[0]), L=[["style",ep.style],["np",{title:ep.title,style:ep.show,artist:ep.hosts}],["rec",{show:ep.show,title:ep.title,hosts:ep.hosts}],["cast",ep.cast]];
+  const open=ep.open||[`Hear ye! It is time for ${ep.show}.`];
+  L.push(["crier",open[0]],["music","theme"]); if(open[1]) L.push(["crier",open[1]]);
+  const body=[]; for(const l of ep.lines){ const m=l[0]==="seg"?["music","sting"]:l; if(m[0]==="music"&&(!body.length||body[body.length-1][0]==="music")) continue; body.push(m); }
+  let i2=-1, k=0; for(let i=0;i<body.length;i++) if(spoken(body[i])&&++k===1){ i2=i; break; }
+  let last=-1; for(let i=body.length-1;i>=0;i--) if(spoken(body[i])){ last=i; break; }
+  body.forEach((l,i)=>{ if(i===last&&i>i2+1) L.push(["music","bedOn"]); L.push(l); if(i===i2) L.push(["music","bedOff"]); });
+  L.push(["music","outro"]); if(ep.close) L.push(["crier",ep.close]); L.push(["recstop"]); return L; }
+function fairRun(st,L){ if(st.dead) return; st.lines=L; st.i=0; st.n++; st.cast=fairCast({}); st.style=st.style||"herald"; fairStep(st,st.n); }
+function fairStep(st,n){
+  if(st.dead||n!==st.n||!on) return;
+  if(st.i>=st.lines.length){ fBedOff(st,1); if(REC&&REC.sp&&REC.sp.station==="hearye") recStop(); speaking=false; return; }
+  const line=st.lines[st.i++], nx=d=>{ st.t=setTimeout(()=>fairStep(st,n),Math.max(0,d)); };
+  if(line[0]==="piece"){ speaking=false; fBedOff(st,1.2); fairPieceStart(st); nx(0); return; }
+  if(line[0]==="style"){ st.style=line[1]; nx(0); return; }
+  if(line[0]==="cast"){ st.cast=fairCast(line[1]||{}); nx(0); return; }
+  if(line[0]==="np"){ nowPlaying={station:"hearye",bpm:null,talk:true,...line[1]}; emit("nowplaying",nowPlaying); nx(0); return; }
+  if(line[0]==="rec"){ const sp={kind:"hearye",station:"hearye",...line[1]}; emit("spot",sp); recStart(sp); st.mode="talk"; fairAmbLevel(st,.25,2); nx(0); return; }
+  if(line[0]==="recstop"){ fBedOff(st,1.2); if(REC&&REC.sp&&REC.sp.station==="hearye") recStop(); nx(300); return; }
+  if(line[0]==="music"){ const t=ctx.currentTime+.05, k=line[1]; let d=0;
+    try{ if(k==="bedOn"){ fBedOn(st,st.style,t); d=1200; } else if(k==="bedOff"){ fBedOff(st,2.4); d=100; }
+      else if(k==="theme"){ const len=fCue(st.style,"theme",t); fBedOn(st,st.style,t+len-1.2); d=Math.max(1,len-.8)*1000; }
+      else if(k==="outro"){ fBedOff(st,.8); d=(fCue(st.style,"outro",t)+.2)*1000; }
+      else { if(st.piece){ st.piece.duck=true; fadeTo(st.piece.b.gain.gain,st.piece.lv*.3,.4,ctx.currentTime); } d=fCue(st.style,k,t)*800; } }catch(e){}
+    nx(d); return; }
+  if(line[0]==="news"){ speaking=true; Promise.resolve().then(async()=>{ let d=null; if(typeof opts.news==="function") d=await within(opts.news(),8000);
+      const items=d&&Array.isArray(d.items)?d.items:[], ls=(items.length&&FAIRE.news(items,sayName))||FAIRE.proclamations();
+      if(st.dead||n!==st.n) return; st.lines.splice(st.i,0,...ls.flatMap((l,j)=>j&&j%3===0?[["music","sting"],l]:[l])); fairStep(st,n); }).catch(()=>{ if(!st.dead&&n===st.n) fairStep(st,n); }); return; }
+  speaking=true; let l=line; if(typeof l[1]==="string"&&l[0]!=="sfx"&&l[0]!=="pause"){ const v=spelled(l[1]); if(v!==l[1]) l=[l[0],{say:l[1],show:v}]; }
+  if(st.piece&&!st.bed&&l[0]!=="pause"&&l[0]!=="sfx"){ st.piece.duck=true; fadeTo(st.piece.b.gain.gain,st.piece.lv*.45,.5,ctx.currentTime); }   // the bard talks over the start of a piece: it dips under him
+  speakLines([l],st.cast,()=>{ if(st.dead||n!==st.n) return; const pc=st.piece; if(pc&&st.i>=st.lines.length){ pc.duck=false; fadeTo(pc.b.gain.gain,pc.lv,1.5,ctx.currentTime); } fairStep(st,n); });
+}
+function fairId(){ const st=fair; if(!on||station!=="hearye"||!st||!fairTypes.ids) return; const line=FAIRE.ids(); emit("spot",{kind:"id",station:"hearye",text:line});
+  if(st.lines&&st.i<st.lines.length&&speaking){ st.lines.splice(st.i,0,["music","id"],["crier",line]); return; }
+  if(speaking) return; speaking=true; const pc=st.piece, g=gen; if(pc){ pc.duck=true; fadeTo(pc.b.gain.gain,pc.lv*.3,.5,ctx.currentTime); }
+  const d=fCue("herald","id",ctx.currentTime+.05);
+  setTimeout(()=>{ if(g!==gen||st.dead) { speaking=false; return; } speakLines([["crier",line]],st.cast||fairCast({}),()=>{ speaking=false; if(pc&&st.piece===pc){ pc.duck=false; fadeTo(pc.b.gain.gain,pc.lv,1.5,ctx.currentTime); } }); },d*800); }
+function fairSkip(){ const st=fair; if(!on||!st) return; if(st.piece&&!speaking){ fairPieceEnd(st,2); st.n++; fairAfterPiece(st); return; }
+  gen++; hush(); fBedOff(st,.6); recStop(true); st.n++; fairPieceEnd(st,1.5); fairRun(st,[["pause",800],["piece"]]); }
+function fairSetTypes(){ const st=fair; if(!st) return; if(!fairTypes.amb&&st.amb){ ambKill(st.amb,2); st.amb=null; } else if(fairTypes.amb&&!st.amb&&st.piece) fairAmb(st,st.piece.p.S.scene,st.piece.p.key); }
+// "Save" on HEARYE: the piece on air, rendered again from the top (with its ambience), brought up to -1 dBFS
+async function renderFaire(p){ const secs=Math.min(400,p.len+1); const buffer=await renderOffline("fpiece",secs,p);
+  let pk=0; for(let c=0;c<2;c++){ const d=buffer.getChannelData(c); for(let i=0;i<d.length;i++){ const a=Math.abs(d[i]); if(a>pk) pk=a; } }
+  const k=pk>0?Math.min(8,.89/pk):1; for(let c=0;c<2;c++){ const d=buffer.getChannelData(c); for(let i=0;i<d.length;i++) d[i]*=k; } return buffer; }
 function setOn(v){
   if(v===on) return; on=v; gen++;
   if(v){ iosPlayback(true); primeSpeech(); if(!ctx) init(opts.audioContext); try{ const pr=ctx.resume(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){} watchAudio(); const t=ctx.currentTime; fadeTo(master.gain,(opts.volume??1)*VOL,.4,t);
     if(bed){ bed.stopped=true; try{ bed.bus.disconnect(); }catch(e){} bed=null; } fadeTo(musicDuck.gain,1,.3,t);   // restarted before the stop finished: the old break is gone
-    if(station==="wybc"&&AMB()){ clearInterval(timer); timer=0; wybcOn(); } else if(station==="ptlk"&&TALK){ clearInterval(timer); timer=0; ptlkOn(); } else { station="mdfm"; if(!songs.length){ startSong(t+.1,0); lastSpot=t-999; } clearInterval(timer); timer=setInterval(tick,40); tick(); } }
-  else if(ctx){ iosPlayback(false); recStop(true); wybcOff(.3); ptlkOff(); const t=ctx.currentTime; fadeTo(master.gain,0,.3,t); clearInterval(timer); try{speechSynthesis.cancel();}catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
+    if(station==="wybc"&&AMB()){ clearInterval(timer); timer=0; wybcOn(); } else if(station==="ptlk"&&TALK){ clearInterval(timer); timer=0; ptlkOn(); } else if(station==="hearye"&&FAIRE){ clearInterval(timer); timer=0; fairOn(); } else { station="mdfm"; if(!songs.length){ startSong(t+.1,0); lastSpot=t-999; } clearInterval(timer); timer=setInterval(tick,40); tick(); } }
+  else if(ctx){ iosPlayback(false); recStop(true); wybcOff(.3); ptlkOff(); fairOff(); const t=ctx.currentTime; fadeTo(master.gain,0,.3,t); clearInterval(timer); try{speechSynthesis.cancel();}catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
     const c=ctx,md=musicDuck; setTimeout(()=>{ if(!on){ for(const s of songs) try{s.bus.disconnect();}catch(e){} songs=[]; if(bed){ try{bed.bus.disconnect();}catch(e){} bed=null; } fadeTo(md.gain,1,.01,c.currentTime); c.suspend(); } },400); }
   emit(v?"start":"stop");
 }
@@ -1565,6 +1965,15 @@ async function renderOffline(kind,secs,arg){
     if(arg.cue==="theme") S.theme.call(S,ptBus(gn),.1,k); else if(arg.cue==="outro") S.outro.call(S,ptBus(gn),.1,k);
     else if(arg.cue==="bed"){ const b=ptBus(.3*(PT_BED_GAIN[arg.style]??1)); let t=.1,bar=0; while(t<secs-1.5) t+=S.bed.call(S,b,t,bar++,k); }
     else S.stings[arg.i|0](ptBus(gn*(PT_STING_GAIN[arg.style]??1)),.1,k); }   // a show's sound effect, for episode exports
+  else if(kind==="fpiece"){ const p=fPiece(arg.style,arg.seed,arg.target), b=fBus(p.S.gain); let t=.1;   // a HEARYE piece, from its seed, with its ambience (from: a bar to start at, for checks)
+    for(let i=arg.from||0;i<p.bars&&t<secs;i++){ fBar(p,i,t,b); t+=p.bs; }
+    for(const x of p.secs) if(x.at>=(arg.from||0)) b.gain.gain.setTargetAtTime(p.S.gain*SEC_GAIN[x.t==="outro"?0:x.lvl],.1+(x.at-(arg.from||0))*p.bs,.8);
+    if(arg.amb!==false){ const A=ambNew(p.S.scene,p.key); A.out.gain.setValueAtTime(.0001,0); A.out.gain.linearRampToValueAtTime(A.sg,2.5); for(const x of p.secs) if(x.at>=(arg.from||0)) A.out.gain.setTargetAtTime(A.sg*AMB_SEC[x.t==="outro"?0:x.lvl],.1+(x.at-(arg.from||0))*p.bs,1); ambRun(A,secs-.3); }
+    master.gain.setValueAtTime(VOL,Math.max(.2,secs-2)); master.gain.linearRampToValueAtTime(0,secs-.05); }
+  else if(kind==="fcue"){ const p=fCueP(arg.style), gn=F_CUE_GAIN[arg.style]??1;   // HEARYE show music, for tests and level checks
+    if(arg.cue==="bed"){ const b=fBus(.32*gn*(F_BED_GAIN[arg.style]??1)), at=p.secs.find(x=>x.t==="A"&&x.lvl===2).at; let t=.1, k=0; while(t<secs-1){ p.S.bar(p,t,{b,st:p.st,bs:p.bs,lvl:2,i:k%8,n:8,ch:fch(p,p.progA[k%4]),sec:"A",bed:true,lead:()=>{}}); t+=p.bs; k++; } void at; }
+    else if(arg.cue==="sting"&&arg.i!=null) F_STINGS[arg.i](p,fBus(gn*F_STING_GAIN[arg.i]),.1); else fCue(arg.style,arg.cue,.1); }
+  else if(kind==="famb"){ const A=ambNew(arg.scene,62); A.out.gain.value=A.sg; ambRun(A,secs-.2); }
   rendering=oc.startRendering(); }finally{ ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE,voiceIn,extDuck,recIn,ST}=keep); }   // restore before the await: the live station keeps ticking meanwhile
   return await rendering;
 }
@@ -1574,8 +1983,8 @@ return {
   stop(){ setOn(false); },
   toggle(){ setOn(!on); return on; },
   isOn(){ return on; },
-  skip(){ if(station==="ptlk"){ ptlkSkip(); return; } if(station==="wybc"){ if(on&&amb){ const a=amb; amb=null; ambRetire(a,4); ambStart(4); } return; } for(const s of songs) if(!s.handed) s.step=Math.max(s.step,(s.bars-4)*16-1); },
-  spotNow(kind){ if(station==="ptlk"){ ptlkId(); return; } if(station==="wybc"){ wybcId(true); return; } spot(kind); },
+  skip(){ if(station==="ptlk"){ ptlkSkip(); return; } if(station==="hearye"){ fairSkip(); return; } if(station==="wybc"){ if(on&&amb){ const a=amb; amb=null; ambRetire(a,4); ambStart(4); } return; } for(const s of songs) if(!s.handed) s.step=Math.max(s.step,(s.bars-4)*16-1); },
+  spotNow(kind){ if(station==="ptlk"){ ptlkId(); return; } if(station==="hearye"){ fairId(); return; } if(station==="wybc"){ wybcId(true); return; } spot(kind); },
   setDuck(v){ v=Math.max(0,Math.min(1,+v)); if(!Number.isFinite(v)) return; duckLevel=v; if(ctx&&extDuck){ const t=ctx.currentTime; extDuck.gain.cancelScheduledValues(t); extDuck.gain.setTargetAtTime(Math.max(v,0),t,v<1?.08:.35); } },   // 0..1 over everything (music and DJ), eased
   setProviders(p){ for(const k of ["weather","sports","news","tts","cannedFallback","headlines"]) if(k in p) opts[k]=p[k]; wxCache=spCache=null; },   // kind optional: "weather" | "sports"
   stingNow(){ voiceSting(); },
@@ -1603,6 +2012,7 @@ return {
   renderOffline,
   /* "Save song": renders the song on air again, from the top, off the live audio path, and returns {buffer, info}. */
   async renderSong(){ if(station==="ptlk") return null;   // talk saves as a recording (onAir / recordBreak), in the apps
+    if(station==="hearye"){ const p=fair&&(fair.piece?fair.piece.p:fair.last); if(!p) return null; const buffer=await renderFaire(p); return {buffer,info:{station:"hearye",stationName:"HEARYE 95.5",title:p.title,artist:p.artist,style:p.name,bpm:p.bpm,key:`${NOTE_NAMES[p.key%12]} ${p.mode}`}}; }
     if(station==="wybc"){ if(!nowPlaying||nowPlaying.station!=="wybc") return null; const buffer=await renderAmbient(150); return buffer&&{buffer,info:{...nowPlaying,stationName:"WYBC 88.1"}}; }
     const live=[...songs].reverse().find(x=>x.recipe&&nowPlaying&&x.title===nowPlaying.title)||[...songs].reverse().find(x=>x.recipe);
     if(!live) return null; const secs=Math.min(600,live.bars*16*live.sp+3);
@@ -1629,8 +2039,9 @@ return {
   nextStation(){ return stepStation(1); },
   prevStation(){ return stepStation(-1); },
   stationTypeList(id){ return (STATION_TYPES[id]||[]).map(x=>[...x]); },   // MDFM's own list is window.MDFM_TYPES / setTypes
-  getStationTypes(id){ return id==="wybc"?{...wybcTypes}:id==="ptlk"?{...ptlkTypes}:{...TYPES}; },
+  getStationTypes(id){ return id==="wybc"?{...wybcTypes}:id==="ptlk"?{...ptlkTypes}:id==="hearye"?{...fairTypes}:{...TYPES}; },
   setStationTypes(id,t){ if(id==="ptlk"){ for(const [k] of STATION_TYPES.ptlk) if(t&&k in t) ptlkTypes[k]=!!t[k]; return; }
+    if(id==="hearye"){ for(const [k] of STATION_TYPES.hearye) if(t&&k in t) fairTypes[k]=!!t[k]; fairSetTypes(); return; }
     if(id!=="wybc"){ this.setTypes(t); return; } for(const [k] of STATION_TYPES.wybc) if(t&&k in t) wybcTypes[k]=!!t[k];
     if(amb){ const m=ambSettings(); for(const k in m) try{ amb.inst.set(k,m[k]); }catch(e){} } },
 };
