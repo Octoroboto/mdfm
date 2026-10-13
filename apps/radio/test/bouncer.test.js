@@ -109,3 +109,9 @@ test("app-update-download: only the mdfm release .dmg and GitHub's file hosts", 
   assert.ok(!ok("https://github.com/Octoroboto/other/releases/download/v1/x.dmg"));
   assert.ok(!ok("https://github.com/evil/mdfm/releases/download/radio-v1.0.0/x.dmg"));
 });
+
+test("ptlk-news-feeds: only the three feeds", () => {
+  const b = make(), ok = u => { try { b.assert({ url: u, method: "GET" }, "app"); return true; } catch { return false; } };
+  for (const u of ["https://feeds.npr.org/1006/rss.xml", "https://feeds.bbci.co.uk/news/business/rss.xml", "https://www.gamespot.com/feeds/game-news/"]) assert.ok(ok(u), u);
+  for (const u of ["https://feeds.npr.org/1001/rss.xml", "https://www.gamespot.com/login/", "https://feeds.bbci.co.uk/news/rss.xml"]) assert.ok(!ok(u), u);
+});

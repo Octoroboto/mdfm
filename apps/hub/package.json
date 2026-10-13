@@ -1,7 +1,7 @@
 {
   "name": "mdfm-hub",
   "productName": "MD Hub",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "The Media Development Hub in its own receiver window, with MDFM 99.9 HD live: local weather, sports, Slack news and robot voices through the EQ.",
   "main": "src/main/main.js",
   "private": true,

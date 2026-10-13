@@ -84,6 +84,16 @@ when {
 
 // ══ PTLK 108.0 (talk shows) ══════════════════════════════════════════════════════════════════
 
+@id("ptlk-news-feeds")
+@description("Business and gaming headlines from public RSS feeds (NPR and BBC business, GameSpot game news), read-only, at most every 30 minutes")
+permit (principal == Caller::"app", action == Action::"GET", resource)
+when {
+  ((context.host == "feeds.npr.org" && context.path == "/1006/rss.xml") ||
+   (context.host == "feeds.bbci.co.uk" && context.path == "/news/business/rss.xml") ||
+   (context.host == "www.gamespot.com" && context.path == "/feeds/game-news/")) &&
+  context.sameToday < 300
+};
+
 @id("ptlk-headlines")
 @description("Business and gaming headlines for Analyze Biz and Button Mashers (GDELT, read-only, cached 30 minutes)")
 permit (principal == Caller::"app", action == Action::"GET", resource == Host::"api.gdeltproject.org")

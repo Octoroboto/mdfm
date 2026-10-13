@@ -19,7 +19,7 @@ test("headlines: only known kinds and plain animal titles are fetched", async ()
 test("headlines: fetched one at a time 6 s apart, a rate-limit answer is retried, shows get the cache instantly", async () => {
   const net = require("../src/common/net"), real = net.getJSON, calls = [];
   const ok = JSON.stringify({ articles: ["Retailer opens its biggest store yet in Ohio this week", "Chipmaker raises prices on its newest graphics cards", "Coffee chain tests a subscription for unlimited refills"].map(title => ({ title, domain: "example.com", language: "English" })) });
-  net.getJSON = async (url, o) => { calls.push(Date.now()); return calls.length === 1 ? "Please limit requests to one every 5 seconds" : ok; };
+  net.getJSON = async (url, o) => { if (!/gdeltproject/.test(url)) return "<rss></rss>"; calls.push(Date.now()); return calls.length === 1 ? "Please limit requests to one every 5 seconds" : ok; };   // feeds empty: GDELT backup
   delete require.cache[require.resolve("../src/common/headlines")];
   const { createHeadlines: mk } = require("../src/common/headlines");
   try {
@@ -28,5 +28,18 @@ test("headlines: fetched one at a time 6 s apart, a rate-limit answer is retried
     assert.equal(v, null); await new Promise(r => setTimeout(r, 1500));
     const v2 = await h.get("headlines:business"); assert.equal(v2.length, 3); assert.ok(calls[1] - calls[0] >= 5900);
     const t1 = Date.now(); await h.get("headlines:business"); assert.ok(Date.now() - t1 < 50, "cached answer is instant");
+  } finally { net.getJSON = real; delete require.cache[require.resolve("../src/common/headlines")]; }
+});
+
+test("headlines: RSS feeds come first, CDATA and entities decoded, sources named", async () => {
+  const { rssTitles } = require("../src/common/headlines");
+  const t = rssTitles('<rss><channel><title>Feed</title><item><title><![CDATA[Heating oil customers face a tough winter, £35bn plan]]></title></item><item><title>It&apos;s taking longer to find a new job &amp; more</title></item></channel></rss>', "BBC News");
+  assert.deepEqual(t.map(x => x.title), ["Heating oil customers face a tough winter, £35bn plan", "It's taking longer to find a new job & more"]); assert.equal(t[0].domain, "BBC News");
+  const net = require("../src/common/net"), real = net.getJSON, urls = [];
+  const item = s => `<item><title>${s}</title></item>`;
+  net.getJSON = async url => { urls.push(url); return /npr/.test(url) ? `<rss>${item("Coffee chain tests a subscription for unlimited refills")}${item("Retailer opens its biggest store yet in Ohio this week")}</rss>` : /bbci/.test(url) ? `<rss>${item("Chipmaker raises prices on its newest graphics cards")}</rss>` : "nope"; };
+  delete require.cache[require.resolve("../src/common/headlines")];
+  try { const h = require("../src/common/headlines").createHeadlines({ prefetch: false }); const v = await h.get("headlines:business");
+    assert.equal(v.length, 3); assert.ok(v.every(x => x.source === "NPR" || x.source === "BBC News")); assert.ok(!urls.some(u => /gdelt/.test(u)), "GDELT not needed");
   } finally { net.getJSON = real; delete require.cache[require.resolve("../src/common/headlines")]; }
 });

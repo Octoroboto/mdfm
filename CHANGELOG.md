@@ -2,6 +2,10 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## Apps: MDFM Radio 0.3.9 and MD Hub 0.2.9 (2026-10-12, Rob)
+- **PTLK headlines come from news feeds now.** Even fetched in the background, GDELT took 8 to 11 seconds and kept answering "please slow down" (measured from Rob's Mac). Analyze Biz now reads NPR and BBC business headlines and Button Mashers reads GameSpot's game news, from their public RSS feeds, which answer in well under a second. GDELT stays as the backup if the feeds come back with fewer than three usable headlines. Headlines keep their source ("from NPR", "from GameSpot").
+- Headlines with £, € and accented letters are no longer thrown out. New Bouncer rule "ptlk-news-feeds" (only those three feed addresses).
+
 ## Apps: MDFM Radio 0.3.8 and MD Hub 0.2.8 (2026-10-12, Rob)
 - **PTLK's live headlines actually arrive.** GDELT (the headline source) allows one request every 5 seconds per internet connection and takes 3 to 10 seconds to answer; asked at show time, it either answered "please slow down" or took longer than the show would wait, so Analyze Biz and Button Mashers fell back to made-up headlines. Now the apps fetch business and gaming headlines in the background at launch and every 30 minutes, one at a time and 6 seconds apart (retrying once after a "slow down"), and a show gets the saved list instantly.
 - Wikipedia requests for The Long Look name the app properly (Wikimedia's user-agent rule), so they aren't turned away.
