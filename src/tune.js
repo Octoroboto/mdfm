@@ -10,7 +10,8 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
     ["warmth", "WARMTH", "MIN", "MAX", "Rich, warm tape and console colour"],
     ["room", "ROOM", "DRY", "FULL", "How much of the listening room you hear (pick the room above)"],
     ["rattle", "TRUNK RATTLE", "OFF", "MAX", "Loose panels buzzing on heavy sub bass"],
-    ["grain", "RADIO GRAIN", "OFF", "MAX", "Hiss, crackle, a narrower band and a little flutter"]];
+    ["grain", "RADIO GRAIN", "OFF", "MAX", "Hiss, crackle, a narrower band and a little flutter"],
+    ["ambience", "AMBIENCE", "OFF", "MORE", "Background sounds under the music: HEARYE's forests, taverns and caves, WYBC's concert-hall room, MDFM's vinyl crackle (the middle is the station's own)"]];
   const st = store || { get() { try { return JSON.parse(localStorage.getItem("mdfmSound") || "null"); } catch (e) { return null; } },
     set(v) { try { localStorage.setItem("mdfmSound", JSON.stringify(v)); } catch (e) {} } };
   let cur = radio.getSound(); const saved = st.get(); if (saved) cur = radio.setSound(saved);
@@ -28,7 +29,7 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
     d.innerHTML = `<div class="rd-dial"><svg class="rd-ticks" viewBox="0 0 60 60" aria-hidden="true">${ticks}</svg><div class="rd-knob" role="slider" tabindex="0" aria-labelledby="${id}" aria-valuemin="0" aria-valuemax="100"></div></div><div class="rd-mm"><span>${lo}</span><span>${hi}</span></div><small id="${id}">${label}</small>`;
     d.querySelector(".rd-knob").title = tip; kn.appendChild(d); knobs[k] = d; }
   let show = () => { for (const [k] of KNOBS) { const d = knobs[k], el = d.querySelector(".rd-knob"), v = cur[k]; el.style.transform = `rotate(${-135 + v * 270}deg)`;
-      el.setAttribute("aria-valuenow", String(pct(v))); el.setAttribute("aria-valuetext", k === "width" ? (v < .48 ? `narrower (${pct(v)})` : v > .52 ? `wider (${pct(v)})` : "as it is") : v === 0 ? "off" : pct(v) + " percent");
+      el.setAttribute("aria-valuenow", String(pct(v))); el.setAttribute("aria-valuetext", k === "width" ? (v < .48 ? `narrower (${pct(v)})` : v > .52 ? `wider (${pct(v)})` : "as it is") : k === "ambience" ? (v === 0 ? "off" : v < .48 ? `quieter (${pct(v)})` : v > .52 ? `louder (${pct(v)})` : "the station's own") : v === 0 ? "off" : pct(v) + " percent");
       d.classList.toggle("moved", Math.abs(v - DEF[k]) > .005); }
     room.value = cur.roomType; const m = presets.find(p => same(p.sound, cur)); pre.value = m ? m.id : "custom";
     if (toggle) toggle.closest("label,.rd-btn")?.classList.toggle("tuned", !same(cur, DEF)); };

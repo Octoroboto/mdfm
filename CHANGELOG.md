@@ -2,6 +2,15 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.21.0 (2026-10-13, Rob)
+- **HEARYE's nature sounds are quieter.** The scenes sit 3 to 9 dB lower under the music (forest about 5 dB, mountain and heights 7 to 9 dB).
+  - The wind, the static-y one that sounded like waves, is much softer and has its hiss rolled off.
+  - Leaves, stream, rain, fire, tavern murmur and the low rumble are lower too. Birds, owls, bells and the other short sounds are unchanged.
+- **New AMBIENCE dial in TUNE** for the background sounds under the music: HEARYE's forests, taverns and caves, WYBC's concert-hall room and MDFM's vinyl crackle.
+  - All the way down turns them off; the middle is the station's own level; all the way up is about 8 dB louder.
+  - It's saved with the other TUNE knobs, Reset puts it back in the middle, and Save includes it.
+- At the default, MDFM and WYBC sound exactly as before.
+
 ## 1.20.0 (2026-10-13, Rob)
 - **The radio page only promises what the app can do.** In apps that embed it without the MDFM Radio app's back end (Analyze Pics, for one), Connect Slack used to do nothing, and weather, sports and PTLK headlines were silently the made-up ones. Now:
   - It asks for live data only when the app provides `live()`, and says on the status line when the reports are made up.

@@ -28,7 +28,7 @@ function makeIR(c,sec,decay){const len=Math.floor(c.sampleRate*sec),b=c.createBu
    Sits between the station mix (music, voices, WYBC) and the volume. Every control at its default is a straight wire,
    so MDFM sounds exactly as it always has until someone turns something. Ideas from Collin: rich, enveloping, warm;
    a car interior with a hint of trunk rattle on sub-heavy songs; a bit of radio grain. */
-const SOUND_DEF={realism:0,width:.5,clarity:0,warmth:0,room:0,roomType:"studio",rattle:0,grain:0};
+const SOUND_DEF={realism:0,width:.5,clarity:0,warmth:0,room:0,roomType:"studio",rattle:0,grain:0,ambience:.5};
 const ROOMS={studio:{name:"Studio",sec:.45,decay:9,lp:9000,pre:.004,send:.5},car:{name:"Car",sec:.12,decay:38,lp:3200,pre:.0015,send:.55},
   living:{name:"Living room",sec:.7,decay:6,lp:6000,pre:.008,send:.45},club:{name:"Club",sec:1.5,decay:3,lp:5000,pre:.018,send:.5},hall:{name:"Concert hall",sec:2.6,decay:1.7,lp:4500,pre:.03,send:.42}};
 const SOUND_PRESETS=[
@@ -82,7 +82,13 @@ function buildStage(){
   S.crackle=G(0); S.crackle.connect(S.out);
   ST=S; applySound(true); return S;
 }
+// AMBIENCE (TUNE): the background sounds under the music. HEARYE's forests, taverns and caves, WYBC's concert-hall room
+// tone and hall noises, MDFM's vinyl crackle. The middle (.5) is each station's own level; off at 0, about 2.5x at the top.
+const ambMul=()=>{ const v=sound.ambience??.5; return Math.abs(v-.5)<.001?1:v<.5?Math.pow(v*2,1.5):1+(v-.5)*3; };
+function ambApply(){ try{ if(fair&&fair.amb) ambFade(fair.amb,fair.amb.v??1,.4); }catch(e){}
+  try{ if(amb&&amb.inst&&amb.inst.set){ const m=ambSettings(); for(const k of ["room","grain","hall"]) amb.inst.set(k,m[k]); } }catch(e){} }
 function applySound(now){
+  try{ ambApply(); }catch(e){}
   if(!ST||!ctx) return; const S=ST, t=ctx.currentTime, set=(p,v)=>{ if(now) { p.cancelScheduledValues(0); p.value=v; } else p.setTargetAtTime(v,t,.06); };
   const r=sound.realism, c=sound.clarity, w=sound.warmth, a=sound.room, car=sound.roomType==="car"?a:0, g=sound.grain, k=Math.min(2.2,sound.width*2+r*.25*(sound.width>0?1:0));
   set(S.lowCut.gain,-(r*5+g*14)); set(S.cabin.gain,car*8); set(S.mud.gain,-4*c+car*2.5); set(S.pres.gain,2.5*c+r*.8); set(S.air.gain,3*c+r*1.2-car*3);
@@ -201,7 +207,7 @@ const D={
     for(const f of HATF){const o=osc("square",f*2.3);o.connect(mix);o.start(t);o.stop(t+2);} const n=nz(t,1.9),ng=G(.5); n.connect(ng); ng.connect(hp); mix.connect(hp);
     env(g,t,.002,.13*v,1.7); hp.connect(lp); lp.connect(g); g.connect(p); p.connect(s.dr); to(g,s,.25); },
   shaker(s,t,v=1){ const n=nz(t,.09),bp=filt("bandpass",4200,1),lp=filt("lowpass",7000),g=ctx.createGain(),p=pan(.3); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.08*v,t+.018); g.gain.exponentialRampToValueAtTime(.0001,t+.07); n.connect(bp); bp.connect(lp); lp.connect(g); g.connect(p); p.connect(s.dr); },
-  vinyl(s,t,dur){ const k=Math.floor(dur*rr(4,8)); for(let i=0;i<k;i++){ const tt=t+R()*dur,n=nz(tt,.003),g=G(rr(.02,.06)),bp=filt("bandpass",2200,.8); n.connect(bp); bp.connect(g); g.connect(s.mu);} },
+  vinyl(s,t,dur){ const k=Math.floor(dur*rr(4,8)); for(let i=0;i<k;i++){ const tt=t+R()*dur,n=nz(tt,.003),g=G(rr(.02,.06)*ambMul()),bp=filt("bandpass",2200,.8); n.connect(bp); bp.connect(g); g.connect(s.mu);} },
   logdrum(s,t,m,v=1){ const f=mtof(m),o=osc("sine",f),g=ctx.createGain(),sh=ctx.createWaveShaper(),lp=filt("lowpass",900); sh.curve=SAT808; o.frequency.setValueAtTime(f*2.2,t); o.frequency.exponentialRampToValueAtTime(f,t+.06); env(g,t,.003,.34*v,.3); o.connect(sh); sh.connect(lp); lp.connect(g); g.connect(s.dr); o.start(t); o.stop(t+.4); duck(s,t,.7); },
   cowbell(s,t,m,dur,v=1){ M.cowbell(s,t,m,dur,v); },
   riser(s,t,dur){ const n=nz(t,dur+.05),bp=filt("bandpass",400,1.2),g=ctx.createGain(); bp.frequency.setValueAtTime(300,t); bp.frequency.exponentialRampToValueAtTime(4000,t+dur); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.16,t+dur); g.gain.setValueAtTime(.0001,t+dur+.01); n.connect(bp); bp.connect(g); g.connect(s.dr); to(g,s,.35); },
@@ -1232,7 +1238,7 @@ const WYBC_SOFT={accent:"american",names:["Ava","Allison","Samantha","Microsoft 
 let station=STATIONS.some(s=>s.id===opts.station)&&stationOk(opts.station)?opts.station:"mdfm";
 let amb=null, ambIn=null, wybcT=0, lastPiece="";
 const stationInfo=id=>{ const s=STATIONS.find(x=>x.id===id); return s?{...s,available:stationOk(id)}:null; };
-function ambSettings(){ const t=wybcTypes; return {strings:t.strings?1:0,winds:t.winds?1:0,hall:t.hall?1:0,room:t.room?1:0,grain:t.room?1:0}; }
+function ambSettings(){ const t=wybcTypes, a=ambMul(); return {strings:t.strings?1:0,winds:t.winds?1:0,hall:t.hall?a:0,room:t.room?a:0,grain:t.room?a:0}; }
 function ambStart(fadeIn){
   const L=AMB(); if(!L||!ctx) return false;
   if(!ambIn||ambIn.context!==ctx){ ambIn=G(AMB_LEVEL); ambIn.connect(ST?ST.in:master); }
@@ -1762,13 +1768,13 @@ const AMB_SEC=[1,.6,.4,.32], SEC_GAIN=[1.8,1.15,1,.92];   // by section level (0
 const SCENES={forest:{wind:.45,leaves:.8,birds:9,stream:.7,owl:.6,shimmer:2},meadow:{wind:.35,birds:16,crickets:5,bell:.4},night:{wind:.3,crickets:10,owl:2,shimmer:2.5},
   cave:{wind:.5,low:1,drips:14},heights:{wind:.6,birds:5,bell:1.2},mountain:{wind:1.1,low:.5,eagle:1.2},tavern:{murmur:1,clinks:7,fire:.5},hearth:{fire:1,rain:.8}};
 function ambBed(A,kind,lvl){ const n=ctx.createBufferSource(); n.buffer=noiseBuf; n.loop=true; n.start(ctx.currentTime,R()*1.5); A.src.push(n); const g=G(0); g.connect(A.bus);
-  if(kind==="wind"){ const bp=filt("bandpass",420,.6); n.connect(bp); bp.connect(g); return {g,f:bp.frequency,base:.05*lvl,lo:250,hi:900}; }
-  if(kind==="leaves"){ const hp=filt("highpass",3200); n.connect(hp); hp.connect(g); return {g,base:.012*lvl}; }
-  if(kind==="low"){ const lp=filt("lowpass",160); n.connect(lp); lp.connect(g); return {g,base:.12*lvl}; }
-  if(kind==="stream"){ const bp=filt("bandpass",2300,.5), hp=filt("highpass",800); n.connect(bp); bp.connect(hp); hp.connect(g); return {g,base:.03*lvl,flutter:true}; }
-  if(kind==="rain"){ const hp=filt("highpass",1800), lp=filt("lowpass",7000); n.connect(hp); hp.connect(lp); lp.connect(g); return {g,base:.022*lvl}; }
-  if(kind==="fire"){ const lp=filt("lowpass",300); n.connect(lp); lp.connect(g); return {g,base:.035*lvl}; }
-  if(kind==="murmur"){ const mix=G(1); for(const [f,q] of [[330,3],[720,4],[1450,5]]){ const bp=filt("bandpass",f,q); n.connect(bp); bp.connect(mix); } mix.connect(g); return {g,base:.06*lvl,flutter:true,slow:true}; }
+  if(kind==="wind"){ const bp=filt("bandpass",420,.6), lp=filt("lowpass",1100,.5); n.connect(bp); bp.connect(lp); lp.connect(g); return {g,f:bp.frequency,base:.02*lvl,lo:250,hi:800}; }   // soft and low: a hissy wind read as static
+  if(kind==="leaves"){ const hp=filt("highpass",3200); n.connect(hp); hp.connect(g); return {g,base:.006*lvl}; }
+  if(kind==="low"){ const lp=filt("lowpass",160); n.connect(lp); lp.connect(g); return {g,base:.07*lvl}; }
+  if(kind==="stream"){ const bp=filt("bandpass",2300,.5), hp=filt("highpass",800); n.connect(bp); bp.connect(hp); hp.connect(g); return {g,base:.014*lvl,flutter:true}; }
+  if(kind==="rain"){ const hp=filt("highpass",1800), lp=filt("lowpass",7000); n.connect(hp); hp.connect(lp); lp.connect(g); return {g,base:.013*lvl}; }
+  if(kind==="fire"){ const lp=filt("lowpass",300); n.connect(lp); lp.connect(g); return {g,base:.025*lvl}; }
+  if(kind==="murmur"){ const mix=G(1); for(const [f,q] of [[330,3],[720,4],[1450,5]]){ const bp=filt("bandpass",f,q); n.connect(bp); bp.connect(mix); } mix.connect(g); return {g,base:.042*lvl,flutter:true,slow:true}; }
 }
 const AMB_EV={
   birds(A,t){ const sp=Math.floor(R()*3), p=pan(rr(-.8,.8)), g=ctx.createGain(); g.gain.value=0; p.connect(A.b.mu); g.connect(p); to(g,A.b,.25); const o=osc("sine",3000); o.connect(g); let tt=t;
@@ -1801,7 +1807,7 @@ function ambRun(A,until){   // schedules the scene up to `until` (live: a second
     for(const [k,rate] of A.ev) if(R()<rate*w/60) try{ AMB_EV[k](A,t+R()*w); }catch(e){}
     A.next+=w; }
 }
-function ambFade(A,v,sec){ if(!A||!ctx) return; try{ fadeTo(A.out.gain,Math.max(.0001,v*A.sg),sec,ctx.currentTime); }catch(e){} }
+function ambFade(A,v,sec){ if(!A||!ctx) return; A.v=v; try{ fadeTo(A.out.gain,Math.max(.0001,v*A.sg*ambMul()),sec,ctx.currentTime); }catch(e){} }
 function ambKill(A,sec){ if(!A||A.dead) return; A.dead=true; ambFade(A,.0001,sec); setTimeout(()=>{ for(const s of A.src) try{ s.stop(); }catch(e){} try{ A.out.disconnect(); }catch(e){} },sec*1000+200); }
 /* Show music: every show, ad and ID gets its own style's theme (a few bars of the style, always the same for that
    style, ending on a hit), a bed (the accompaniment, softly), stingers and a closing cadence. */
@@ -2360,7 +2366,7 @@ async function renderOffline(kind,secs,arg){
   else if(kind==="fpiece"){ const p=fPiece(arg.style,arg.seed,arg.target), b=fBus(p.S.gain); b.mxId="hearye"; b.gKey={root:p.key,sc:p.sc}; b.gNoMeter=p.S.sub===3||p.S.beats!==4; let t=.1;   // a HEARYE piece, from its seed, with its ambience (from: a bar to start at, for checks)
     for(let i=arg.from||0;i<p.bars&&t<secs;i++){ fBar(p,i,t,b); t+=p.bs; }
     for(const x of p.secs) if(x.at>=(arg.from||0)) b.gain.gain.setTargetAtTime(p.S.gain*SEC_GAIN[x.t==="outro"?0:x.lvl],.1+(x.at-(arg.from||0))*p.bs,.8);
-    if(arg.amb!==false){ const A=ambNew(p.S.scene,p.key); A.out.gain.setValueAtTime(.0001,0); A.out.gain.linearRampToValueAtTime(A.sg,2.5); for(const x of p.secs) if(x.at>=(arg.from||0)) A.out.gain.setTargetAtTime(A.sg*AMB_SEC[x.t==="outro"?0:x.lvl],.1+(x.at-(arg.from||0))*p.bs,1); ambRun(A,secs-.3); }
+    if(arg.amb!==false){ const A=ambNew(p.S.scene,p.key); A.out.gain.setValueAtTime(.0001,0); A.out.gain.linearRampToValueAtTime(A.sg*ambMul(),2.5); for(const x of p.secs) if(x.at>=(arg.from||0)) A.out.gain.setTargetAtTime(A.sg*ambMul()*AMB_SEC[x.t==="outro"?0:x.lvl],.1+(x.at-(arg.from||0))*p.bs,1); ambRun(A,secs-.3); }
     master.gain.setValueAtTime(VOL,Math.max(.2,secs-2)); master.gain.linearRampToValueAtTime(0,secs-.05); }
   else if(kind==="fcue"){ const p=fCueP(arg.style), gn=F_CUE_GAIN[arg.style]??1;   // HEARYE show music, for tests and level checks
     if(arg.cue==="bed"){ const b=fBus(.16*gn*(F_BED_GAIN[arg.style]??1)), at=p.secs.find(x=>x.t==="A"&&x.lvl===2).at; let t=.1, k=0; while(t<secs-1){ p.S.bar(p,t,{b,st:p.st,bs:p.bs,lvl:2,i:k%8,n:8,ch:fch(p,p.progA[k%4]),sec:"A",bed:true,lead:()=>{}}); t+=p.bs; k++; } void at; }
@@ -2370,7 +2376,7 @@ async function renderOffline(kind,secs,arg){
     const inst=L.create({context:oc,destination:ambIn,offline:true,mapNote:wybcMapNote,onNote:(k,m,t,d,v)=>{ const C=MIDICAP; if(!C) return; const ns=(Array.isArray(m)?m:[m]).map(x=>Math.round(wybcMapNote(x)));
       C.ev.push({tr:k==='piano'?'Piano':k==='strings'?'Strings':'Winds',m:ns,t,d:Math.max(.05,Math.min(12,d)),vel:Math.max(1,Math.min(127,Math.round(k==='piano'?20+v/.13*85:70)))}); },settings:{...ambSettings(),...wybcPull()},onChord:rs?(t,x,bar)=>{ const ch=wybcTriad(x); for(let i=0;i<4;i++) wybcRhythm(rs,t+i*bar/4,bar/4,ch,sh); }:null});
     inst._scheduleAll(secs,true); }
-  else if(kind==="famb"){ const A=ambNew(arg.scene,62); A.out.gain.value=A.sg; ambRun(A,secs-.2); }
+  else if(kind==="famb"){ const A=ambNew(arg.scene,62); A.out.gain.value=A.sg*ambMul(); ambRun(A,secs-.2); }
   { const id=kind==="fpiece"?"hearye":kind==="current"||kind==="song"?"mdfm":kind==="wybc"?"wybc":null;   // the style matrix's sound (drive, lo-fi, hall, slap, phaser...) as it is live
     if(id&&MXON[id]){ mxFx(); mxFxLevels(mixOf(id),0,true); } }
   rendering=oc.startRendering(); }finally{ ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE,voiceIn,extDuck,recIn,ST,mixOut,ambIn}=keep); }   // restore before the await: the live station keeps ticking meanwhile

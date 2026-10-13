@@ -124,6 +124,9 @@ mix and the volume. Values run 0 to 1 (`width` 0.5 is untouched, 0 is mono, 1 is
 `living`, `club` or `hall`. At the defaults (`soundDefaults()`) the stage is a straight wire. `soundPresets()` lists the
 presets, `resetSound()` goes back, and `createMDFM({ sound })` starts tuned. The radio page's TUNE button opens the knobs.
 
+`ambience` (1.21, default 0.5) sets the background sounds under the music: HEARYE's forests, taverns and caves, WYBC's
+concert-hall room and MDFM's vinyl crackle. 0 turns them off, 0.5 is the station's own level, 1 is about 8 dB louder.
+
 ## Weather and time
 
 The DJ reads the local time on its own, with a remark that fits the hour, then hands over to Tabitha Snatterbean for the weather. Real weather is opt-in, because it's the only part of MDFM that uses the network (Open-Meteo, free, no key):
