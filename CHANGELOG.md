@@ -2,6 +2,9 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.18.1 (2026-10-13, Rob)
+- **MedDev Receiver 1.13.2:** the spray can shows its BUG SPRAY / SUGAR MIST label again when there's no room beside the radio (it had tucked out to just its tip), without covering anything clickable.
+
 ## 1.18.0 (2026-10-13, Rob)
 - **Save also writes a MIDI file of the song**, for a DAW or notation program. It goes next to the MP3 with the same name.
   - **What's in it:** the notes exactly as they were rendered, after the Style Matrix and Groove & Key (the key, mode, tempo, time signature, swing, density and fills all carry over).
