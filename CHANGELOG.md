@@ -2,6 +2,11 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## Apps: MDFM Radio 0.3.8 and MD Hub 0.2.8 (2026-10-12, Rob)
+- **PTLK's live headlines actually arrive.** GDELT (the headline source) allows one request every 5 seconds per internet connection and takes 3 to 10 seconds to answer; asked at show time, it either answered "please slow down" or took longer than the show would wait, so Analyze Biz and Button Mashers fell back to made-up headlines. Now the apps fetch business and gaming headlines in the background at launch and every 30 minutes, one at a time and 6 seconds apart (retrying once after a "slow down"), and a show gets the saved list instantly.
+- Wikipedia requests for The Long Look name the app properly (Wikimedia's user-agent rule), so they aren't turned away.
+- Not a Bouncer problem: the rules allowed every one of these requests.
+
 ## Apps: MDFM Radio 0.3.7 and MD Hub 0.2.7 (2026-10-12, Rob)
 - **Download downloads.** When a newer app is out, Download (in Settings, the Futureproofer list, or MD Hub's "is available" box) now fetches the .dmg for this Mac's chip straight into the Downloads folder, with progress on the Dock icon, and opens it in Finder ready to drag into Applications. No browser and no releases page. If it can't, it offers the download page instead.
 - Only the mdfm repo's release .dmg files, over https, following GitHub's redirect to its file host; every hop goes through Bouncer (new rule "app-update-download"). Nothing installs by itself.

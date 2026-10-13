@@ -11,13 +11,13 @@ function gate(url) {
   if (process.env.MDFM_TEST === "1") return;
   throw Object.assign(new Error("Bouncer is not running, so the app is not allowed to send requests."), { code: "BOUNCED" });
 }
-async function getJSON(url, { timeout = 8000, text = false, token = null } = {}) {
+async function getJSON(url, { timeout = 8000, text = false, token = null, ua = "MDFM-Radio" } = {}) {
   const u = new URL(url);
   if (u.protocol !== "https:" || !ALLOWED.has(u.hostname)) throw new Error("blocked host: " + u.hostname);
   gate(u);
   const ac = new AbortController(), t = setTimeout(() => ac.abort(), timeout);
   try {
-    const r = await fetch(u, { signal: ac.signal, redirect: "error", headers: { "user-agent": "MDFM-Radio", accept: text ? "*/*" : "application/json", ...(token ? { authorization: "Bearer " + token } : {}) } });
+    const r = await fetch(u, { signal: ac.signal, redirect: "error", headers: { "user-agent": ua, accept: text ? "*/*" : "application/json", ...(token ? { authorization: "Bearer " + token } : {}) } });
     if (!r.ok) throw new Error(`${u.hostname} ${r.status}`);
     return text ? await r.text() : await r.json();
   } finally { clearTimeout(t); }
