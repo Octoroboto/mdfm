@@ -1,8 +1,9 @@
-> **In MDFM:** this is Collin Geldmeier's generator, vendored unchanged except four lines, each marked "MDFM patch":
+> **In MDFM:** this is Collin Geldmeier's generator, vendored unchanged except seven lines, each marked "MDFM patch":
 > - `stop()` no longer suspends an AudioContext that the host passed in, because MDFM shares its context between stations.
 > - `chord()` returns the chord the piano is on, so MDFM's Style Matrix can play along live.
 > - `schedule()` calls an optional `onChord(time, notes, barSeconds)` as each chord is laid out, so a Save can do the same offline.
 > - `hz()` passes each note through an optional `mapNote(midi)`, so MDFM's TUNE can move the piano into another key and mode.
+> - `note()`, `strings()` and `reed()` call an optional `onNote(kind, notes, time, duration, velocity)`, so a Save can write a MIDI file.
 >
 > It plays WYBC 88.1 (see the MDFM README). Upstream changes: copy the new file here and re-apply those lines.
 

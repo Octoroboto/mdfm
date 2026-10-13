@@ -65,7 +65,7 @@ function create(opts={}){
   function thump(dest,t,f,a,dur){const o=ctx.createOscillator(), g=ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(f*1.25,t); o.frequency.exponentialRampToValueAtTime(f,t+.04);
     g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(a,t+.008); g.gain.exponentialRampToValueAtTime(.0001,t+dur); o.connect(g); g.connect(dest); o.start(t); o.stop(t+dur+.05);}
 
-  function note(m,t,vel,dur,dest){
+  function note(m,t,vel,dur,dest){ if(opts.onNote) try{ opts.onNote('piano',m,t,dur,vel); }catch(e){}   // MDFM patch: each note as it's played (Save writes a MIDI file)
     // acoustic piano voice: stretched partials, unison strings that beat gently, a fast "prompt" decay into a quiet
     // aftersound, a felt-hammer knock, and a top register that behaves like real short treble strings
     const f0=hz(m), hi=Math.min(1,Math.max(0,(m-64)/22));
@@ -131,7 +131,7 @@ function create(opts={}){
   // very light strings: a few bowed voices sitting under the piano, each a small section of slightly detuned players,
   // with a soft bow hiss, a slow swell in and a long fade out (they don't play every bar, so the texture breathes)
   function strings(chord,t,dur){
-    const pick=[...new Set(chord.slice(1).filter(p=>p>=52&&p<=76))]; if(pick.length<2) return;
+    const pick=[...new Set(chord.slice(1).filter(p=>p>=52&&p<=76))]; if(pick.length<2) return; if(opts.onNote) try{ opts.onNote('strings',pick,t,dur,.6); }catch(e){}   // MDFM patch (MIDI)
     const voices=[pick[0],pick[Math.floor(pick.length/2)],pick[pick.length-1]];
     const A=Math.min(3.2,dur*.35), R=Math.min(3.5,dur*.4);
     voices.forEach((p,vi)=>{
@@ -149,7 +149,7 @@ function create(opts={}){
   }
   // low woodwinds: a bass clarinet (hollow, odd harmonics) or a bassoon (reedy, a little nasal), breathing a slow line or two
   // from the chord down in the cellar, with a touch of breath, a tongued start and vibrato that blooms late in long notes
-  function reed(m,t,dur,kind,amp){
+  function reed(m,t,dur,kind,amp){ if(opts.onNote) try{ opts.onNote(kind,m,t,dur,.7); }catch(e){}   // MDFM patch (MIDI)
     const f=hz(m), out=ctx.createGain(), lp=ctx.createBiquadFilter(), fm=ctx.createBiquadFilter();
     lp.type='lowpass'; lp.frequency.value=kind==='clar'?720:1200; lp.Q.value=.6;
     fm.type='peaking'; fm.frequency.value=kind==='clar'?300:480; fm.Q.value=1.4; fm.gain.value=kind==='clar'?2:5;

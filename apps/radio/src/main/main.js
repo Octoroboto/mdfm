@@ -136,8 +136,8 @@ app.whenReady().then(async () => {
   ipcMain.handle("slack:disconnect", async () => { await slack.disconnect(); sendStatus("Slack disconnected. The app no longer has access."); return true; });
   ipcMain.handle("update:check", async () => { await fp.run({ force: true }); return status(); });
   ipcMain.handle("status:get", () => status());
-  // Save song (the floppy): the page makes the MP3, this asks where to put it (Music/MDFM by default). App kit save-file.
-  require("../../kit/save-file/main.js").registerSaveFile({ subfolder: "MDFM", types: ["mp3"], isAllowedSender: e => !!win && !win.isDestroyed() && e.sender === win.webContents });
+  // Save song (the floppy): the page makes the MP3 (and a MIDI file of the song), this asks where to put them (Music/MDFM by default). App kit save-file.
+  require("../../kit/save-file/main.js").registerSaveFile({ subfolder: "MDFM", types: ["mp3", "mid"], isAllowedSender: e => !!win && !win.isDestroyed() && e.sender === win.webContents });
   ipcMain.handle("tts:render", async (e, spec) => tts.render({ text: String(spec && spec.text || ""), voice: spec && spec.voice ? String(spec.voice) : null, rate: +(spec && spec.rate) || 1, pitch: +(spec && spec.pitch) || 1 }));
   const from = e => BrowserWindow.fromWebContents(e.sender);
   ipcMain.on("win:close", e => from(e) && from(e).close());

@@ -1274,7 +1274,7 @@ function enterStation(id,t){
 }
 function setStation(id){
   const s=stationInfo(id); if(!s||!s.available||id===station) return station; const was=station; station=id;
-  if(on&&ctx){ gen++; const t=ctx.currentTime; hush(); leaveStation(was,t); enterStation(id,t); mxFxLevels(mixOf(id),t); }
+  if(on&&ctx){ gen++; const t=ctx.currentTime; hush(); leaveStation(was,t); enterStation(id,t); mxFxSync(id,t); }
   emit("station",stationInfo(station)); return station;
 }
 function stepStation(d){ const list=STATIONS.filter(s=>stationInfo(s.id).available), i=list.findIndex(s=>s.id===station); return setStation(list[(i+d+list.length)%list.length].id); }
@@ -1982,6 +1982,15 @@ function mxFx(){ if(!ctx||!ST) return []; let F=MXF.get(ctx); if(!F){ F=[]; MXF.
   if(mixOut&&!F.some(s=>s.src===mixOut)){ const s=mxStage(); s.src=mixOut; try{ mixOut.disconnect(ST.in); }catch(e){} mixOut.connect(s.in); s.out.connect(ST.in); F.push(s); }
   if(ambIn&&ambIn.context===ctx&&!F.some(s=>s.src===ambIn)){ const s=mxStage(); s.src=ambIn; try{ ambIn.disconnect(ST.in); }catch(e){} try{ ambIn.disconnect(master); }catch(e){} ambIn.connect(s.in); s.out.connect(ST.in); F.push(s); }
   return F; }
+// the station sound stage is in the path only while the station on air has its matrix up: at zero it fades out and is
+// taken out of the path again, so the music is exactly as it was before (bit for bit), not just close to it
+let mxOffT=0;
+function mxFxSync(id,now){ clearTimeout(mxOffT); mxOffT=0;
+  if(MXON[id]){ mxFx(); mxFxLevels(mixOf(id),now); return; }
+  mxFxLevels(mixOf(id),now); const c=ctx; mxOffT=setTimeout(()=>{ mxOffT=0; if(ctx===c&&!MXON[station]) mxFxOff(); },2500); }
+function mxFxOff(){ const F=ctx&&MXF.get(ctx); if(!F||!F.length) return;
+  for(const S of F){ try{ S.src.disconnect(S.in); }catch(e){} try{ S.src.connect(ST?ST.in:master); }catch(e){} try{ S.out.disconnect(); }catch(e){} try{ S.lfo.stop(); }catch(e){} }
+  F.length=0; }
 function mxFxLevels(m,now,inst){ const F=MXF.get(ctx); if(!F) return; const sh=mixShares(m), w=k=>(sh.sty.find(x=>x[0]===k)||[0,0])[1];
   const g=w("galactic"), lo=w("hiphop"), dr=w("rock"), ha=w("classical"), sl=w("country"), br=w("pop"), dry=1-.55*lo-.35*dr;
   for(const S of F){ const T=(p,v)=>inst?p.setValueAtTime(v,now):p.setTargetAtTime(v,now,.4); if(dr>0) S.mkDrive(); if(ha>0) S.mkHall();
@@ -2052,7 +2061,8 @@ function morphCall(id,role,vi,f,self,s,a){
 }
 // wrap every instrument once: unchanged unless its bus belongs to a station with its matrix up
 for(const [objName,map] of Object.entries(MX_ROLE)){ const obj={D,M,FI,PI}[objName];
-  for(const [name,[role,vi]] of Object.entries(map)){ const f=obj[name]; if(typeof f!=="function") continue;
+  for(const [name,[role,vi]] of Object.entries(map)){ const f0=obj[name]; if(typeof f0!=="function") continue;
+    const f=function(s,...a){ if(!MIDICAP) return f0.call(this,s,...a); if(!midiDepth) midiRec(objName,name,role,vi,a); midiDepth++; try{ return f0.call(this,s,...a); }finally{ midiDepth--; } };   // Save: every note that sounds goes into the MIDI file too
     obj[name]=function(s,...a){ const id=s&&s.mxId; if(inMorph||!id||!(MXON[id]||GON[id])) return f.call(this,s,...a);
       if(GON[id]){ let out; try{ out=grooveArgs(id,role,vi,s,a,objName); }catch(e){ out=[a]; } let r; for(const b of out) r=MXON[id]?morphCall(id,role,vi,f,this,s,b):f.call(this,s,...b); return r; }   // the groove and key (TUNE) first, then the style matrix
       return morphCall(id,role,vi,f,this,s,a); }; } }
@@ -2084,7 +2094,8 @@ function mxSong(s,step){ if(step%16!==0) return; if(s.sp0==null){ s.sp0=s.sp; s.
   if(MXON.mdfm){ mxBarT0=s.next; mxBarSt=s.sp; mxBarSteps=16; mxGroove("mdfm",s,s.next,16*s.sp); } }
 function setMix(id,vals){ const m=mixOf(id); for(const [k] of MIX_KEYS) if(vals&&k in vals){ const x=+vals[k]; if(Number.isFinite(x)) m[k]=Math.max(0,Math.min(1,x)); }
   MXON[id]=MIX_KEYS.some(([k])=>m[k]>.001); MXSH[id]=MXON[id]?mixShares(m):null;
-  if(ctx&&station===id){ if(MXON[id]) mxFx(); mxFxLevels(m,ctx.currentTime); }
+  if(!MXON[id]) MXS.until=0;   // all at the centre: no key jump left hanging
+  if(ctx&&station===id) mxFxSync(id,ctx.currentTime);
   if(id==="wybc"){ wybcMixApply(); wybcMixPump(); } return {...m}; }
 // WYBC: Collin's piano can't be re-voiced note by note, so the pull works through its own controls (pace, how busy the
 // melody is, strings, winds, warmth, space) plus a rhythm section in the style that follows the piano's chord.
@@ -2228,6 +2239,45 @@ function gFacts(np){ if(!np) return np; const id=np.station||"mdfm"; if(!GON[id]
   if(gOn(id,"key")&&typeof o.key==="string"){ const [r,...rest]=o.key.split(" "), pc=NOTE_NAMES.indexOf(r); if(pc>=0) o.key=gKeyName(id,pc,rest.join(" ")); }
   if(gOn(id,"meter")) o.time=GRV[id].meter;
   return o; }
+/* ---------- MIDI (Save): the notes of the song as it renders, after the style matrix and the groove, as a Standard MIDI File.
+   One track per part (drums on channel 10 with General MIDI drum notes, bass, chords, pad, lead, and on WYBC the
+   piano, strings and winds), the tempo and time signature, and the title. For DAWs and notation programs. ---------- */
+let MIDICAP=null, midiDepth=0;
+const GM_DRUM={kick:36,snare:38,clap:39,snap:39,rim:37,crash:49,shaker:70,cowbell:56,tamb:54,frame:61,drum:35};
+function midiRec(obj,name,role,vi,a){ const C=MIDICAP, t=a[0]; if(!C||typeof t!=="number"||t<C.t0-.01||t>C.end) return;
+  const vv=typeof a[vi]==="number"?a[vi]:1, vel=Math.max(1,Math.min(127,Math.round(24+vv*80)));
+  if(obj==="PI"&&name==="timp"){ C.ev.push({tr:"Timpani",m:[a[1]],t,d:.9,vel}); return; }
+  if(GDRUM.has(role)){ let n=GM_DRUM[name];
+    if(name==="hat") n=a[2]?46:42; else if(name==="conga") n=a[2]?63:64; else if(name==="tom"){ const f=typeof a[2]==="number"?a[2]:130; n=f>170?50:f>130?48:f>100?47:45; }
+    if(n==null) n=role==="kick"?36:role==="snare"?38:role==="hat"?42:role==="tom"?45:role==="crash"?49:role==="shaker"?70:60;
+    C.ev.push({tr:"Drums",m:[n],t,d:.1,vel,drum:1}); return; }
+  let m=role==="gchord"?[a[1],a[1]+7,a[1]+12]:Array.isArray(a[1])?a[1]:[a[1]]; m=m.filter(x=>typeof x==="number"&&Number.isFinite(x)).map(Math.round); if(!m.length) return;
+  const d=vi>=3&&typeof a[2]==="number"?a[2]:role==="chord"||role==="gchord"?.8:.5;
+  C.ev.push({tr:role==="gchord"?"Chords":{bass:"Bass",chord:"Chords",pad:"Pad",lead:"Lead"}[role]||"Lead",m,t,d:Math.max(.03,Math.min(30,d)),vel}); }
+const MIDI_PROG={mdfm:{Bass:38,Chords:4,Pad:89,Lead:81,Timpani:47},hearye:{Bass:32,Chords:46,Pad:48,Lead:73,Timpani:47},
+  wybc:{Piano:0,Strings:48,Winds:71,Bass:33,Chords:4,Pad:89,Lead:81}};
+const MIDI_ORDER=["Drums","Bass","Chords","Pad","Lead","Timpani","Piano","Strings","Winds"];
+function midiFile(C){ const PPQ=480, bpm=Math.max(20,Math.min(300,C.bpm||120)), tk=sec=>Math.max(0,Math.round((sec-C.t0)*bpm/60*PPQ));
+  const vlq=n=>{ const b=[n&127]; while(n>>=7) b.unshift((n&127)|128); return b; }, str=x=>[...new TextEncoder().encode(x)];
+  const trk=evs=>{ evs.sort((a,b)=>a[0]-b[0]||a[1]-b[1]); const out=[]; let last=0; for(const [t,,bytes] of evs){ out.push(...vlq(t-last),...bytes); last=t; } out.push(0,255,47,0);
+    return [77,84,114,107,out.length>>>24&255,out.length>>>16&255,out.length>>>8&255,out.length&255,...out]; };
+  const meta=(t,type,data)=>[t,0,[255,type,...vlq(data.length),...data]];
+  const [num,den]=(C.time||"4/4").split("/").map(Number), us=Math.round(6e7/bpm);
+  const T0=[meta(0,3,str(C.title||"MDFM")),meta(0,81,[us>>>16&255,us>>>8&255,us&255]),meta(0,88,[num,Math.round(Math.log2(den)),24,8])];
+  if(C.text) T0.push(meta(0,1,str(C.text)));
+  const tracks=[trk(T0)], names=[...new Set(C.ev.map(e=>e.tr))].sort((a,b)=>MIDI_ORDER.indexOf(a)-MIDI_ORDER.indexOf(b)); let ch=0;
+  for(const nm of names){ const drum=nm==="Drums"; let c=9; if(!drum){ if(ch===9) ch++; c=ch++; } const evs=[meta(0,3,str(nm))];
+    if(!drum) evs.push([0,1,[192|c,(MIDI_PROG[C.station]||MIDI_PROG.mdfm)[nm]??0]]);
+    const open={};   // one sounding note per pitch: a repeat cuts the one before
+    const notes=[]; for(const e of C.ev) if(e.tr===nm) for(const m of e.m){ if(m<0||m>127) continue; notes.push([tk(e.t),Math.max(tk(e.t)+(drum?60:10),tk(e.t+e.d)),m,e.vel]); }
+    notes.sort((a,b)=>a[0]-b[0]);
+    for(const [on,off,m,v] of notes){ const p=open[m]; if(p&&p.off>on){ p.off=on; } const n={on,off,m,v}; open[m]=n; n.ref=n; evs.push(n); }
+    const fin=[]; for(const x of evs){ if(Array.isArray(x)){ fin.push(x); continue; } if(x.off<=x.on) x.off=x.on+1; fin.push([x.on,1,[144|c,x.m,x.v]],[x.off,0,[128|c,x.m,0]]); }
+    tracks.push(trk(fin)); }
+  const h=[77,84,104,100,0,0,0,6,0,1,0,tracks.length,PPQ>>>8,PPQ&255], all=new Uint8Array(h.length+tracks.reduce((a,t)=>a+t.length,0)); all.set(h,0); let o=h.length; for(const t of tracks){ all.set(t,o); o+=t.length; }
+  return all; }
+function midiStart(station,t0,end,o={}){ MIDICAP={station,t0,end,ev:[],...o}; }
+function midiEnd(){ const C=MIDICAP; MIDICAP=null; midiDepth=0; if(!C||!C.ev.length) return null; try{ return midiFile(C); }catch(e){ return null; } }
 function setOn(v){
   if(v===on) return; on=v; gen++;
   if(v){ iosPlayback(true); primeSpeech(); if(!ctx) init(opts.audioContext); try{ const pr=ctx.resume(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){} watchAudio(); const t=ctx.currentTime; fadeTo(master.gain,(opts.volume??1)*VOL,.4,t);
@@ -2288,7 +2338,8 @@ async function renderOffline(kind,secs,arg){
     else if(arg.cue==="sting"&&arg.i!=null) F_STINGS[arg.i](p,fBus(gn*F_STING_GAIN[arg.i]),.1); else fCue(arg.style,arg.cue,.1); }
   else if(kind==="wybc"){ const L=AMB(); ambIn=G(AMB_LEVEL); ambIn.connect(ST.in);   // a WYBC piece through the whole chain (TUNE and the style matrix included), for Save
     const sh=MXON.wybc?MXSH.wybc:null, rs=sh&&(sh.sty.length||sh.chaos)?wybcRS():null;
-    const inst=L.create({context:oc,destination:ambIn,offline:true,mapNote:wybcMapNote,settings:{...ambSettings(),...wybcPull()},onChord:rs?(t,x,bar)=>{ const ch=wybcTriad(x); for(let i=0;i<4;i++) wybcRhythm(rs,t+i*bar/4,bar/4,ch,sh); }:null});
+    const inst=L.create({context:oc,destination:ambIn,offline:true,mapNote:wybcMapNote,onNote:(k,m,t,d,v)=>{ const C=MIDICAP; if(!C) return; const ns=(Array.isArray(m)?m:[m]).map(x=>Math.round(wybcMapNote(x)));
+      C.ev.push({tr:k==='piano'?'Piano':k==='strings'?'Strings':'Winds',m:ns,t,d:Math.max(.05,Math.min(12,d)),vel:Math.max(1,Math.min(127,Math.round(k==='piano'?20+v/.13*85:70)))}); },settings:{...ambSettings(),...wybcPull()},onChord:rs?(t,x,bar)=>{ const ch=wybcTriad(x); for(let i=0;i<4;i++) wybcRhythm(rs,t+i*bar/4,bar/4,ch,sh); }:null});
     inst._scheduleAll(secs,true); }
   else if(kind==="famb"){ const A=ambNew(arg.scene,62); A.out.gain.value=A.sg; ambRun(A,secs-.2); }
   { const id=kind==="fpiece"?"hearye":kind==="current"||kind==="song"?"mdfm":kind==="wybc"?"wybc":null;   // the style matrix's sound (drive, lo-fi, hall, slap, phaser...) as it is live
@@ -2331,12 +2382,20 @@ return {
   renderOffline,
   /* "Save song": renders the song on air again, from the top, off the live audio path, and returns {buffer, info}. */
   async renderSong(){ if(station==="ptlk") return null;   // talk saves as a recording (onAir / recordBreak), in the apps
-    if(station==="hearye"){ const p=fair&&(fair.piece?fair.piece.p:fair.last); if(!p) return null; const buffer=await renderFaire(p); return {buffer,info:gFacts({station:"hearye",stationName:"HEARYE 95.5",title:p.title,artist:p.artist,style:p.name,bpm:p.bpm,key:`${NOTE_NAMES[p.key%12]} ${p.mode}`})}; }
-    if(station==="wybc"){ if(!nowPlaying||nowPlaying.station!=="wybc") return null; const buffer=await renderAmbient(Math.round(150*gLenMul("wybc"))); return buffer&&{buffer,info:gFacts({...nowPlaying,stationName:"WYBC 88.1"})}; }
+    if(station==="hearye"){ const p=fair&&(fair.piece?fair.piece.p:fair.last); if(!p) return null;
+      const info=gFacts({station:"hearye",stationName:"HEARYE 95.5",title:p.title,artist:p.artist,style:p.name,bpm:p.bpm,key:`${NOTE_NAMES[p.key%12]} ${p.mode}`}), S=p.S;
+      const time=S.sub===3?`${S.beats*3}/8`:gOn("hearye","meter")&&S.beats===4?GRV.hearye.meter:`${S.beats}/4`;
+      midiStart("hearye",.1,1e9,{bpm:60/(2*p.st),time,title:info.title,text:`HEARYE 95.5. ${info.style}, ${info.key}. ${info.artist||""}`});
+      const pr=renderFaire(p), midi=midiEnd(), buffer=await pr; return {buffer,midi,info}; }
+    if(station==="wybc"){ if(!nowPlaying||nowPlaying.station!=="wybc") return null; const info=gFacts({...nowPlaying,stationName:"WYBC 88.1"});
+      midiStart("wybc",.3,1e9,{bpm:50*(wybcPull().tempo||1),time:"4/4",title:info.title,text:`WYBC 88.1. Ambient piano${gOn("wybc","key")?", "+gKeyName("wybc",2,"major"):", D major"}. ${info.artist||""}`});
+      const pr=renderAmbient(Math.round(150*gLenMul("wybc"))), midi=midiEnd(), buffer=await pr; return buffer&&{buffer,midi,info}; }
     const live=[...songs].reverse().find(x=>x.recipe&&nowPlaying&&x.title===nowPlaying.title)||[...songs].reverse().find(x=>x.recipe);
     if(!live) return null; const secs=Math.min(900,live.bars*16*(gOn("mdfm","bpm")?15/GRV.mdfm.bpm:live.sp)*(gOn("mdfm","meter")?METERS[GRV.mdfm.meter].ratio:1)+3);
-    const buffer=await renderOffline("current",secs,{recipe:live.recipe,bars:live.bars,brk2:live.brk2,ride:live.ride});
-    return {buffer,info:gFacts({title:live.title,style:live.name,bpm:live.bpm,...songFacts(live)})}; },
+    const info=gFacts({title:live.title,style:live.name,bpm:live.bpm,...songFacts(live)});
+    midiStart("mdfm",.05,secs,{bpm:gOn("mdfm","bpm")?GRV.mdfm.bpm:15/live.sp,time:gOn("mdfm","meter")?GRV.mdfm.meter:"4/4",title:info.title,text:`MDFM 99.9 HD. ${info.style}, ${info.key}`});
+    const pr=renderOffline("current",secs,{recipe:live.recipe,bars:live.bars,brk2:live.brk2,ride:live.ride}), midi=midiEnd(), buffer=await pr;
+    return {buffer,midi,info}; },
   /* "Save" during a break: onAir() says what break is on now ({kind, show, episode, title, saveable}); recordBreak()
      resolves {buffer, info} when it ends (the whole break, recorded from its start), or null if none is on. */
   onAir(){ return station!=="wybc"&&REC&&REC.live?{...breakInfo(REC.sp),station,saveable:REC.voiced}:null; },
@@ -2367,6 +2426,7 @@ return {
      length (.5 = as written), root (-1 = the song's own, 0-11 = C..B), mode ("" or a keyModes() id), and the drums: density,
      fills, feel (0 half, .5 normal, 1 double time), humanize, drums (level). All 0..1 unless noted. Defaults = as before. */
   grooveKeys(){ return GROOVE_KEYS.map(x=>[...x]); },
+  _tuneState(){ return {matrix:{...MXON},groove:{...GON},stages:ctx&&MXF.get(ctx)?MXF.get(ctx).length:0}; },   // for tests
   grooveDefaults(){ return {...GROOVE_DEF}; },
   keyModes(){ return KEY_MODES.map(([id,name])=>({id,name})); },
   meters(){ return Object.keys(METERS); },

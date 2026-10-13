@@ -80,7 +80,7 @@
     if(saveBtn.getAttribute("aria-busy")==="true") return;
     if(!radio.isOn()||(!radio.nowPlaying()&&!(radio.onAir&&radio.onAir()))){ cap.textContent="Tune in first, then press the floppy to save what's playing."; return; }
     saveBtn.setAttribute("aria-busy","true"); clearTimeout(capT); const say=t=>{ cap.textContent=t; };
-    try{ const r=await MDFM.saveSong(radio,{app,onStatus:say}); cap.textContent=r.via==="claude"?`Saved “${r.title}” (the MP3 is inside ${r.name}).`:`Saved “${r.title}” as an MP3.`; }
+    try{ const r=await MDFM.saveSong(radio,{app,onStatus:say}); cap.textContent=MDFM.savedText?MDFM.savedText(r):`Saved “${r.title}”.`; }
     catch(e){ cap.textContent=e&&e.code==="declined"?"Not saved.":`Couldn't save it: ${(e&&e.message)||e}`; }
     finally{ saveBtn.removeAttribute("aria-busy"); capT=setTimeout(()=>{ cap.textContent=""; },9000); } });
   // TUNE: the sound-tuning pop-out (realism, soundstage, clarity, warmth, room, trunk rattle, radio grain). Kept on this device.

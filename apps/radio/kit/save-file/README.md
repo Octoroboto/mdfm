@@ -11,9 +11,10 @@ Gives any kit app a **Save** button: the page makes the bytes, the person picks 
 ## Wiring (3 steps)
 1. **Main:** `require("../../kit/save-file/main.js").registerSaveFile({ subfolder: "My App", isAllowedSender: e => e.sender === win.webContents })`
    (default folder: Music/<subfolder>; the dialog remembers the last folder).
-2. **Preload:** add `saveFile: (bytes, name) => ipcRenderer.invoke("kit:save-file", { bytes, name })` to the object you expose (e.g. `window.mdfmApp`).
+2. **Preload:** add `saveFile: (bytes, name, extras) => ipcRenderer.invoke("kit:save-file", { bytes, name, extras })` to the object you expose (e.g. `window.mdfmApp`).
+   `extras` (optional, `[{ name, bytes }]`) are written next to the file picked, with no second dialog. The MDFM floppy uses it to put the song's `.mid` beside its `.mp3`; allow `mid` in `types`.
 3. **Page:** a button and one call:
-   - The MDFM radio: `KitSave.attachSong(button, radio, { app: window.mdfmApp, onStatus })` saves the song that's playing as an MP3
+   - The MDFM radio: `KitSave.attachSong(button, radio, { app: window.mdfmApp, onStatus })` saves the song that's playing as an MP3, plus a MIDI file of its notes
      (rendered again from the top, off the live audio, then encoded). The MDFM radio page (kit/mdfm/radio-page) already has the floppy button.
    - Anything else: `KitSave.attach(button, { app: window.mdfmApp, make: async () => ({ bytes, name: "report.csv" }) })`.
    Load `kit/save-file/renderer/save-button.js` after `mdfm.iife.js` (or on its own when there's no radio).

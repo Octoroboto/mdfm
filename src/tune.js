@@ -15,7 +15,7 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
     set(v) { try { localStorage.setItem("mdfmSound", JSON.stringify(v)); } catch (e) {} } };
   let cur = radio.getSound(); const saved = st.get(); if (saved) cur = radio.setSound(saved);
   panel.classList.add("pop", "tunepop"); panel.setAttribute("role", "dialog"); panel.setAttribute("aria-labelledby", uid + "h"); panel.hidden = true;
-  panel.innerHTML = `<div class="wtitle"><span id="${uid}h"></span></div><div class="tunerow"><label class="tunefld">Preset <select data-t="preset" aria-label="Sound preset"></select></label><label class="tunefld">Room <select data-t="room" aria-label="Listening room"></select></label><div class="tunebtns"><div class="rd-btn"><button type="button" data-t="reset" title="Back to MDFM exactly as it is" aria-label="Reset the sound tuning"></button><small>RESET</small></div><div class="rd-btn"><button type="button" data-t="close" title="Close sound tuning" aria-label="Close sound tuning"></button><small>CLOSE</small></div></div></div><div class="rd-knobs tuneknobs" role="group" aria-label="Sound tuning knobs"></div><p class="tunehint">With every knob at its start mark the station sounds exactly as it always has. Double-click a knob to put it back.</p>` +
+  panel.innerHTML = `<div class="wtitle"><span id="${uid}h"></span></div><div class="tunerow"><label class="tunefld">Preset <select data-t="preset" aria-label="Sound preset"></select></label><label class="tunefld">Room <select data-t="room" aria-label="Listening room"></select></label><div class="tunebtns"><div class="rd-btn"><button type="button" data-t="reset" title="Everything back: the knobs, and this station's style matrix and groove" aria-label="Reset all sound tuning for this station"></button><small>RESET</small></div><div class="rd-btn"><button type="button" data-t="close" title="Close sound tuning" aria-label="Close sound tuning"></button><small>CLOSE</small></div></div></div><div class="rd-knobs tuneknobs" role="group" aria-label="Sound tuning knobs"></div><p class="tunehint">With every knob at its start mark the station sounds exactly as it always has. Double-click a knob to put it back.</p>` +
     (typeof radio.setStyleMix === "function" ? `<div class="tunemix" role="group" aria-labelledby="${uid}m"><div class="tunemixhd"><span class="tunemixt" id="${uid}m">STYLE MATRIX</span><span class="tunemixst" data-t="mixst"></span><div class="rd-btn"><button type="button" data-t="mixzero" title="Every style back to zero on this station" aria-label="Reset the style matrix for this station"></button><small>ZERO</small></div></div><div class="tunesliders"></div>${typeof radio.setGroove === "function" ? `<div class="tunegrv" role="group" aria-labelledby="${uid}g"></div>` : ""}<p class="tunehint">The song on air is the middle. Drag out toward a style to pull the song that way: its instruments, groove, tempo and sound move toward the style; pull several ways at once to blend them. Each station keeps its own. Double-click a point to put it back.${typeof radio.setGroove === "function" ? " Beside it: the tempo, time signature, swing, length, key and drums, also per station; Save takes all of it." : ""}</p></div>` : "");
   panel.querySelector(`#${uid}h`).textContent = title;
   const q = k => panel.querySelector(`[data-t="${k}"]`), pre = q("preset"), room = q("room"), kn = panel.querySelector(".tuneknobs");
@@ -44,7 +44,7 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
       if (s != null) { set({ [k]: clamp(cur[k] + s) }); e.preventDefault(); } else if (e.key === "Home") { set({ [k]: 0 }); e.preventDefault(); } else if (e.key === "End") { set({ [k]: 1 }); e.preventDefault(); } }); }
   room.addEventListener("change", () => set({ roomType: room.value, room: cur.room || .5 }));
   pre.addEventListener("change", () => { const p = presets.find(x => x.id === pre.value); if (p) set(p.sound); });
-  q("reset").addEventListener("click", () => { cur = radio.resetSound(); st.set(cur); show(); });
+  q("reset").addEventListener("click", () => { cur = radio.resetSound(); st.set(cur); show(); resetAll(); });   // the knobs, plus this station's style matrix and groove
   const open = v => { panel.hidden = !v; if (toggle) { if ("checked" in toggle) toggle.checked = v; else toggle.setAttribute("aria-pressed", String(v)); toggle.setAttribute("aria-expanded", String(v)); }
     if (v) setTimeout(() => { const f = panel.querySelector(".rd-knob"); f && f.focus({ preventScroll: true }); }, 0); };
   if (toggle) { toggle.setAttribute("aria-expanded", "false"); toggle.addEventListener(toggle.type === "checkbox" ? "change" : "click", () => open(toggle.type === "checkbox" ? toggle.checked : panel.hidden)); }
@@ -52,7 +52,7 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
   panel.addEventListener("keydown", e => { if (e.key === "Escape") { open(false); toggle && toggle.focus(); } });
   // the style matrix: a radar chart, one axis per style. The song on air is the middle; drag out along an axis (or tab to a
   // handle and use the arrow keys) to pull it toward that style. Per station, kept in localStorage "mdfmStyleMix" unless opts.mixStore.
-  const mixBox = panel.querySelector(".tunesliders"); let mixOn = () => false, grvOn = () => false;
+  const mixBox = panel.querySelector(".tunesliders"); let mixOn = () => false, grvOn = () => false, resetAll = () => {};
   if (mixBox) {
     const ms = mixStore || { get() { try { return JSON.parse(localStorage.getItem("mdfmStyleMix") || "null"); } catch (e) { return null; } },
       set(v) { try { localStorage.setItem("mdfmStyleMix", JSON.stringify(v)); } catch (e) {} } };
@@ -70,7 +70,7 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
     mixBox.innerHTML = svg + "</svg>"; mixBox.classList.add("tuneradarbox");
     const S = mixBox.querySelector("svg"), shape = S.querySelector(".tr-shape"), hs = [...S.querySelectorAll(".tr-h")];
     const save = v => { all[sid()] = v; ms.set(all); };
-    const setK = (k, v) => { save(radio.setStyleMix({ [k]: Math.max(0, Math.min(1, v)) })); paintMix(); };
+    const setK = (k, v) => { v = Math.max(0, Math.min(1, v)); if (v < .04) v = 0; save(radio.setStyleMix({ [k]: v })); paintMix(); };   // a hair from the middle is the middle
     const paintMix = () => { const m = radio.getStyleMix(), st = radio.getStation ? radio.getStation() : null; q("mixst").textContent = st ? `for ${st.name}` : "";
       shape.setAttribute("points", keys.map(([k], i) => pt(i, Math.max(.0001, m[k] || 0) * RR).map(x => x.toFixed(1)).join(",")).join(" "));
       keys.forEach(([k], i) => { const v = m[k] || 0, [x, y] = pt(i, Math.max(v, .1) * RR), h = hs[i]; h.setAttribute("cx", x.toFixed(1)); h.setAttribute("cy", y.toFixed(1)); h.setAttribute("r", v > 0 ? "7" : "4.5");
@@ -94,6 +94,7 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
         if (d != null) { setK(k, m + d); e.preventDefault(); } else if (e.key === "Home") { setK(k, 0); e.preventDefault(); } else if (e.key === "End") { setK(k, 1); e.preventDefault(); } });
       h.addEventListener("dblclick", () => setK(k, 0)); }
     q("mixzero").addEventListener("click", () => { save(radio.resetStyleMix()); paintMix(); });
+    const ra0 = resetAll; resetAll = () => { ra0(); save(radio.resetStyleMix()); paintMix(); };
     if (radio.on) radio.on("station", paintMix); paintMix();
   }
   // groove and key: tempo, time signature, swing, length, key and mode, and the drums. Per station, kept in localStorage
@@ -114,6 +115,7 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
       fills: ["FILLS", 0, 100, 1, v => Math.abs(v - 50) < 1 ? "SONG" : v < 50 ? (v === 0 ? "NONE" : "FEWER") : v === 100 ? "LOTS" : "MORE"],
       feel: ["FEEL", 0, 2, 1, v => ["HALF", "NORMAL", "DOUBLE"][v]], humanize: ["HUMANIZE", 0, 100, 1, v => v ? v + "%" : "OFF"],
       drums: ["DRUMS", 0, 100, 1, v => v === 0 ? "OFF" : Math.abs(v - 50) < 1 ? "0 dB" : (v > 50 ? "+" : "") + (20 * Math.log10(lvl(v / 100))).toFixed(1) + " dB"] };
+    const snap = (k, x) => k === "humanize" ? (x <= 2 ? 0 : x) : ["swing", "length", "density", "fills", "drums"].includes(k) && Math.abs(x - 50) <= 2 ? 50 : x;   // near the default is the default
     const toUI = (k, v) => k === "bpm" ? (v || 39) : k === "feel" ? Math.round(v * 2) : Math.round(v * 100), fromUI = (k, x) => k === "bpm" ? (x < 40 ? 0 : x) : k === "feel" ? x / 2 : x / 100;
     const row = k => { const [lab, mn, mx, stp] = SL[k], id = `${uid}g_${k}`; return `<div class="tg-row" data-gk="${k}"><label class="tg-l" for="${id}">${lab}</label><input type="range" id="${id}" min="${mn}" max="${mx}" step="${stp}" data-g="${k}" title="${tips[k] || ""}"><output class="tg-v" for="${id}" data-gv="${k}"></output></div>`; };
     gBox.innerHTML = `<div class="tunemixhd tg-hd"><span class="tunemixt" id="${uid}g">GROOVE &amp; KEY</span><span class="tunemixst" data-t="grvst"></span><div class="rd-btn"><button type="button" data-t="grvreset" title="Tempo, time, key and drums back to the song as written on this station" aria-label="Reset groove and key for this station"></button><small>RESET</small></div></div>` +
@@ -132,11 +134,12 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
       for (const [k, v] of Object.entries(off)) { const el = gq(k); el.disabled = v; el.closest(".tg-row").classList.toggle("na", v); el.closest(".tg-row").title = v ? `Not on ${st ? st.name : "this station"}` : ""; }
       gBox.classList.toggle("moved", grvOn()); if (toggle) toggle.closest("label,.rd-btn")?.classList.toggle("tuned", !same(cur, DEF) || mixOn() || grvOn()); };
     const setG = o => { gsave(radio.setGroove(o)); paintG(); };
-    for (const k of Object.keys(SL)) { const el = gq(k); el.addEventListener("input", () => setG({ [k]: fromUI(k, +el.value) })); el.addEventListener("dblclick", () => setG({ [k]: GD[k] })); }
+    for (const k of Object.keys(SL)) { const el = gq(k); el.addEventListener("input", () => setG({ [k]: fromUI(k, snap(k, +el.value)) })); el.addEventListener("dblclick", () => setG({ [k]: GD[k] })); }
     gq("meter").addEventListener("change", () => setG({ meter: gq("meter").value }));
     gq("root").addEventListener("change", () => setG({ root: +gq("root").value }));
     gq("mode").addEventListener("change", () => setG({ mode: gq("mode").value }));
     q("grvreset").addEventListener("click", () => { gsave(radio.resetGroove()); paintG(); });
+    const rg0 = resetAll; resetAll = () => { rg0(); gsave(radio.resetGroove()); paintG(); };
     if (radio.on) radio.on("station", paintG); paintG();
   }
   const show0 = show; show = () => { show0(); if ((mixOn() || grvOn()) && toggle) toggle.closest("label,.rd-btn")?.classList.add("tuned"); };

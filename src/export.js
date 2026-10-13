@@ -46,16 +46,18 @@ function zipFiles(files) {
   const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(off), ...u16(0)]);
   return new Blob([...chunks, ...central, end], { type: "application/zip" });
 }
-/** Saves bytes as a file. app.saveFile (the apps) > claude.ai downloads (as .zip) > a plain browser download. Resolves {via, name} or throws. */
-async function saveBytes(bytes, filename, { app = null, type = "audio/mpeg" } = {}) {
-  if (app && typeof app.saveFile === "function") { const r = await app.saveFile(bytes, filename); if (r === false || (r && r.canceled)) throw Object.assign(new Error("Canceled"), { code: "declined" }); return { via: "app", name: (r && r.path) || filename }; }
+/** Saves bytes as a file. app.saveFile (the apps) > claude.ai downloads (as .zip) > a plain browser download. Resolves {via, name, extras} or throws.
+    extras: [{name, bytes}] saved alongside (the song's MIDI): in the apps, next to the file picked in the one Save dialog (apps
+    from kit 2.10 on; older ones save just the main file), in the claude.ai zip, or as a second download in a browser. */
+async function saveBytes(bytes, filename, { app = null, type = "audio/mpeg", extras = [] } = {}) {
+  if (app && typeof app.saveFile === "function") { const r = await app.saveFile(bytes, filename, extras.length ? extras : undefined); if (r === false || (r && r.canceled)) throw Object.assign(new Error("Canceled"), { code: "declined" }); return { via: "app", name: (r && r.path) || filename, extras: (r && r.extras) || [] }; }
   if (typeof window !== "undefined" && window.claude && typeof window.claude.use === "function") {
     const dl = await Promise.race([window.claude.use("downloads"), new Promise(r => setTimeout(() => r(null), 4000))]).catch(() => null);
-    if (dl) { const zipName = filename.replace(/\.[a-z0-9]+$/i, "") + ".zip"; await dl.save({ filename: zipName, data: zipFiles([{ name: filename, bytes }]) }); return { via: "claude", name: zipName }; }
+    if (dl) { const zipName = filename.replace(/\.[a-z0-9]+$/i, "") + ".zip"; await dl.save({ filename: zipName, data: zipFiles([{ name: filename, bytes }, ...extras]) }); return { via: "claude", name: zipName, extras: extras.map(x => x.name) }; }
   }
-  const url = URL.createObjectURL(new Blob([bytes], { type })), a = document.createElement("a");
-  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
-  return { via: "browser", name: filename };
+  const down = (b, n, t) => { const url = URL.createObjectURL(new Blob([b], { type: t })), a = document.createElement("a"); a.href = url; a.download = n; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); };
+  down(bytes, filename, type); for (const x of extras) { await new Promise(r => setTimeout(r, 400)); down(x.bytes, x.name, "audio/midi"); }
+  return { via: "browser", name: filename, extras: extras.map(x => x.name) };
 }
 const safeName = s => String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
 /** Saving a break: waits for it to end, then encodes the recording. */
@@ -82,15 +84,19 @@ async function saveSong(radio, { app = null, onStatus = () => {} } = {}) {
   if (r.info && r.info.station === "wybc") {   // WYBC 88.1: Collin's ambient piano
     const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "WYBC 88.1", album: "WYBC 88.1", genre: "Ambient", comment: "WYBC 88.1. Ambient piano, composed by the station the moment you saved it." }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
     const name = safeName(`WYBC - ${i.artist ? i.artist + " - " : ""}${i.title} (ambient piano)`) + ".mp3";
-    onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app })), title: i.title, bytes: mp3.length };
+    onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app, extras: midiOf(r, name) })), title: i.title, bytes: mp3.length, midi: !!r.midi };
   }
   if (r.info && r.info.station === "hearye") {   // HEARYE 95.5: Renn Faire Radio's procedural fantasy music
     const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "HEARYE 95.5", album: "HEARYE 95.5", genre: "Fantasy", bpm: i.bpm, comment: `HEARYE 95.5, Renn Faire Radio. ${i.style}${i.key ? ", " + i.key : ""}. Composed by the station as it played.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
     const name = safeName(`HEARYE - ${i.artist ? i.artist + " - " : ""}${i.title} (${String(i.style || "").toLowerCase()})`) + ".mp3";
-    onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app })), title: i.title, bytes: mp3.length };
+    onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app, extras: midiOf(r, name) })), title: i.title, bytes: mp3.length, midi: !!r.midi };
   }
   const i = r.info, style = String(i.style || "").toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase()).replace("R&b", "R&B").replace("Pluggnb", "PluggnB").replace(/\bDj\b/, "DJ");
   const mp3 = await encodeMp3(r.buffer, { title: i.title, genre: style, bpm: i.bpm, comment: `MDFM 99.9 HD. ${style}, ${i.bpm} BPM, ${i.key || ""}. Written by the station the moment it played.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
   const name = safeName(`MDFM - ${i.title} (${style}, ${i.bpm} BPM)`) + ".mp3";
-  onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app })), title: i.title, bytes: mp3.length };
+  onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app, extras: midiOf(r, name) })), title: i.title, bytes: mp3.length, midi: !!r.midi };
 }
+/** The song's MIDI file (from renderSong), named like the MP3. */
+function midiOf(r, mp3Name) { return r && r.midi && r.midi.length ? [{ name: mp3Name.replace(/\.mp3$/i, "") + ".mid", bytes: r.midi }] : []; }
+/** What a Save says when it's done. */
+function savedText(r) { const what = r.midi ? "an MP3 and a MIDI file" : "an MP3"; return r.via === "claude" ? `Saved “${r.title}” as ${what} (inside ${r.name}).` : r.via === "app" && r.midi && !(r.extras && r.extras.length) ? `Saved “${r.title}” as an MP3. (This version of the app can't save the MIDI file yet.)` : `Saved “${r.title}” as ${what}.`; }

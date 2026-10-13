@@ -2,6 +2,29 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.18.0 (2026-10-13, Rob)
+- **Save also writes a MIDI file of the song**, for a DAW or notation program. It goes next to the MP3 with the same name.
+  - **What's in it:** the notes exactly as they were rendered, after the Style Matrix and Groove & Key (the key, mode, tempo, time signature, swing, density and fills all carry over).
+  - **Tracks:** one track per part: drums on channel 10 with General MIDI drum notes, then bass, chords, pad and lead (plus timpani on HEARYE). On WYBC: piano, strings and winds, plus the matrix's rhythm section when it's up.
+  - **Also included:** the tempo, time signature and title, with a General MIDI instrument picked for each track.
+  - **Works on** MDFM 99.9, HEARYE 95.5 pieces and WYBC 88.1. Shows and breaks still save as MP3 only.
+- **Where it lands:**
+  - In the MDFM Radio app: beside the MP3, from the same Save dialog. This needs the app rebuilt; an older app saves just the MP3 and says so.
+  - On claude.ai pages: inside the same .zip.
+  - In a browser: as a second download.
+- **Under the hood:**
+  - A small recorder around every instrument call. When nothing is being saved it's skipped entirely, so the sound is unchanged.
+  - Three more marked "MDFM patch" lines in the WYBC generator report each piano, string and wind note.
+  - `renderSong()` returns `midi` (Uint8Array, Standard MIDI File format 1, 480 PPQ). `MDFM.savedText(result)` gives the status line.
+- **App (apps/radio):** the save-file bridge passes the MIDI along as an extra, and `mid` is an allowed type.
+
+## 1.17.2 (2026-10-13, Rob)
+- **TUNE resets all the way back:** with every Style Matrix point at the centre, the station sound stage (drive, lo-fi, hall, phaser and so on) fades out and is taken out of the path again, so the music is bit for bit as it was before tuning (it used to stay in, at zero). Any key jump CHAOS left hanging is cleared too.
+- **RESET** (by the knobs) now puts everything back for the station on air: the knobs, its Style Matrix and its Groove & Key. ZERO and the groove's RESET still do just their own part.
+- **Snapping:** a matrix point dragged to within 4% of the centre snaps to it, and the groove sliders snap to their defaults within 2%.
+- **Checked:** on every station, tuning everything and then resetting renders the same as never tuning (−100 to −107 dB).
+- **Note:** a song or piece that started while LENGTH was changed keeps that length; the next one is back to normal.
+
 ## 1.17.1 (2026-10-13, Rob)
 - **HEARYE 95.5's music is back to its 1.15 sound:** the fantasy instruments on their own, at their original tempos, meters and scales, without the 1.16 pop, gothic and epic layers. Pieces render the same as in 1.15, sample for sample. To lean it toward pop now, use the Style Matrix.
 - **Kept from 1.16 and 1.17:**
