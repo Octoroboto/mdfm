@@ -58,15 +58,28 @@ const r = await p.evaluate(async () => {
   out.ptMusic = []; for (const style of ["news", "doug", "ticker", "pomp", "lost", "westcoast", "tech", "nature", "noir", "fantasy"]) { const m = await radio.renderOffline("ptmusic", 9, { style, cue: "theme" }), d = m.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } out.ptMusic.push([style, +Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]); }
   const lvl = b => { const d = b.getChannelData(0); let q = 0; for (const x of d) q += x * x; return Math.sqrt(q / d.length); };
   out.phoneVsDry = +(20 * Math.log10(lvl(await radio.renderOffline("voicetest", 3, { phone: true })) / lvl(await radio.renderOffline("voicetest", 3, { phone: false })))).toFixed(1);
+  // PTRN 101.1 (1.22): genres only, one switched on; plays, a skip mixes into the next track, a tag lands, back to MDFM; every genre renders
+  radio.setStationTypes("ptrn", Object.fromEntries(radio.stationTypeList("ptrn").map(([k]) => [k, k === "funk" || k === "tags"]))); radio.setStation("ptrn"); radio.start();
+  const pnp = []; const offP = radio.on("nowplaying", n => pnp.push(n)); let rmax = 0; for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 100)); const s2 = radio.getSpectrum(); if (s2) rmax = Math.max(rmax, ...s2); }
+  out.ptrnSpectrum = rmax; out.ptrnNp = radio.nowPlaying(); radio.skip(); for (let i = 0; i < 80 && pnp.length < 2; i++) await new Promise(r => setTimeout(r, 100)); out.ptrnSkip = pnp.length >= 1 && pnp[pnp.length - 1].style === "Funk";
+  radio.spotNow(); await new Promise(r => setTimeout(r, 2500)); out.ptrnGenres = radio.stationTypeList("ptrn").length; offP();
+  radio.setStation("mdfm"); await new Promise(r => setTimeout(r, 1500)); out.backNp4 = radio.nowPlaying() && radio.nowPlaying().bpm; radio.stop();
+  out.ptrnRenders = []; for (const style of ["HOUSE", "SWING JAZZ", "SALSA", "METAL", "AMBIENT", "CHIPTUNE"]) { const m = await radio.renderOffline("ptrn", 6, { style }), d = m.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } out.ptrnRenders.push([style, +Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]); }
+  // TUNE effects (1.22): all on renders with sound and no clipping; off is back to the defaults
+  out.fxKeys = radio.fxKeys().length; radio.setFx({ echo: .6, reverb: .5, chorus: .5, flange: .4, phaser: .4, warble: .3, crush: .3, drive: .4, filter: .3, gate: .4, pump: .5 });
+  out.fxRender = await (async () => { const b2 = await radio.renderOffline("song", 6); const d = b2.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } return [+Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]; })();
+  radio.resetFx(); out.fxZero = JSON.stringify(radio.getFx()) === JSON.stringify(radio.fxDefaults());
   // TUNE: presets apply, reset returns to the defaults
   out.presets = radio.soundPresets().length; radio.setSound(radio.soundPresets()[2].sound); out.tuned = radio.getSound().roomType; radio.resetSound(); out.untuned = JSON.stringify(radio.getSound()) === JSON.stringify(radio.soundDefaults());
   out.rms = Math.sqrt(s / d.length); out.peak = pk; return out;
 });
 console.log(r); await b.close(); srv.close();
-const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.kinds.includes("interview") && r.examplePackUsed && r.np && r.fb.length > 4 && r.pod > 5 && r.cook > 5 && r.sp > 10 && r.hr > 5 && r.ga > 5 && r.stations.join() === "wybc,hearye,mdfm,ptlk" && r.wybcSpectrum > 0.05 && r.wybcNp === "wybc" && r.backNp > 0
+const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.kinds.includes("interview") && r.examplePackUsed && r.np && r.fb.length > 4 && r.pod > 5 && r.cook > 5 && r.sp > 10 && r.hr > 5 && r.ga > 5 && r.stations.join() === "wybc,hearye,mdfm,ptrn,ptlk" && r.wybcSpectrum > 0.05 && r.wybcNp === "wybc" && r.backNp > 0
   && r.ptlkSpectrum > 0.05 && r.ptlkNp && r.ptlkNp.station === "ptlk" && r.ptlkNp.style === "Button Mashers" && r.ptlkLive && r.ptlkWho.includes("Sal") && r.ptlkAir && r.ptlkAir.saveable && r.ptlkSkip === "ptlk" && r.backNp2 > 0
   && r.hearyeSpectrum > 0.05 && r.hearyeNp && r.hearyeNp.station === "hearye" && r.hearyeNp.artist && r.hearyeWho.some(w => /Crier/.test(w)) && r.hearyeJoust && r.hearyeAir && r.hearyeAir.saveable && r.backNp3 > 0 && r.hearyeSave[0] > 0.01 && r.hearyeSave[1] < 1.2
   && r.mixKeys === 7 && r.mixOther === 0 && r.mixRender[0] > 0.02 && r.mixRender[1] < 1.2 && r.mixZero && r.grvKeys === 11 && r.grvModes >= 15 && r.grvOther === 0 && r.grvRender[0] > 0.02 && r.grvRender[1] < 1.3 && r.grvZero && r.wybcSave.every(([rms, pk]) => rms > 0.01 && pk < 1.3)
-  && r.ptMusic.length === 10 && r.ptMusic.every(([, rms, pk]) => rms > 0.02 && pk < 1.2) && r.phoneVsDry < 0 && r.presets >= 5 && r.tuned === "car" && r.untuned;
+  && r.ptMusic.length === 10 && r.ptMusic.every(([, rms, pk]) => rms > 0.02 && pk < 1.2) && r.phoneVsDry < 0 && r.presets >= 5 && r.tuned === "car" && r.untuned
+  && r.ptrnSpectrum > 0.05 && r.ptrnNp && r.ptrnNp.station === "ptrn" && r.ptrnNp.style === "Funk" && r.ptrnNp.artist && r.ptrnSkip && r.ptrnGenres >= 31 && r.backNp4 > 0 && r.ptrnRenders.every(([, rms, pk]) => rms > 0.01 && pk < 1.3)
+  && r.fxKeys === 11 && r.fxRender[0] > 0.02 && r.fxRender[1] < 1.3 && r.fxZero;
 if (errs.length) console.log("page errors:", errs);
 console.log(ok ? "SMOKE TEST PASSED" : "SMOKE TEST FAILED"); process.exit(ok ? 0 : 1);

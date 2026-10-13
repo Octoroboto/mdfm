@@ -1,7 +1,7 @@
 /* TUNE: the sound-tuning pop-out (MDFM.mountTune). Builds the knobs, presets and room picker inside `panel` and wires
    them to radio.setSound(). `toggle` (a checkbox) opens and closes it. Settings are kept on this device (localStorage
    "mdfmSound") unless opts.store = { get(), set(sound) } is given. Styles: .tunepop and friends in skin/radio.css. */
-function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title = "Sound tuning" } = {}) {
+function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, fxStore, title = "Sound tuning" } = {}) {
   if (!radio || typeof radio.setSound !== "function" || !panel) return null;
   const DEF = radio.soundDefaults(), uid = "t" + Math.random().toString(36).slice(2, 7);
   const KNOBS = [["realism", "REALISM", "MIN", "MAX", "How real it sounds: speakers in a room, a little glue and air"],
@@ -17,7 +17,8 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
   let cur = radio.getSound(); const saved = st.get(); if (saved) cur = radio.setSound(saved);
   panel.classList.add("pop", "tunepop"); panel.setAttribute("role", "dialog"); panel.setAttribute("aria-labelledby", uid + "h"); panel.hidden = true;
   panel.innerHTML = `<div class="wtitle"><span id="${uid}h"></span></div><div class="tunerow"><label class="tunefld">Preset <select data-t="preset" aria-label="Sound preset"></select></label><label class="tunefld">Room <select data-t="room" aria-label="Listening room"></select></label><div class="tunebtns"><div class="rd-btn"><button type="button" data-t="reset" title="Everything back: the knobs, and this station's style matrix and groove" aria-label="Reset all sound tuning for this station"></button><small>RESET</small></div><div class="rd-btn"><button type="button" data-t="close" title="Close sound tuning" aria-label="Close sound tuning"></button><small>CLOSE</small></div></div></div><div class="rd-knobs tuneknobs" role="group" aria-label="Sound tuning knobs"></div><p class="tunehint">With every knob at its start mark the station sounds exactly as it always has. Double-click a knob to put it back.</p>` +
-    (typeof radio.setStyleMix === "function" ? `<div class="tunemix" role="group" aria-labelledby="${uid}m"><div class="tunemixhd"><span class="tunemixt" id="${uid}m">STYLE MATRIX</span><span class="tunemixst" data-t="mixst"></span><div class="rd-btn"><button type="button" data-t="mixzero" title="Every style back to zero on this station" aria-label="Reset the style matrix for this station"></button><small>ZERO</small></div></div><div class="tunesliders"></div>${typeof radio.setGroove === "function" ? `<div class="tunegrv" role="group" aria-labelledby="${uid}g"></div>` : ""}<p class="tunehint">The song on air is the middle. Drag out toward a style to pull the song that way: its instruments, groove, tempo and sound move toward the style; pull several ways at once to blend them. Each station keeps its own. Double-click a point to put it back.${typeof radio.setGroove === "function" ? " Beside it: the tempo, time signature, swing, length, key and drums, also per station; Save takes all of it." : ""}</p></div>` : "");
+    (typeof radio.setStyleMix === "function" ? `<div class="tunemix" role="group" aria-labelledby="${uid}m"><div class="tunemixhd"><span class="tunemixt" id="${uid}m">STYLE MATRIX</span><span class="tunemixst" data-t="mixst"></span><div class="rd-btn"><button type="button" data-t="mixzero" title="Every style back to zero on this station" aria-label="Reset the style matrix for this station"></button><small>ZERO</small></div></div><div class="tunesliders"></div>${typeof radio.setGroove === "function" ? `<div class="tunegrv" role="group" aria-labelledby="${uid}g"></div>` : ""}<p class="tunehint">The song on air is the middle. Drag out toward a style to pull the song that way: its instruments, groove, tempo and sound move toward the style; pull several ways at once to blend them. Each station keeps its own. Double-click a point to put it back.${typeof radio.setGroove === "function" ? " Beside it: the tempo, time signature, swing, length, key and drums, also per station; Save takes all of it." : ""}</p></div>` : "") +
+    (typeof radio.setFx === "function" ? `<div class="tunefx" role="group" aria-labelledby="${uid}x"><div class="tunemixhd"><span class="tunemixt" id="${uid}x">EFFECTS</span><span class="tunemixst">on every station</span><div class="tfx-btns"><div class="rd-btn"><button type="button" data-t="tape" title="The music slows to a stop, then drops back in on the beat" aria-label="Tape stop"></button><small>TAPE STOP</small></div><div class="rd-btn"><button type="button" data-t="spin" title="Spins the music backwards like a record, then drops back in on the beat" aria-label="Spin back"></button><small>SPIN BACK</small></div><div class="rd-btn"><button type="button" data-t="fxreset" title="Every effect off" aria-label="Turn every effect off"></button><small>ALL OFF</small></div></div></div><div class="tfx-grid"></div><p class="tunehint">Echo, gate and pump follow the beat. Everything off (the filter in the middle) is the station exactly as it is. Save takes the effects too. Double-click a slider to put it back.</p></div>` : "");
   panel.querySelector(`#${uid}h`).textContent = title;
   const q = k => panel.querySelector(`[data-t="${k}"]`), pre = q("preset"), room = q("room"), kn = panel.querySelector(".tuneknobs");
   for (const r of radio.rooms()) { const o = document.createElement("option"); o.value = r.id; o.textContent = r.name; room.appendChild(o); }
@@ -110,39 +111,84 @@ function mountTune(radio, { panel, toggle, store, mixStore, grooveStore, title =
     const NOTES = ["C", "C♯ / D♭", "D", "E♭", "E", "F", "F♯ / G♭", "G", "A♭", "A", "B♭", "B"];
     const lenMul = v => v < .5 ? .5 + v : 1 + (v - .5) * 4, lvl = v => v < .5 ? Math.pow(v * 2, 1.6) : 1 + (v - .5) * 2;
     const sign = v => (v > 0 ? "+" : "−") + Math.abs(v);
-    const SL = { bpm: ["BPM", 39, 220, 1, v => v ? String(v) : "SONG"], swing: ["SWING", 0, 100, 1, v => Math.abs(v - 50) < 1 ? "SONG" : sign(Math.round((v - 50) * 2))],
-      length: ["LENGTH", 0, 100, 1, v => Math.abs(v - 50) < 1 ? "SONG" : "×" + lenMul(v / 100).toFixed(1)],
-      density: ["DENSITY", 0, 100, 1, v => Math.abs(v - 50) < 1 ? "SONG" : v < 50 ? "SPARSE " + (50 - v) * 2 : "BUSY " + (v - 50) * 2],
-      fills: ["FILLS", 0, 100, 1, v => Math.abs(v - 50) < 1 ? "SONG" : v < 50 ? (v === 0 ? "NONE" : "FEWER") : v === 100 ? "LOTS" : "MORE"],
+    // swing, length, density, fills and drums: each has its own 0-100 scale, and a SONG button for the song's own (the default)
+    const SONGK = ["bpm", "swing", "length", "density", "fills", "drums"], isSong = (k, v) => k === "bpm" ? !v : SONGK.includes(k) && v < 0;
+    let ownBpm = 0;   // the song's own tempo: where the BPM slider sits (and what it says) while it's on SONG
+    const SL = { bpm: ["BPM", 40, 220, 1, v => String(v)], swing: ["SWING", 0, 100, 1, v => v === 0 ? "STRAIGHT" : v + "%"],
+      length: ["LENGTH", 0, 100, 1, v => "×" + lenMul(v / 100).toFixed(1)],
+      density: ["DENSITY", 0, 100, 1, v => v === 0 ? "BARE" : String(v)],
+      fills: ["FILLS", 0, 100, 1, v => v === 0 ? "NONE" : String(v)],
       feel: ["FEEL", 0, 2, 1, v => ["HALF", "NORMAL", "DOUBLE"][v]], humanize: ["HUMANIZE", 0, 100, 1, v => v ? v + "%" : "OFF"],
       drums: ["DRUMS", 0, 100, 1, v => v === 0 ? "OFF" : Math.abs(v - 50) < 1 ? "0 dB" : (v > 50 ? "+" : "") + (20 * Math.log10(lvl(v / 100))).toFixed(1) + " dB"] };
-    const snap = (k, x) => k === "humanize" ? (x <= 2 ? 0 : x) : ["swing", "length", "density", "fills", "drums"].includes(k) && Math.abs(x - 50) <= 2 ? 50 : x;   // near the default is the default
-    const toUI = (k, v) => k === "bpm" ? (v || 39) : k === "feel" ? Math.round(v * 2) : Math.round(v * 100), fromUI = (k, x) => k === "bpm" ? (x < 40 ? 0 : x) : k === "feel" ? x / 2 : x / 100;
-    const row = k => { const [lab, mn, mx, stp] = SL[k], id = `${uid}g_${k}`; return `<div class="tg-row" data-gk="${k}"><label class="tg-l" for="${id}">${lab}</label><input type="range" id="${id}" min="${mn}" max="${mx}" step="${stp}" data-g="${k}" title="${tips[k] || ""}"><output class="tg-v" for="${id}" data-gv="${k}"></output></div>`; };
+    const snap = (k, x) => k === "humanize" ? (x <= 2 ? 0 : x) : x;
+    const toUI = (k, v) => k === "bpm" ? (v || Math.max(40, Math.min(220, Math.round(ownBpm) || 120))) : k === "feel" ? Math.round(v * 2) : SONGK.includes(k) && v < 0 ? 50 : Math.round(v * 100), fromUI = (k, x) => k === "bpm" ? x : k === "feel" ? x / 2 : x / 100;
+    const row = k => { const [lab, mn, mx, stp] = SL[k], id = `${uid}g_${k}`, sg = SONGK.includes(k); return `<div class="tg-row${sg ? " tg-hasong" : ""}" data-gk="${k}"><label class="tg-l" for="${id}">${lab}</label><input type="range" id="${id}" min="${mn}" max="${mx}" step="${stp}" data-g="${k}" title="${tips[k] || ""}"><output class="tg-v" for="${id}" data-gv="${k}"></output>${sg ? `<button type="button" class="tg-song" data-gs="${k}" aria-pressed="true" title="Back to the song's own ${lab.toLowerCase()}" aria-label="${lab}: the song's own">SONG</button>` : ""}</div>`; };
     gBox.innerHTML = `<div class="tunemixhd tg-hd"><span class="tunemixt" id="${uid}g">GROOVE &amp; KEY</span><span class="tunemixst" data-t="grvst"></span><div class="rd-btn"><button type="button" data-t="grvreset" title="Tempo, time, key and drums back to the song as written on this station" aria-label="Reset groove and key for this station"></button><small>RESET</small></div></div>` +
-      `<div class="tg-sec">${row("bpm")}<div class="tg-row" data-gk="meter"><label class="tg-l" for="${uid}g_meter">TIME</label><select id="${uid}g_meter" data-g="meter" title="${tips.meter}"><option value="">Song's (4/4)</option>${radio.meters().map(m => `<option value="${m}">${m}</option>`).join("")}</select></div>${row("swing")}${row("length")}</div>` +
+      `<div class="tg-sec">${row("bpm")}<div class="tg-row" data-gk="meter"><label class="tg-l" for="${uid}g_meter">TIME</label><select id="${uid}g_meter" data-g="meter" title="${tips.meter}"><option value="">Song's own</option>${radio.meters().map(m => `<option value="${m}">${m}</option>`).join("")}</select></div>${row("swing")}${row("length")}</div>` +
       `<div class="tg-sec tg-key" data-gk="key"><div class="tg-row"><label class="tg-l" for="${uid}g_root">KEY</label><select id="${uid}g_root" data-g="root" title="${tips.root}"><option value="-1">Song's key</option>${NOTES.map((n, i) => `<option value="${i}">${n}</option>`).join("")}</select></div>` +
       `<div class="tg-row"><label class="tg-l" for="${uid}g_mode">MODE</label><select id="${uid}g_mode" data-g="mode" title="${tips.mode}"><option value="">Song's scale</option>${radio.keyModes().map(m => `<option value="${m.id}">${m.name}</option>`).join("")}</select></div></div>` +
       `<div class="tg-sec" data-gk="drums"><span class="tg-sub">DRUMS</span>${["density", "fills", "feel", "humanize", "drums"].map(row).join("")}</div>`;
     const gq = k => gBox.querySelector(`[data-g="${k}"]`), gsave = v => { gall[sid()] = v; gs.set(gall); };
     grvOn = () => { const g = radio.getGroove(); return Object.keys(GD).some(k => typeof GD[k] === "number" ? Math.abs(g[k] - GD[k]) > .005 : g[k] !== GD[k]); };
     const paintG = () => { const g = radio.getGroove(), sup = radio.grooveSupport(sid()), st = radio.getStation ? radio.getStation() : null; gBox.querySelector('[data-t="grvst"]').textContent = st ? `for ${st.name}` : "";
-      for (const k of Object.keys(SL)) { const el = gq(k), x = toUI(k, g[k]); el.value = String(x); const o = gBox.querySelector(`[data-gv="${k}"]`); o.textContent = SL[k][4](k === "bpm" ? g.bpm : x); el.setAttribute("aria-valuetext", o.textContent);
-        el.closest(".tg-row").classList.toggle("moved", k === "bpm" ? g.bpm > 0 : Math.abs(g[k] - GD[k]) > .005); }
+      { const ow = radio.songOwn ? radio.songOwn() : null; ownBpm = ow && ow.bpm ? +ow.bpm : 0; }
+      for (const k of Object.keys(SL)) { const el = gq(k), x = toUI(k, g[k]), song = isSong(k, g[k]); el.value = String(x); const o = gBox.querySelector(`[data-gv="${k}"]`);
+        o.textContent = song ? (k === "bpm" && ownBpm ? String(Math.round(ownBpm)) : "SONG") : SL[k][4](k === "bpm" ? g.bpm : x); el.setAttribute("aria-valuetext", song ? (k === "bpm" && ownBpm ? `the song's own, ${Math.round(ownBpm)}` : "the song's own") : o.textContent);
+        el.closest(".tg-row").classList.toggle("moved", k === "bpm" ? g.bpm > 0 : Math.abs(g[k] - GD[k]) > .005); el.closest(".tg-row").classList.toggle("song", song);
+        const sb = gBox.querySelector(`[data-gs="${k}"]`); if (sb) sb.setAttribute("aria-pressed", String(song)); }
+      // the song's own time, key and scale in the "Song's ..." choices
+      const own = radio.songOwn ? radio.songOwn() : null, kp = own && own.key ? String(own.key).split(" ") : null, sup2 = radio.grooveSupport(sid());
+      const o0 = s => gq(s).querySelector('option[value=""],option[value="-1"]');
+      o0("meter").textContent = "Song's own" + (own && own.time && sup2.meter ? ` (${own.time})` : "");
+      o0("root").textContent = "Song's key" + (kp ? ` (${kp[0].replace("#", "♯").replace(/^([A-G])b$/, "$1♭")})` : "");
+      o0("mode").textContent = "Song's scale" + (kp && kp.length > 1 ? ` (${kp.slice(1).join(" ")})` : "");
+      // ...and the song's own choice marked in each list
+      const PCS = { C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 };
+      const mark = (s, hit) => gq(s).querySelectorAll('option:not([value=""]):not([value="-1"])').forEach(o => { if (o.dataset.base == null) o.dataset.base = o.textContent; o.textContent = o.dataset.base + (hit(o) ? " (song)" : ""); });
+      mark("meter", o => !!(own && own.time && sup2.meter && o.value === own.time));
+      mark("root", o => !!(kp && PCS[kp[0]] === +o.value));
+      mark("mode", o => !!(kp && kp.length > 1 && o.dataset.base.toLowerCase().replace(/ \(.*\)$/, "") === kp.slice(1).join(" ").toLowerCase()));
       gq("meter").value = g.meter; gq("root").value = String(g.root); gq("mode").value = g.mode;
       gq("meter").closest(".tg-row").classList.toggle("moved", !!g.meter); gq("root").closest(".tg-row").classList.toggle("moved", g.root >= 0); gq("mode").closest(".tg-row").classList.toggle("moved", !!g.mode);
       const off = { bpm: !sup.bpm, meter: !sup.meter, swing: !sup.swing, length: !sup.length };
       for (const [k, v] of Object.entries(off)) { const el = gq(k); el.disabled = v; el.closest(".tg-row").classList.toggle("na", v); el.closest(".tg-row").title = v ? `Not on ${st ? st.name : "this station"}` : ""; }
       gBox.classList.toggle("moved", grvOn()); if (toggle) toggle.closest("label,.rd-btn")?.classList.toggle("tuned", !same(cur, DEF) || mixOn() || grvOn()); };
-    const setG = o => { gsave(radio.setGroove(o)); paintG(); };
-    for (const k of Object.keys(SL)) { const el = gq(k); el.addEventListener("input", () => setG({ [k]: fromUI(k, snap(k, +el.value)) })); el.addEventListener("dblclick", () => setG({ [k]: GD[k] })); }
+    const setG = o => { gsave(radio.setGroove({ ...o, gv: 2 })); paintG(); };
+    for (const k of Object.keys(SL)) { const el = gq(k); el.addEventListener("input", () => setG({ [k]: fromUI(k, snap(k, +el.value)) })); el.addEventListener("dblclick", () => setG({ [k]: GD[k] })); }   // (BPM's default is 0: the song's own)
+    gBox.querySelectorAll("[data-gs]").forEach(b => b.addEventListener("click", () => setG({ [b.dataset.gs]: b.dataset.gs === "bpm" ? 0 : -1 })));
     gq("meter").addEventListener("change", () => setG({ meter: gq("meter").value }));
     gq("root").addEventListener("change", () => setG({ root: +gq("root").value }));
     gq("mode").addEventListener("change", () => setG({ mode: gq("mode").value }));
     q("grvreset").addEventListener("click", () => { gsave(radio.resetGroove()); paintG(); });
     const rg0 = resetAll; resetAll = () => { rg0(); gsave(radio.resetGroove()); paintG(); };
-    if (radio.on) radio.on("station", paintG); paintG();
+    if (radio.on) { radio.on("station", paintG); radio.on("nowplaying", paintG); } paintG();
   }
-  const show0 = show; show = () => { show0(); if ((mixOn() || grvOn()) && toggle) toggle.closest("label,.rd-btn")?.classList.add("tuned"); };
+  // effects: echo, reverb, chorus, flange, phaser, warble, bitcrush, drive, the DJ filter, gate and pump, plus TAPE STOP
+  // and SPIN BACK. On every station; kept in localStorage "mdfmFx" unless opts.fxStore. Off (or the middle, for the filter) is untouched.
+  let fxOn = () => false;
+  const fBox = panel.querySelector(".tunefx");
+  if (fBox) {
+    const fs = fxStore || { get() { try { return JSON.parse(localStorage.getItem("mdfmFx") || "null"); } catch (e) { return null; } },
+      set(v) { try { localStorage.setItem("mdfmFx", JSON.stringify(v)); } catch (e) {} } };
+    const fsaved = fs.get(); if (fsaved) radio.setFx(fsaved);
+    const FD = radio.fxDefaults(), FK = radio.fxKeys();
+    const hz = f => f >= 1000 ? (f / 1000).toFixed(f < 10000 ? 1 : 0) + "k" : String(Math.round(f));
+    const ftxt = (k, v) => k === "filter" ? (Math.abs(v - 50) < 1 ? "OFF" : v < 50 ? "LP " + hz(20000 * Math.pow(180 / 20000, Math.min(1, (50 - v) / 50))) : "HP " + hz(10 * Math.pow(300, Math.min(1, (v - 50) / 50)))) : v === 0 ? "OFF" : v + "%";
+    fBox.querySelector(".tfx-grid").innerHTML = FK.map(([k, lab, tip]) => { const id = `${uid}f_${k}`; return `<div class="tg-row" data-fk="${k}"><label class="tg-l" for="${id}">${lab}</label><input type="range" id="${id}" min="0" max="100" step="1" data-f="${k}" title="${tip}"><output class="tg-v" for="${id}" data-fv="${k}"></output></div>`; }).join("");
+    const fq = k => fBox.querySelector(`[data-f="${k}"]`);
+    fxOn = () => { const f = radio.getFx(); return Object.keys(FD).some(k => Math.abs(f[k] - FD[k]) > .004); };
+    const paintF = () => { const f = radio.getFx(); for (const [k] of FK) { const x = Math.round(f[k] * 100), el = fq(k), o = fBox.querySelector(`[data-fv="${k}"]`); el.value = String(x); o.textContent = ftxt(k, x); el.setAttribute("aria-valuetext", o.textContent);
+        el.closest(".tg-row").classList.toggle("moved", Math.abs(f[k] - FD[k]) > .004); }
+      fBox.classList.toggle("moved", fxOn()); if (toggle) toggle.closest("label,.rd-btn")?.classList.toggle("tuned", !same(cur, DEF) || mixOn() || grvOn() || fxOn()); };
+    const setF = o => { fs.set(radio.setFx(o)); paintF(); };
+    for (const [k] of FK) { const el = fq(k); el.addEventListener("input", () => { let x = +el.value; if (k === "filter" && Math.abs(x - 50) <= 3) x = 50; if (k !== "filter" && x <= 1) x = 0; setF({ [k]: x / 100 }); }); el.addEventListener("dblclick", () => setF({ [k]: FD[k] })); }
+    const trick = (b, fn) => { b.addEventListener("click", () => { const ok = fn(); if (!ok) return; b.closest(".rd-btn").classList.add("busy"); });
+      if (radio.on) radio.on("tape", e => { setTimeout(() => b.closest(".rd-btn").classList.remove("busy"), Math.max(0, (e.until - radio.audioContext.currentTime) * 1000)); }); };
+    trick(q("tape"), () => radio.tapeStop()); trick(q("spin"), () => radio.spinBack());
+    q("fxreset").addEventListener("click", () => { fs.set(radio.resetFx()); paintF(); });
+    const rf0 = resetAll; resetAll = () => { rf0(); fs.set(radio.resetFx()); paintF(); };
+    paintF();
+  }
+  const show0 = show; show = () => { show0(); if ((mixOn() || grvOn() || fxOn()) && toggle) toggle.closest("label,.rd-btn")?.classList.add("tuned"); };
   show(); return { open, get: () => ({ ...cur }), set };
 }

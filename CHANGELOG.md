@@ -2,6 +2,17 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.22.0 (2026-10-13, Rob)
+- **New station: PTRN 101.1 (PATTERN).** No default sound, no shows, no DJ: its Settings list 34 genres in seven families (each with All / None), and it plays simple, well-made procedural tracks in whichever are on.
+  - Electronic: house, techno, trance, drum & bass, dubstep, UK garage, synthwave, chiptune. Hip-hop & R&B: boom bap, trap, drill, G-funk, R&B. Rock & pop: rock, punk, metal, indie pop, synth-pop. Jazz, funk & soul: swing jazz, bossa nova, funk, disco, blues, gospel. Latin & Caribbean: reggaeton, salsa, reggae, dancehall, afrobeats. Chill: lo-fi, trip-hop, ambient. Country & folk.
+  - New parts for them: ride cymbal and brushes, walking and upright bass, tumbao, reggae and boogie bass lines, reese and wobble bass, slap bass, clavinet, nylon guitar, piano montuno, skanks, acoustic strums, chugging guitar, lead guitar, saxophone, harmonica, horns, 8-bit drums and arpeggios, 12-bar blues and ii-V-I changes.
+  - Tracks are mixed one into the next over 4 to 8 bars with an equal-power blend (no dip), beat-matched when the tempos are close. Next track blends in on the next bar.
+  - The only voice is tags: station IDs and drops on the beat (and TUNE's tempo). In the apps they're played like vocal samples: an echo throw, stuttered in, slowed down, reversed in, gated, or vocoded onto the chord. In a browser: the system voice on the downbeat with a chopped vocal stutter. Drop a tag fires one.
+  - Save renders the track with its tags, as an MP3 and MIDI ("PTRN - artist - title (genre)").
+- **TUNE: a new EFFECTS section** on every station and skin: echo, reverb, chorus, flange, phaser, warble, bitcrush, drive, a DJ filter (low-pass left, high-pass right), a stutter gate and a sidechain pump, plus TAPE STOP, SPIN BACK and ALL OFF. Echo, gate and pump follow the beat. Save includes them. All off is exactly as before (the effects aren't in the path).
+- **MDFM 99.9: other time signatures.** About one song in four is in 3/4, 6/8, 5/4 or 7/8, picked to suit its genre, with drum patterns written for 3/4 and 6/8 (DJ sets stay in 4/4). 4/4 songs are exactly as before.
+- **TUNE Groove & Key:** TIME has a 4/4 option (it takes a song in another time back to its 4/4 patterns). Swing, length, density, fills and drums each have a SONG button for the song's own; the sliders are now their own scale, so 0 is a real zero (swing straight, density bare, fills none, drums off). Saved settings carry over. The Song's own / Song's key / Song's scale choices show what's playing, like "Song's own (6/8)", "Song's key (E♭)", "Song's scale (dorian)" (`radio.songOwn()`). BPM has a SONG button too: on SONG the slider sits at the song's own tempo and shows it. In the TIME, KEY and MODE lists the song's own choice is marked "(song)".
+
 ## 1.21.0 (2026-10-13, Rob)
 - **HEARYE's nature sounds are quieter.** The scenes sit 3 to 9 dB lower under the music (forest about 5 dB, mountain and heights 7 to 9 dB).
   - The wind, the static-y one that sounded like waves, is much softer and has its hiss rolled off.

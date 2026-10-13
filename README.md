@@ -62,7 +62,7 @@ The look and controls come from **MedDev Receiver** (`Octoroboto/meddev-receiver
 
 ## Stations
 
-Four stations share one audio output (volume, EQ, meters, visualizer and TUNE), on the dial by frequency:
+Five stations share one audio output (volume, EQ, meters, visualizer and TUNE), on the dial by frequency:
 
 - **WYBC 88.1**: ambient piano composed live by Collin's generator (`vendor/ambient-soundtrack`), with a made-up artist per piece and a whisper DJ every 15-20 minutes. No ads, shows or news.
 - **HEARYE 95.5**: Renn Faire Radio, the Home of High Drama. Procedural high-fantasy music (`FS` in `src/engine.js`: elven
@@ -76,7 +76,14 @@ Four stations share one audio output (volume, EQ, meters, visualizer and TUNE), 
   Dost Thou Clappest, Doug?, The Cauldron of Dark Desire, Hot Grog Sticky Gruel, Pestilence Today, Don't Quest-ion It, One
   Star Quest, Hoard and Order; no repeats until every episode has aired), procedural jousting and royal show-pony broadcasts,
   and ads, each with its style's theme, bed, stingers and closing cadence. `src/faire.js` (`createFaire`) writes the talk.
-- **MDFM 99.9 HD**: everything above.
+- **MDFM 99.9 HD**: everything above. About one song in four is in 3/4, 6/8, 5/4 or 7/8, picked to suit its genre (1.22).
+- **PTRN 101.1** (PATTERN, 1.22): no shows, no DJ. 34 genres in seven families (electronic, hip-hop and R&B, rock and pop,
+  jazz/funk/soul, Latin and Caribbean, chill, country and folk), each a switch in its Settings; the station plays simple
+  procedural tracks in whichever are on (MDFM's song writer, with genres of its own in `STY`), mixed one into the next
+  with an equal-power blend, beat-matched when the tempos are close. The only voice is tags: station IDs and drops on the
+  beat. Where the app renders voices (`opts.tts`) they're played like samples (echo throw, stutter, slowed, reversed,
+  gated, or vocoded onto the chord); in a browser, the system voice on the downbeat with a vocal-chop stutter. Next track
+  blends on the next bar; Drop a tag fires one. Save renders the track with its tags and TUNE's effects.
 - **PTLK 108.0**: 100% procedural talk radio (`src/talk.js`). Nine shows, each episode written as it airs from large pools of
   names, places, plots and jokes, with running storylines (Doug's feud with Sheila Vance, Ron's mailbox, the Overnight Shipping
   serial) kept while the page is open: Clap Attack with Doug, Analyze Biz, The Real USB Drives of Cleverly Spillz, Button Mashers,
@@ -123,6 +130,14 @@ Save includes everything. `nowPlaying()` and the saved file's info show the new 
 mix and the volume. Values run 0 to 1 (`width` 0.5 is untouched, 0 is mono, 1 is wide); `roomType` is `studio`, `car`,
 `living`, `club` or `hall`. At the defaults (`soundDefaults()`) the stage is a straight wire. `soundPresets()` lists the
 presets, `resetSound()` goes back, and `createMDFM({ sound })` starts tuned. The radio page's TUNE button opens the knobs.
+
+**Effects** (1.22): `radio.setFx({ echo, reverb, chorus, flange, phaser, warble, crush, drive, filter, gate, pump })`, all 0 to 1
+(0 = off; `filter` .5 = off, below is low-pass, above is high-pass), on every station and in Save. Echo, gate and pump follow
+the beat. `radio.tapeStop()` and `radio.spinBack()` drop the music back in on the beat. `getFx()`, `resetFx()`, `fxKeys()`,
+`fxDefaults()`. All off: not in the path at all. The TUNE pop-out has an EFFECTS section (localStorage `mdfmFx`).
+
+**Groove & Key values** (1.22): swing, length, density, fills and drums are `-1` for the song's own (TUNE's SONG buttons),
+or 0 to 1 on their own scale (swing 0 = straight; density 0 = bare; fills 0 = none; drums 0 = off). TIME has 4/4 too.
 
 `ambience` (1.21, default 0.5) sets the background sounds under the music: HEARYE's forests, taverns and caves, WYBC's
 concert-hall room and MDFM's vinyl crackle. 0 turns them off, 0.5 is the station's own level, 1 is about 8 dB louder.

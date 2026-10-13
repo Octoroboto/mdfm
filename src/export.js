@@ -80,7 +80,7 @@ async function saveSong(radio, { app = null, onStatus = () => {} } = {}) {
   if (radio.getStation && radio.getStation() && radio.getStation().id === "ptlk") throw new Error("Wait for the next show to start, then press save.");
   if (air) onStatus("Shows save in the MDFM Radio app. Saving the last song instead…");
   const sid = radio.getStation && radio.getStation() && radio.getStation().id;
-  onStatus(sid === "wybc" ? "Recording a fresh piece (about 2½ minutes of music)…" : sid === "hearye" ? "Recording the piece from the top…" : "Recording the song…"); const r = await radio.renderSong(); if (!r) throw new Error("Nothing is playing yet.");
+  onStatus(sid === "wybc" ? "Recording a fresh piece (about 2½ minutes of music)…" : sid === "hearye" ? "Recording the piece from the top…" : sid === "ptrn" ? "Recording the track from the top…" : "Recording the song…"); const r = await radio.renderSong(); if (!r) throw new Error("Nothing is playing yet.");
   if (r.info && r.info.station === "wybc") {   // WYBC 88.1: Collin's ambient piano
     const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "WYBC 88.1", album: "WYBC 88.1", genre: "Ambient", comment: "WYBC 88.1. Ambient piano, composed by the station the moment you saved it." }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
     const name = safeName(`WYBC - ${i.artist ? i.artist + " - " : ""}${i.title} (ambient piano)`) + ".mp3";
@@ -89,6 +89,11 @@ async function saveSong(radio, { app = null, onStatus = () => {} } = {}) {
   if (r.info && r.info.station === "hearye") {   // HEARYE 95.5: Renn Faire Radio's procedural fantasy music
     const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "HEARYE 95.5", album: "HEARYE 95.5", genre: "Fantasy", bpm: i.bpm, comment: `HEARYE 95.5, Renn Faire Radio. ${i.style}${i.key ? ", " + i.key : ""}. Composed by the station as it played.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
     const name = safeName(`HEARYE - ${i.artist ? i.artist + " - " : ""}${i.title} (${String(i.style || "").toLowerCase()})`) + ".mp3";
+    onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app, extras: midiOf(r, name) })), title: i.title, bytes: mp3.length, midi: !!r.midi };
+  }
+  if (r.info && r.info.station === "ptrn") {   // PTRN 101.1: every genre, with the tags and TUNE's effects as they are
+    const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "PTRN 101.1", album: "PTRN 101.1", genre: i.style, bpm: i.bpm, comment: `PTRN 101.1, Pattern. ${i.style}, ${i.bpm} BPM${i.key ? ", " + i.key : ""}${i.time && i.time !== "4/4" ? ", " + i.time : ""}. Written by the station as it played.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
+    const name = safeName(`PTRN - ${i.artist ? i.artist + " - " : ""}${i.title} (${String(i.style || "").toLowerCase()})`) + ".mp3";
     onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app, extras: midiOf(r, name) })), title: i.title, bytes: mp3.length, midi: !!r.midi };
   }
   const i = r.info, style = String(i.style || "").toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase()).replace("R&b", "R&B").replace("Pluggnb", "PluggnB").replace(/\bDj\b/, "DJ");

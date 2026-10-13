@@ -97,16 +97,32 @@ header.top .deck{position:relative}
 @media (max-width:640px){.tunemix,.tunemix:has(.tunegrv){grid-template-columns:minmax(0,1fr);grid-template-areas:"hd" "radar" "grv" "hint"}.tunemix .tunegrv{padding:10px 0 0;border-left:0;box-shadow:none;border-top:1px solid rgba(0,0,0,.45)}}
 .tunegrv .tg-sec{display:flex;flex-direction:column;gap:5px}
 .tunegrv .tg-sub{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.2em;color:var(--caption,#cfd2de);opacity:.8;margin-top:2px}
-.tunegrv .tg-row{display:grid;grid-template-columns:62px minmax(0,1fr) 74px;align-items:center;gap:8px;min-height:24px}
+:is(.tunegrv,.tunefx) .tg-row{display:grid;grid-template-columns:62px minmax(0,1fr) 74px;align-items:center;gap:8px;min-height:24px}
 .tunegrv .tg-key .tg-row,.tunegrv .tg-row:has(select){grid-template-columns:62px minmax(0,1fr)}
-.tunegrv .tg-l{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;color:var(--caption,#cfd2de);text-shadow:0 1px 0 rgba(0,0,0,.65);white-space:nowrap}
-.tunegrv .tg-row.moved .tg-l{color:#7fe22a}
+:is(.tunegrv,.tunefx) .tg-l{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;color:var(--caption,#cfd2de);text-shadow:0 1px 0 rgba(0,0,0,.65);white-space:nowrap}
+:is(.tunegrv,.tunefx) .tg-row.moved .tg-l{color:#7fe22a}
 .tunegrv .tg-row.na{opacity:.4}
-.tunegrv input[type=range]{width:100%;min-width:0;margin:0;accent-color:var(--knob-pointer,#ffb347);cursor:pointer;height:18px}
-.tunegrv .tg-row.moved input[type=range]{accent-color:#7fe22a}
+:is(.tunegrv,.tunefx) input[type=range]{width:100%;min-width:0;margin:0;accent-color:var(--knob-pointer,#ffb347);cursor:pointer;height:18px}
+:is(.tunegrv,.tunefx) .tg-row.moved input[type=range]{accent-color:#7fe22a}
 .tunegrv select{min-width:0;width:100%;font:600 .8rem/1.2 var(--f-body,Tahoma,sans-serif);padding:3px 6px}
-.tunegrv .tg-v{font:400 15px/1 var(--f-mono,"VT323",monospace);color:var(--lcd,#00e000);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.45);border-radius:3px;padding:2px 4px}
+:is(.tunegrv,.tunefx) .tg-v{font:400 15px/1 var(--f-mono,"VT323",monospace);color:var(--lcd,#00e000);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.45);border-radius:3px;padding:2px 4px}
 .tunegrv .tg-hd .rd-btn{margin-left:auto}
+.tunegrv .tg-row.tg-hasong{grid-template-columns:62px minmax(0,1fr) 58px 44px;gap:6px}
+.tunegrv .tg-song{font:700 .52rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.1em;padding:5px 0;border-radius:4px;border:1px solid rgba(0,0,0,.6);background:linear-gradient(#4a4d5a,#25262e);color:var(--caption,#cfd2de);cursor:pointer;text-shadow:0 1px 0 rgba(0,0,0,.6)}
+.tunegrv .tg-song[aria-pressed=true]{background:linear-gradient(#2f4a1c,#1b2b10);color:#7fe22a;box-shadow:0 0 6px rgba(127,226,42,.45)}
+.tunegrv .tg-song:focus-visible{outline:2px solid var(--gold,#e2c86b);outline-offset:1px}
+.tunegrv .tg-row.song input[type=range]{opacity:.45}
+.tunefx{border-top:1px solid rgba(0,0,0,.45);box-shadow:0 -1px 0 rgba(255,255,255,.08);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.tfx-btns{display:flex;gap:12px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.tfx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:5px 18px}
+.tunefx .tg-row{grid-template-columns:66px minmax(0,1fr) 70px}
+.tunefx .rd-btn.busy button{box-shadow:0 0 0 2px var(--btn-bezel,#111),0 0 10px #7fe22a}
+@media (max-width:640px){.tunefx .tunemixhd{flex-wrap:wrap}.tfx-btns{margin-left:0;width:100%;justify-content:flex-start}}
+/* PTRN 101.1's genre switches, in families */
+.ptrnfam{display:grid;gap:4px}
+.ptrnfamhd{display:flex;align-items:center;gap:8px;font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--caption,#cfd2de);margin-top:4px}
+.ptrnfamhd .btn{min-height:24px;padding:2px 10px;font-size:.74rem;letter-spacing:0;text-transform:none}
+.ptrnfamhd .btn:first-of-type{margin-left:auto}
 .tuneradarbox{width:100%;max-width:440px;justify-self:center}
 .tradar{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair;overflow:visible}
 .tradar .tr-ring{fill:none;stroke:rgba(226,229,238,.18);stroke-width:1}
