@@ -72,6 +72,21 @@
       const rs=()=>{ const t={}; rl.querySelectorAll("input[data-rtype]").forEach(cb=>t[cb.dataset.rtype]=cb.checked); return t; };
       radio.setStationTypes("ptrn",rs()); rl.addEventListener("change",()=>{ const t=rs(); radio.setStationTypes("ptrn",t); try{ localStorage.setItem("ptrnTypes",JSON.stringify(t)); }catch(e){} });
       $("#ptrnSet").hidden=false; }
+    // Instruments on MDFM and PTRN (1.23): kits, bass, keys, leads and pads, in groups with All / None (this device)
+    const il=$("#instList"), ilist=radio.instrumentList?radio.instrumentList():[];
+    if(il&&ilist.length){ let it={}; try{ it=JSON.parse(localStorage.getItem("mdfmInstruments")||"{}"); }catch(e){}
+      const CAT={kit:"Drum kits",bass:"Bass",keys:"Keys and guitars",lead:"Leads",pad:"Pads"}, TAG={classic:"classic","1.22":"PTRN","1.23":"new"};
+      for(const c of Object.keys(CAT)){ const items=ilist.filter(x=>x[2]===c); if(!items.length) continue; const box=document.createElement("div"); box.className="ptrnfam"; const hd=document.createElement("div"); hd.className="ptrnfamhd"; const nm=document.createElement("span"); nm.textContent=CAT[c]; hd.append(nm);
+        for(const [lab,v] of [["All",true],["None",false]]){ const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent=lab; b.setAttribute("aria-label",`${lab} of ${CAT[c]}`); b.addEventListener("click",()=>{ box.querySelectorAll("input").forEach(cb=>cb.checked=v); il.dispatchEvent(new Event("change")); }); hd.append(b); }
+        const g=document.createElement("div"); g.className="types";
+        for(const [k,label,,since] of items){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-itype="${k}" data-since="${since}"> <span></span> <small></small>`; l.querySelector("span").textContent=label; l.querySelector("small").textContent=TAG[since]||""; l.querySelector("input").checked=it[k]!==false; g.appendChild(l); }
+        box.append(hd,g); il.appendChild(box); }
+      const is=()=>{ const t={}; il.querySelectorAll("input[data-itype]").forEach(cb=>t[cb.dataset.itype]=cb.checked); return t; };
+      const saveI=()=>{ const t=is(); radio.setInstruments(t); try{ localStorage.setItem("mdfmInstruments",JSON.stringify(t)); }catch(e){} };
+      radio.setInstruments(is()); il.addEventListener("change",saveI);
+      $("#instClassic").addEventListener("click",()=>{ il.querySelectorAll("input[data-itype]").forEach(cb=>cb.checked=cb.dataset.since==="classic"); saveI(); });
+      $("#instAll").addEventListener("click",()=>{ il.querySelectorAll("input[data-itype]").forEach(cb=>cb.checked=true); saveI(); });
+      $("#instSet").hidden=false; }
     // PTLK's show switches (this device)
     const pl=$("#ptlkList"), plist=radio.stationTypeList("ptlk");
     if(pl&&plist.length&&radio.stations().some(s=>s.id==="ptlk"&&s.available)){ let pt={}; try{ pt=JSON.parse(localStorage.getItem("ptlkTypes")||"{}"); }catch(e){}

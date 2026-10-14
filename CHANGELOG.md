@@ -2,6 +2,17 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.23.0 (2026-10-14, Rob)
+- **More instruments on MDFM 99.9 and PTRN 101.1.** Each song now picks its drum kit and bass sound to suit its genre, and newer keys, leads and pads turn up some of the time:
+  - **Drum kits:** the classic kit plus an 808 boom kit (long, deep kick; tight snare), a punchy kit (hard click, crisp snare, bright hats) and a dusty lo-fi kit (soft, dark, a little saturated).
+  - **Bass:** the classic synth bass and 808 plus sub, FM and acid bass. Walking, reggae and country bass lines keep their own tone.
+  - **Keys:** Wurlitzer. **Leads:** FM lead, square lead (with glide), vibraphone. **Pad:** a warm analog pad.
+  - Levels matched against the classic sounds (kits within about 2.5 dB in the low end, sub bass a little weightier on purpose).
+  - Now playing carries `kit` and `bassSound`.
+- **Settings: Instruments on MDFM 99.9 and PTRN 101.1.** Every drum kit, bass, keys, lead and pad in the pool, with All / None per group, "Classic MDFM only" and "Everything". Each is marked **classic** (MDFM's line-up before 1.22), **PTRN** (came with PTRN in 1.22) or **new** (1.23). Anything off is swapped for one that's on (from the next song); a whole group off, and each genre plays its own. Saved on this device (`mdfmInstruments`). API: `instrumentList()`, `getInstruments()`, `setInstruments()`.
+- **Less clap on MDFM 99.9 and PTRN 101.1.** The clap is about 4 dB quieter with a shorter tail and much less reverb (it was sitting on top of the mix). In every genre that claps, songs now vary: about 3 in 10 play a snare only, about 1 in 4 a snare with a soft clap under it, and the rest as the genre is written. PTRN's techno, trance and gospel lean on the snare, synthwave's gated snare has only a touch of clap, and the Style Matrix's pop pull claps more softly.
+- **PTRN tags: clear voices only.** The vocoder and the robot voices (Zarvox, Trinoids, Fred, Ralph) are out of the tag pool; tags are echo throws, stutters, slowed, reversed or gated.
+
 ## 1.22.1 (2026-10-13, Rob)
 - **A switch for MDFM's time signatures:** "Songs in 3/4, 6/8, 5/4, 7/8" in MDFM 99.9's Settings (on by default). Off, every song is in 4/4, the line-up from before 1.22 (`setTypes({ meters: false })`). PTRN's genres aren't affected.
 

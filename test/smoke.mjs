@@ -69,6 +69,10 @@ const r = await p.evaluate(async () => {
   out.fxKeys = radio.fxKeys().length; radio.setFx({ echo: .6, reverb: .5, chorus: .5, flange: .4, phaser: .4, warble: .3, crush: .3, drive: .4, filter: .3, gate: .4, pump: .5 });
   out.fxRender = await (async () => { const b2 = await radio.renderOffline("song", 6); const d = b2.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } return [+Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]; })();
   radio.resetFx(); out.fxZero = JSON.stringify(radio.getFx()) === JSON.stringify(radio.fxDefaults());
+  // Instruments (1.23): the pool lists every kit, bass, keys, lead and pad; classic-only still renders; back to everything
+  const IL = radio.instrumentList(); out.instN = IL.length; out.instClassic = IL.filter(x => x[3] === "classic").length; radio.setInstruments(Object.fromEntries(IL.map(([k, , , s]) => [k, s === "classic"])));
+  out.instRender = await (async () => { const b2 = await radio.renderOffline("ptrn", 6, { style: "HOUSE" }); const d = b2.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } return [+Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]; })();
+  radio.setInstruments(Object.fromEntries(IL.map(([k]) => [k, true]))); out.instAll = Object.values(radio.getInstruments()).every(Boolean);
   // TUNE: presets apply, reset returns to the defaults
   out.presets = radio.soundPresets().length; radio.setSound(radio.soundPresets()[2].sound); out.tuned = radio.getSound().roomType; radio.resetSound(); out.untuned = JSON.stringify(radio.getSound()) === JSON.stringify(radio.soundDefaults());
   out.rms = Math.sqrt(s / d.length); out.peak = pk; return out;
@@ -80,6 +84,6 @@ const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 
   && r.mixKeys === 7 && r.mixOther === 0 && r.mixRender[0] > 0.02 && r.mixRender[1] < 1.2 && r.mixZero && r.grvKeys === 11 && r.grvModes >= 15 && r.grvOther === 0 && r.grvRender[0] > 0.02 && r.grvRender[1] < 1.3 && r.grvZero && r.wybcSave.every(([rms, pk]) => rms > 0.01 && pk < 1.3)
   && r.ptMusic.length === 10 && r.ptMusic.every(([, rms, pk]) => rms > 0.02 && pk < 1.2) && r.phoneVsDry < 0 && r.presets >= 5 && r.tuned === "car" && r.untuned
   && r.ptrnSpectrum > 0.05 && r.ptrnNp && r.ptrnNp.station === "ptrn" && r.ptrnNp.style === "Funk" && r.ptrnNp.artist && r.ptrnSkip && r.ptrnGenres >= 31 && r.backNp4 > 0 && r.ptrnRenders.every(([, rms, pk]) => rms > 0.01 && pk < 1.3)
-  && r.fxKeys === 11 && r.fxRender[0] > 0.02 && r.fxRender[1] < 1.3 && r.fxZero;
+  && r.fxKeys === 11 && r.fxRender[0] > 0.02 && r.fxRender[1] < 1.3 && r.fxZero && r.instN >= 40 && r.instClassic >= 20 && r.instRender[0] > 0.01 && r.instRender[1] < 1.3 && r.instAll;
 if (errs.length) console.log("page errors:", errs);
 console.log(ok ? "SMOKE TEST PASSED" : "SMOKE TEST FAILED"); process.exit(ok ? 0 : 1);

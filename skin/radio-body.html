@@ -63,6 +63,12 @@
             <p class="hint">Every genre that's on gets mixed in, one track into the next. Switch on just one to stay in it. The only voice is the tags.</p>
             <div id="ptrnList"></div>
           </fieldset>
+          <fieldset class="slackset" id="instSet" hidden>
+            <legend>Instruments on MDFM 99.9 and PTRN 101.1</legend>
+            <p class="hint">Each song picks its drum kit, bass, keys, lead and pad from what's checked (from the next song). <b>classic</b> = MDFM's line-up before 1.22, <b>PTRN</b> = came with PTRN, <b>new</b> = added in 1.23. Anything switched off is swapped for one that is on; if a whole group is off, each genre plays its own.</p>
+            <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="instClassic">Classic MDFM only</button><button type="button" class="btn" id="instAll">Everything</button></div>
+            <div id="instList"></div>
+          </fieldset>
           <fieldset class="slackset" id="ptlkSet" hidden>
             <legend>What plays on PTLK 108.0</legend>
             <p class="hint">Every show is written as it airs. Uncheck anything you'd rather skip.</p>

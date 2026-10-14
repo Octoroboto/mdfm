@@ -81,8 +81,8 @@ Five stations share one audio output (volume, EQ, meters, visualizer and TUNE), 
   jazz/funk/soul, Latin and Caribbean, chill, country and folk), each a switch in its Settings; the station plays simple
   procedural tracks in whichever are on (MDFM's song writer, with genres of its own in `STY`), mixed one into the next
   with an equal-power blend, beat-matched when the tempos are close. The only voice is tags: station IDs and drops on the
-  beat. Where the app renders voices (`opts.tts`) they're played like samples (echo throw, stutter, slowed, reversed,
-  gated, or vocoded onto the chord); in a browser, the system voice on the downbeat with a vocal-chop stutter. Next track
+  beat. Where the app renders voices (`opts.tts`) they're played like samples (echo throw, stutter, slowed, reversed
+  or gated), in clear voices only; in a browser, the system voice on the downbeat with a vocal-chop stutter. Next track
   blends on the next bar; Drop a tag fires one. Save renders the track with its tags and TUNE's effects.
 - **PTLK 108.0**: 100% procedural talk radio (`src/talk.js`). Nine shows, each episode written as it airs from large pools of
   names, places, plots and jokes, with running storylines (Doug's feud with Sheila Vance, Ron's mailbox, the Overnight Shipping
@@ -130,6 +130,11 @@ Save includes everything. `nowPlaying()` and the saved file's info show the new 
 mix and the volume. Values run 0 to 1 (`width` 0.5 is untouched, 0 is mono, 1 is wide); `roomType` is `studio`, `car`,
 `living`, `club` or `hall`. At the defaults (`soundDefaults()`) the stage is a straight wire. `soundPresets()` lists the
 presets, `resetSound()` goes back, and `createMDFM({ sound })` starts tuned. The radio page's TUNE button opens the knobs.
+
+**Instruments** (1.23): each MDFM and PTRN song picks a drum kit (classic, 808 boom, punchy, dusty lo-fi), a bass sound
+(synth, 808, sub, FM, acid), keys, a lead and a pad. `radio.instrumentList()` lists the pool as [key, label, category, since]
+("classic" = MDFM before 1.22, "1.22" = came with PTRN, "1.23" = new); `setInstruments({key: false})` takes one out (from
+the next song). The radio page's Settings has the switches (localStorage `mdfmInstruments`).
 
 **Effects** (1.22): `radio.setFx({ echo, reverb, chorus, flange, phaser, warble, crush, drive, filter, gate, pump })`, all 0 to 1
 (0 = off; `filter` .5 = off, below is low-pass, above is high-pass), on every station and in Save. Echo, gate and pump follow
