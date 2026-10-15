@@ -193,7 +193,7 @@ function fxTapeTrick(kind){ if(!on||!ctx||!ST||fxTape) return false; const b=cur
   fxTape=1; dl.setValueAtTime(0,back-.01); F.tWet.gain.setValueAtTime(0,back-.01); F.tDry.gain.setValueAtTime(0,back-.005); F.tDry.gain.linearRampToValueAtTime(1,back+.01);
   emit("tape",{kind,until:back}); const c0=ctx; setTimeout(()=>{ if(ctx!==c0) return; fxTape=0; fxApply(); },(back-ctx.currentTime)*1000+80); return true; }
 // where the beat is on the station on air (for the effects and PTRN's tags)
-function curBeat(){ const L=station==="ptrn"?(ptrn&&ptrn.songs):station==="mdfm"?songs:null;
+function curBeat(){ const L=station==="ptrn"?(ptrn&&ptrn.songs):station==="mdfm"?songs:station==="cluk"?(cluk?[cluk.rave&&cluk.rave.s,cluk.song].filter(Boolean):null):null;
   if(L&&L.length){ const s=L.find(x=>!x.handed)||L[L.length-1]; if(s&&s.barT0!=null) return {t0:s.barT0,beat:s.sp*4}; }
   const np=nowPlaying, bpm=np&&np.bpm?+np.bpm:120; return {t0:fxFree||(fxFree=ctx?ctx.currentTime:0),beat:60/Math.max(40,Math.min(220,bpm))}; }
 let fxFree=0;
@@ -535,7 +535,7 @@ function makeSong(force,from=MDFM_STY,recent=recentStyles){
   const voi=st.voicing==='ext'?pick([[0,2,4,6],[0,2,6,8],[0,4,6,9],[0,2,4,6,8]]):pick([[0,2,4],[0,4,7],[-3,0,2]]), chord=st.voicing==="dom7"?(d,up=0)=>[0,4,7,10].map((x,j)=>root+12+deg(d)+x+(j<up?12:0)):(d,up=0)=>voi.map((x,j)=>root+12+deg(d+x)+(j<up?12:0));
   const sp=60/bpm/4, barSec=sp*16;
   // arrangement: a form, sized so the song runs about 70-110 seconds
-  const form=st.set?SETFORM:pick(FORMS), unit=st.set?8:barSec*8*form.reduce((a,f)=>a+f[1],0)>115?4:8, sections=[]; let at=0;
+  const form=st.set?SETFORM:pick(st.forms||FORMS), unit=st.set?8:st.unit||barSec*8*form.reduce((a,f)=>a+f[1],0)>115?4:8, sections=[]; let at=0;
   for(const [kind,len] of form){ const bars=Math.max(2,Math.round(len*unit/2)*2); sections.push({kind,start:at,bars}); at+=bars; }
   const bars=Math.max(at,16), brkSec=sections.find(x=>x.kind==="break"||x.kind==="bridge"), brk=brkSec?brkSec.start:Math.floor(bars*.45/2)*2;
   // per-section flavour
@@ -637,7 +637,7 @@ function playStep(s,step,t){
   }
   if(!s.gExtra&&lastBar&&nextSec.kind==="hook"&&i===0&&(sec.kind==="pre"||sec.kind==="break"||R()<.5)) D.riser(s,t,sp*16);
   if(!(sec.kind==="intro"&&sb===0)&&!drop&&sec.kind!=="break"&&(drumsOn||!st.drumHook)&&!st.nodrums&&!gSkip){
-    const hp=(K.hats==="busy")!==deckB?s.H2:s.H, c=hp[di], hv=(di%4===0?1:rr(.55,.75))*(sec.kind==="intro"?.5:1)*(K.hats==="sparse"?.8:1);
+    const hp=(K.hats==="busy")!==deckB?s.H2:s.H, c=hp[di], hv=(di%4===0?1:rr(.55,.75))*(sec.kind==="intro"?.5:1)*(K.hats==="sparse"?.8:1)*(st.hv||1);
     const build=K.hats==="build"&&sb>=sec.bars-2;
     if(K.hats==="sparse"){ if(di%4===0||c==="r") HAT(s,tt,hv,false,s.hatDec); }
     else if(build){ if(di%2===0||sb===sec.bars-1) HAT(s,tt,hv*(.6+sb/sec.bars*.4),false,s.hatDec); }
@@ -683,6 +683,7 @@ function playStep(s,step,t){
   if(i===0&&bar%2===0&&s.padI!=="none"&&!drop){ const pd=s.padI; if(pd==="choir") M.choir(s,tt,notes,sp*32,.8); else if(pd==="warm") M.warmpad(s,tt,notes,sp*32,.8); else M.pad(s,tt,notes,sp*32,.8,pd==="strings"?2000:1000); }
   else if(i===0&&bar%2===0&&ck==="padonly") M.pad(s,tt,notes,sp*32,.9,1400);
   if(st.set&&!drop) setExtras(s,sec,sb,i,tt,d,tr,lastBar,nextSec);
+  if(st.cx&&!drop&&!s.gExtra) clukExtras(s,sec,sb,i,tt,lastBar,nextSec);
   /* melodies: the hook in hooks (sometimes up an octave or doubled), a sparser line in verses */
   if(K.lead!=="none"&&!drop&&bar>=1){
     const isHook=K.lead!=="verse", L=isHook?s.hookLen:s.verseLen, phrase=Math.floor(sb/L), mot=isHook?(phrase%2?s.answer:s.hook):s.verse;
@@ -739,7 +740,10 @@ function songFacts(s){
 }
 function setupSong(s,t,fadeBars,dest,rev,id){
   Object.assign(s,makeBus(dest||musicDuck,rev||songRev)); s.mxId=id||"mdfm";
-  if(s.kit&&s.kit.lp){ s.dr.disconnect(); const lp=filt("lowpass",s.kit.lp,.5), sh=ctx.createWaveShaper(); sh.curve=SAT; s.dr.connect(lp).connect(sh).connect(G(.6)).connect(s.bus); }   // the dusty kit: darker, a little saturated s.gNative=true; s.gKey={root:s.root,sc:s.sc}; if(s.st.set) loadVoiceSamples(); 
+  if(s.kit&&s.kit.lp){ s.dr.disconnect(); const lp=filt("lowpass",s.kit.lp,.5), sh=ctx.createWaveShaper(); sh.curve=SAT; s.dr.connect(lp).connect(sh).connect(G(.6)).connect(s.bus); }   // the dusty kit: darker, a little saturated
+  s.gNative=true; s.gKey={root:s.root,sc:s.sc}; if(s.st.set) loadVoiceSamples();   // (1.24: this line had slipped into the comment above in 1.23.0, so TUNE's key and swing skipped songs)
+  if(s.st.drive&&!(s.kit&&s.kit.lp)){ s.dr.disconnect(); const sh=ctx.createWaveShaper(); sh.curve=SAT; s.dr.connect(G(s.st.drive)).connect(sh).connect(G(.8)).connect(s.bus); }   // CLUK: the drums pushed into a little saturation
+  if(s.st.cx) loadClukSamples(); 
   const barT=s.sp*16, L=s.st.lvl||1; s.bus.gain.setValueAtTime(fadeBars?.0001:L,t); s.rvf.gain.setValueAtTime(fadeBars?.0001:1,t);
   if(fadeBars){ s.bus.gain.exponentialRampToValueAtTime(L,t+barT*fadeBars); s.rvf.gain.exponentialRampToValueAtTime(1,t+barT*fadeBars); }
   s.step=0; s.next=t; s.done=false; s.handed=false; return s;
@@ -869,7 +873,16 @@ const ORGAN={
   romance(b,t){ M.organ(b,t,[53,57,60,64],1.2,.9,5); M.organ(b,t+1.1,[55,59,62,67,71],2.4,1,5); return 3.2; },
   outro(b,t){ const k=ri(-2,2); M.organ(b,t,[53,57,60].map(m=>m+k),.6,1); M.organ(b,t+.6,[55,59,62].map(m=>m+k),.6,1); M.organ(b,t+1.2,[48,52,55,60,64].map(m=>m+k),3,1.1); return 3.6; },
 };
-const CUE_LABEL={rain:"rain",knock:"knock knock knock",door:"door creaks",steps:"footsteps",claps:"clapping",rocket:"rocket launch",beeps:"control panel beeps",theremin:"spooky space noise",zap:"zap",thunder:"thunder",clock:"clock ticking",horse:"hoofbeats",wind:"wind",teacup:"teacup clinks",typewriter:"typing",printer:"printer whirs",gallery:"quiet gallery",applause:"polite applause",page:"page turns",hammer:"hammering",drill:"power drill",crash:"something big falls over",crank:"engine cranks and won't start"};
+Object.assign(OT,{
+  laser(b,t){ for(let k=0;k<2;k++){ const tt=t+k*.2,o=osc("triangle",2200),lp=filt("lowpass",3200),g=ctx.createGain(); o.frequency.setValueAtTime(2400,tt); o.frequency.exponentialRampToValueAtTime(280,tt+.2); env(g,tt,.002,.16,.22); o.connect(lp); lp.connect(g); g.connect(b.mu); to(g,b,.4); o.start(tt); o.stop(tt+.26); } return .7; },
+  gavel(b,t){ for(const d of [0,.32]){ noiseHit(b,t+d,1100,2,.05,.8); wood(b,t+d,430,1); D.tom(b,t+d,.35,190); } return .9; },
+  whoosh(b,t){ const n=nz(t,.9),bp=filt("bandpass",400,1.6),g=ctx.createGain(); bp.frequency.setValueAtTime(300,t); bp.frequency.exponentialRampToValueAtTime(2800,t+.35); bp.frequency.exponentialRampToValueAtTime(500,t+.8);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.45,t+.3); g.gain.exponentialRampToValueAtTime(.0001,t+.85); n.connect(bp); bp.connect(g); g.connect(b.dr); return .8; },
+  cheer(b,t){ const n=nz(t,3),bp=filt("bandpass",1100,.8),g=ctx.createGain(); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.3,t+.4); g.gain.setValueAtTime(.3,t+1.8); g.gain.exponentialRampToValueAtTime(.0001,t+2.9);
+    n.connect(bp); bp.connect(g); g.connect(b.dr); OT.applause(b,t+.2); return 2.6; },
+  ding(b,t){ M.bell(b,t,84,.6,.8,-.1); M.bell(b,t+.18,91,.9,.8,.1); return 1.1; },
+});
+const CUE_LABEL={laser:"pew pew",gavel:"gavel",whoosh:"whoosh",cheer:"the crowd goes wild",ding:"ding ding",rain:"rain",knock:"knock knock knock",door:"door creaks",steps:"footsteps",claps:"clapping",rocket:"rocket launch",beeps:"control panel beeps",theremin:"spooky space noise",zap:"zap",thunder:"thunder",clock:"clock ticking",horse:"hoofbeats",wind:"wind",teacup:"teacup clinks",typewriter:"typing",printer:"printer whirs",gallery:"quiet gallery",applause:"polite applause",page:"page turns",hammer:"hammering",drill:"power drill",crash:"something big falls over",crank:"engine cranks and won't start"};
 
 /* ---------- scheduler ---------- */
 let nextGap=rr(30,60), lastShow=-1e9;   // first break comes quickly; after that the station leans on music
@@ -1221,7 +1234,8 @@ function voiceSting(){
    music is back, so Save can hand over the whole thing even when pressed halfway. Voices are only in the recording when
    the app renders them as audio (opts.tts); the browser's own speech can't be captured. Up to 15 minutes. */
 const SHOW_NAME={weather:"Weather with Tabitha Snatterbean",sports:"Sports with Chip Nitro",news:"Company News",technews:"MedDev Tech News",funnelball:"Funnelball",showponies:"Show Ponies",play:"Golden Age Radio Hour",arts:"Arts and Culture",interview:"Interview",ad:"Ad break",id:"Station ID"};
-function breakInfo(sp){ if(sp.kind==="hearye") return {kind:"hearye",station:"hearye",show:sp.show,episode:String(sp.title||""),title:sp.title&&sp.title!==sp.show?`${sp.show}: ${sp.title}`:sp.show,hosts:sp.hosts||""};
+function breakInfo(sp){ if(sp.kind==="cluk") return {kind:"cluk",station:"cluk",show:sp.show,episode:String(sp.title||""),title:sp.title&&sp.title!==sp.show?`${sp.show}: ${sp.title}`:sp.show,hosts:sp.hosts||""};
+  if(sp.kind==="hearye") return {kind:"hearye",station:"hearye",show:sp.show,episode:String(sp.title||""),title:sp.title&&sp.title!==sp.show?`${sp.show}: ${sp.title}`:sp.show,hosts:sp.hosts||""};
   if(sp.kind==="ptlk") return {kind:"ptlk",station:"ptlk",show:sp.show,episode:String(sp.title||""),title:sp.title?`${sp.show}: ${sp.title}`:sp.show,hosts:sp.hosts||""};
   const call=sp.kind==="interview"&&sp.title==="Caller", show=sp.show||(call?"Call-in":SHOW_NAME[sp.kind])||"Station break";
   const ep=sp.kind==="ad"||sp.kind==="id"||call||!sp.title||sp.title===show?"":String(sp.title); return {kind:sp.kind,show,episode:ep,title:ep?`${show}: ${ep}`:show}; }
@@ -1324,7 +1338,7 @@ function primeSpeech(){ if(speechPrimed||!HAS_TTS||typeof opts.tts==="function")
 let lastRebuild=-1e9;
 function watchAudio(){ if(opts.audioContext||typeof window==="undefined"||!ctx) return; const c=ctx, t0=c.currentTime, g=gen;
   setTimeout(()=>{ if(!on||gen!==g||ctx!==c||c.currentTime-t0>.25) return; const now=Date.now(); if(now-lastRebuild<8000){ emit("caption",{who:"MDFM",text:"Can't reach the speakers. Check your sound output, then press SOUND again."}); return; } lastRebuild=now; rebuildAudio(); },1600); }
-function rebuildAudio(){ const old=ctx; recStop(true); if(ptrn){ clearInterval(ptrn.timer); ptrn=null; } ptrnIn=null; FXW.delete(old); if(fair){ fair.dead=true; clearTimeout(fair.t); clearTimeout(fair.pt); if(fair.amb) fair.amb.dead=true; fair=null; } clearTimeout(wybcT); if(amb){ try{ amb.inst.stop(); }catch(e){} amb=null; } ambIn=null; clearInterval(timer); for(const s of songs) try{ s.bus.disconnect(); }catch(e){} songs=[]; bed=null; speaking=false; voiceSrc=null;
+function rebuildAudio(){ const old=ctx; recStop(true); if(ptrn){ clearInterval(ptrn.timer); ptrn=null; } ptrnIn=null; if(cluk){ cluk.dead=true; clearTimeout(cluk.t); clearInterval(cluk.timer); if(cluk.bed) clearTimeout(cluk.bed.t); cluk=null; } clukIn=null; FXW.delete(old); if(fair){ fair.dead=true; clearTimeout(fair.t); clearTimeout(fair.pt); if(fair.amb) fair.amb.dead=true; fair=null; } clearTimeout(wybcT); if(amb){ try{ amb.inst.stop(); }catch(e){} amb=null; } ambIn=null; clearInterval(timer); for(const s of songs) try{ s.bus.disconnect(); }catch(e){} songs=[]; bed=null; speaking=false; voiceSrc=null;
   ctx=null; try{ old&&old.close&&old.close().catch(()=>{}); }catch(e){} on=false; setOn(true); }
 if(typeof navigator!=="undefined"&&navigator.mediaDevices&&typeof navigator.mediaDevices.addEventListener==="function")
   navigator.mediaDevices.addEventListener("devicechange",()=>{ if(on) watchAudio(); });
@@ -1347,7 +1361,7 @@ const STATION_TYPES={ wybc:[["ids","The whisper DJ"],["strings","Light strings"]
   hearye:typeof createFaire==="function"?[...createFaire(Math.random).shows.map(x=>[x.id,x.label]),["joust","The Royal Joust"],["ponies","The Royal Pony Pageant"],["news","Realm news (from Slack)"],["ads","Ads from the merchants"],["callers","Call-ins to the bard"],["ids","The crier and the bard"],["amb","Forest and meadow sounds"]]:[] };
 const wybcTypes={ids:true,strings:true,winds:true,hall:true,room:true};
 const ptlkTypes=Object.fromEntries(STATION_TYPES.ptlk.map(([k])=>[k,true]));
-const stationOk=id=>id==="ptrn"?true:id==="wybc"?!!AMB():id==="ptlk"?!!TALK:id==="hearye"?typeof createFaire==="function":id==="mdfm";
+const stationOk=id=>id==="ptrn"?true:id==="cluk"?!!CLUKW:id==="wybc"?!!AMB():id==="ptlk"?!!TALK:id==="hearye"?typeof createFaire==="function":id==="mdfm";
 const AMB_LEVEL=4.2;   // the piece is soft by design (about -27 dB average): this brings it to about 3 dB under MDFM (a quiet station, not a dead one), under the limiter
 const PIECES=["Where Ya Been","Porch Light","The Long Way Round","Postcard, Unsent","Night Ferry","Back Before Dark","Small Hours","The Map Room",
   "Quiet Miles","Window Seat","Somewhere Off the Interstate","Left the Light On","Slow Train North","Kitchen at 2 a.m.","Rain on the Map","Pinned, Not Posted"];
@@ -1409,6 +1423,7 @@ function leaveStation(id,t){   // tune away: everything that station had going s
   else if(id==="ptlk") ptlkOff();
   else if(id==="hearye") fairOff();
   else if(id==="ptrn") ptrnOff();
+  else if(id==="cluk") clukOff();
 }
 function enterStation(id,t){
   if(id==="mdfm"){ fadeTo(musicDuck.gain,1,.3,t); startSong(t+.3,0); lastSpot=t; clearInterval(timer); timer=setInterval(tick,40); tick(); }
@@ -1416,6 +1431,7 @@ function enterStation(id,t){
   else if(id==="ptlk") ptlkOn();
   else if(id==="hearye") fairOn();
   else if(id==="ptrn") ptrnOn();
+  else if(id==="cluk") clukOn();
 }
 function setStation(id){
   const s=stationInfo(id); if(!s||!s.available||id===station) return station; const was=station; station=id;
@@ -2445,6 +2461,265 @@ Object.assign(M,{
 Object.assign(INST_NAMES,{wurli:"Wurlitzer",warm:"warm analog pad",fmlead:"FM lead",sqlead:"square lead",vibes:"vibraphone"});
 Object.assign(LEADX,{fmlead:(s,t,m,dur,v,p)=>M.fmlead(s,t,m,dur,v,p),sqlead:(s,t,m,dur,v,p)=>M.sqlead(s,t,m,dur,v,p),vibes:(s,t,m,dur,v)=>M.vibes(s,t,m,dur,v)});
 CHX.wurli=(s,t,i,n,c)=>{ if(c==="stab"){ if("x..x..x.x.....x."[i]==="x") M.wurli(s,t,n,s.sp*1.1,.6); } else if(i===0||i===10) M.wurli(s,t,n,s.sp*(i?5:9),.9); };
+/* ---------- CLUK 92.3: Everything in the Chicken ----------
+   Music that rips: big beat, breakbeat and its cousins, electro and hard house, on MDFM's song writer with basses,
+   stabs and a drum-bus drive of their own; between songs, scripted shows (src/cluk/*.js), ads, call-ins and IDs
+   (src/cluk.js). Songs run about two to two and a half minutes, with breakdowns and drops. */
+// the instruments: a distorted riff bass, a 303-style acid line, an electro square bass, a rubbery electro-house bass,
+// chicken-scratch funk guitar, big-beat horn stabs, rave piano stabs, hard-house stabs and a soft laser
+Object.assign(M,{
+  dirt(s,t,m,dur,v=1,prev=null,open=1){ const f=mtof(m),a=osc("sawtooth",f),b=osc("square",f*1.004),sub=osc("sine",f/2),lp=filt("lowpass",500,2.5),pg=G(1.4),sh=ctx.createWaveShaper(),tl=filt("lowpass",2600,.7),g=ctx.createGain(),sg=G(.9),end=t+Math.max(.08,dur); sh.curve=SAT808;
+    if(prev!=null&&prev!==m) for(const [o,k] of [[a,1],[b,1.004],[sub,.5]]){ o.frequency.setValueAtTime(mtof(prev)*k,t); o.frequency.exponentialRampToValueAtTime(f*k,t+.05); }
+    lp.frequency.setValueAtTime(380,t); lp.frequency.exponentialRampToValueAtTime(600+1900*open,t+.012); lp.frequency.exponentialRampToValueAtTime(560,t+.24);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.15*v,t+.005); g.gain.setValueAtTime(.12*v,Math.max(t+.01,end-.04)); g.gain.exponentialRampToValueAtTime(.0001,end+.05);
+    a.connect(lp); b.connect(lp); lp.connect(pg); pg.connect(sh); sh.connect(tl); tl.connect(g); sub.connect(sg); sg.connect(g); g.connect(s.dr); for(const o of [a,b,sub]){ o.start(t); o.stop(end+.1); } duck(s,t,.75); },
+  tb(s,t,m,dur,v=1,o={}){ const f=mtof(m),a=osc("sawtooth",f),lp=filt("lowpass",300,o.res||10),sh=ctx.createWaveShaper(),tl=filt("lowpass",2400,.6),g=ctx.createGain(),end=t+Math.max(.06,dur); sh.curve=SAT;
+    if(o.from!=null&&o.from!==m){ a.frequency.setValueAtTime(mtof(o.from),t); a.frequency.exponentialRampToValueAtTime(f,t+Math.min(.08,dur*.6)); }
+    const c=Math.min(1900,o.cut??1100), pk=Math.min(3000,c*(o.acc?2.2:1.5)); lp.frequency.setValueAtTime(c*.45,t); lp.frequency.exponentialRampToValueAtTime(pk,t+.008); lp.frequency.exponentialRampToValueAtTime(Math.max(200,c*.4),t+(o.acc?.17:.11));
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime((o.acc?.13:.09)*v,t+.004); g.gain.setValueAtTime((o.acc?.11:.08)*v,Math.max(t+.01,end-.02)); g.gain.exponentialRampToValueAtTime(.0001,end+.03);
+    a.connect(lp); lp.connect(sh); sh.connect(tl); tl.connect(g); g.connect(o.mu?s.mu:s.dr); if(o.mu) to(g,s,.2); a.start(t); a.stop(end+.06); if(!o.mu) duck(s,t,.8); },
+  ebass(s,t,m,dur,v=1){ const f=mtof(m),a=osc("square",f),b=osc("sawtooth",f*.997),sub=osc("sine",f),lp=filt("lowpass",900,3.5),g=ctx.createGain(),sg=G(.9),end=t+Math.max(.08,dur);
+    lp.frequency.setValueAtTime(2000,t); lp.frequency.exponentialRampToValueAtTime(380,t+.14);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.12*v,t+.003); g.gain.setValueAtTime(.095*v,Math.max(t+.01,end-.03)); g.gain.exponentialRampToValueAtTime(.0001,end+.04);
+    a.connect(lp); b.connect(lp); lp.connect(g); sub.connect(sg); sg.connect(g); g.connect(s.dr); for(const o of [a,b,sub]){ o.start(t); o.stop(end+.08); } duck(s,t,.75); },
+  rubber(s,t,m,dur,v=1){ const f=mtof(m),a=osc("sawtooth",f*1.006),b=osc("sawtooth",f*.994),sub=osc("sine",f),lp=filt("lowpass",300,5),sh=ctx.createWaveShaper(),g=ctx.createGain(),sg=G(.8),end=t+Math.max(.1,dur); sh.curve=SAT;
+    lp.frequency.setValueAtTime(260,t); lp.frequency.exponentialRampToValueAtTime(1500,t+Math.max(.04,dur*.4)); lp.frequency.exponentialRampToValueAtTime(320,end);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.12*v,t+.006); g.gain.setValueAtTime(.1*v,Math.max(t+.01,end-.03)); g.gain.exponentialRampToValueAtTime(.0001,end+.04);
+    a.connect(lp); b.connect(lp); lp.connect(sh); sh.connect(g); sub.connect(sg); sg.connect(g); g.connect(s.dr); for(const o of [a,b,sub]){ o.start(t); o.stop(end+.08); } duck(s,t,.75); },
+  scratchg(s,t,notes,v=1,open=false){ const hp=filt("highpass",500),bp=filt("bandpass",1700,1.2),lp=filt("lowpass",3200,.7),g=ctx.createGain(),p=pan(-.32),end=t+(open?.16:.045);
+    bp.frequency.setValueAtTime(2300,t); bp.frequency.exponentialRampToValueAtTime(1100,t+.05); env(g,t,.0015,.12*v,end-t); hp.connect(bp); bp.connect(lp); lp.connect(g); g.connect(p); p.connect(s.mu); to(g,s,.06);
+    for(const m of notes.slice(0,3)){ const o=osc("sawtooth",mtof(m+12)); o.connect(hp); o.start(t); o.stop(end+.04); }
+    const n=nz(t,.03),nb=filt("bandpass",2200,1.5),ng=ctx.createGain(); env(ng,t,.0005,.025*v,.015); n.connect(nb); nb.connect(ng); ng.connect(p); },
+  bstab(s,t,notes,dur,v=1){ M.brass(s,t,notes.map(n=>n+12),dur,v*1.15); let r=Math.min(...notes)-12; while(r<40) r+=12; M.guitar(s,t,r,dur,v*.5,false); },
+  hhstab(s,t,notes,dur,v=1){ const lp=filt("lowpass",2600,1.1),g=ctx.createGain(),end=t+Math.max(.1,dur); lp.frequency.setValueAtTime(3600,t); lp.frequency.exponentialRampToValueAtTime(1300,end);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.05*v/Math.sqrt(notes.length),t+.006); g.gain.exponentialRampToValueAtTime(.0001,end+.08); lp.connect(g); g.connect(s.mu); to(g,s,.25);
+    for(const m of notes) for(const dt of [-13,0,13]){ const o=osc("sawtooth",mtof(m)); o.detune.setValueAtTime(dt+50,t); o.detune.linearRampToValueAtTime(dt,t+.05); o.connect(lp); o.start(t); o.stop(end+.1); } },
+});
+Object.assign(D,{
+  laser(s,t,v=1){ const o=osc("triangle",2200),lp=filt("lowpass",3000),g=ctx.createGain(),p=pan(rr(-.5,.5)); o.frequency.setValueAtTime(2300,t); o.frequency.exponentialRampToValueAtTime(260,t+.2); env(g,t,.002,.05*v,.22);
+    o.connect(lp); lp.connect(g); g.connect(p); p.connect(s.mu); to(g,s,.35); if(fxDelay) g.connect(G(.25)).connect(fxDelay); o.start(t); o.stop(t+.26); },
+});
+// how they play (hooks into playStep: bass, chords, leads and the snare)
+Object.assign(BASSX,{
+  riff(s,t,i,d,tr,nd,bar){ if(!s.rf){ const b=[...s.K].map((c,k)=>c==="x"||(k%2===0&&R()<.4)?1:0); b[0]=1; s.rf=b; s.rfo=b.map((x,k)=>k===0?0:pick([0,0,0,12,7,10,3,-2,5]));
+      s.rf2=b.map((x,k)=>k>=12?(k%2===0?1:0):x); s.rfo2=s.rfo.map((o,k)=>k>=12?[0,3,5,7,10,12][((k-12)>>1)+(R()<.5?2:0)]:o); }
+    const P=bar%4===3?s.rf2:s.rf, O=bar%4===3?s.rfo2:s.rfo; if(!P[i]) return; let n=1; while(i+n<16&&!P[i+n]) n++;
+    M.dirt(s,t,bRoot(s,d,tr,31,45)+O[i],Math.min(n,4)*s.sp*.92,i%4===0?1:.85,null,i===0?1:.6); },
+  acidline(s,t,i,d,tr,nd,bar){ if(!s.ac){ s.ac=Array.from({length:16},(_,k)=>k%4===0||R()<.5?1:0); s.aco=s.ac.map((x,k)=>k===0?0:pick([0,0,12,0,7,3,10,12,5])); s.aca=s.ac.map((x,k)=>k%8===0||R()<.22); s.acs=s.ac.map(()=>R()<.2); }
+    if(!s.ac[i]) return; const m=bRoot(s,d,tr,33,45)+s.aco[i], ph=((bar%8)*16+i)/128, cut=520+1250*(.5-.5*Math.cos(ph*Math.PI*2));
+    let n=1; while(i+n<16&&!s.ac[i+n]) n++; const tie=s.acs[i]&&n>1, from=s.acPrev!=null&&s.acs[(i+15)%16]?s.acPrev:null; s.acPrev=m;
+    M.tb(s,t,m,(tie?n:.7)*s.sp,1,{cut,acc:s.aca[i],from}); },
+  electro(s,t,i,d,tr){ s.eb=s.eb||pick(["x..x..x...x.x...","x..x..x..x..x.x.","x.x...x.x..x..x."]); if(s.eb[i]!=="x") return; let n=1; while(i+n<16&&s.eb[i+n]!=="x") n++;
+    M.ebass(s,t,bRoot(s,d,tr,33,45)+(i%8===6||i===13?12:0),Math.min(n,3)*s.sp*.85,i%4===0?1:.85); },
+  rubber(s,t,i,d,tr){ s.rb=s.rb||pick(["x.x.x.x.x.x.x.x.","x..x..x.x..x..x.","x.xx..x.x.xx..x."]); if(s.rb[i]!=="x") return; let n=1; while(i+n<16&&s.rb[i+n]!=="x") n++;
+    M.rubber(s,t,bRoot(s,d,tr,31,43)+(i===12&&s.root%2?12:0),n*s.sp*.9,i%4===0?1:.85); },
+  hhbass(s,t,i,d,tr){ if(i%4===2) M.dirt(s,t,bRoot(s,d,tr,33,47),s.sp*1.3,1,null,.8); else if(i%8===7) M.dirt(s,t,bRoot(s,d,tr,33,47)+12,s.sp*.6,.55,null,.5); },
+});
+Object.assign(CHX,{
+  scratch(s,t,i,n,c,d,tr,bar){ s.scp=s.scp||pick(["x.xxx.x.xx.xx.x.","xxx.x.xxx.xx.x.x","x.x.xxx.x.xxx.xx"]); if(s.scp[i]==="x") M.scratchg(s,t,n,i%4===0?1:.7,i===0&&bar%2===0); },
+  bstab(s,t,i,n,c,d,tr,bar){ s.bst=s.bst||pick([["x.........x.....","......x.....x..."],["x.....x...x.....","x..............."],["..x...x.....x...","x...x..........."]]); if(s.bst[bar%2][i]==="x") M.bstab(s,t,n.slice(0,3),s.sp*(i===0?2:1.2),.85); },
+  ravepiano(s,t,i,n){ s.rp=s.rp||pick(["x..x..x...x..x..","x..x..x.x..x..x.","x.....x...x.x..."]); if(s.rp[i]==="x") M.piano(s,t,[...n.slice(0,3),n[0]+12].map(x=>x+12),s.sp*1.3,.62); },
+  hhstab(s,t,i,n){ s.hs=s.hs||pick(["..x...x...x...x.","..x..x....x..x..","...x..x...x...x."]); if(s.hs[i]==="x") M.hhstab(s,t,n.slice(0,3).map(x=>x+12),s.sp*1.4,.9); },
+  estab(s,t,i,n){ s.es=s.es||pick(["..x.....x.x.....","x.....x.....x...","...x..x....x...."]); if(s.es[i]==="x") M.saw(s,t,n.slice(0,3).map(x=>x+12),s.sp*1.2,.6); },
+});
+Object.assign(LEADX,{ acid303:(s,t,m,dur,v,p)=>M.tb(s,t,m,Math.min(dur,s.sp*2),v*1.15,{from:p,cut:1400,acc:true,mu:true}) });
+Object.assign(SNX,{ crack:(s,t)=>{ D.snare(s,t,1.15,.3,s.sTone*1.05); D.snap(s,t,.45); }, elec:(s,t)=>{ D.snare(s,t,.95,.28,s.sTone*1.1); D.clap(s,t,.4,.25); } });
+Object.assign(INST_NAMES,{bstab:"horn and guitar stabs",scratch:"chicken-scratch guitar",ravepiano:"rave piano",hhstab:"hard house stabs",estab:"electro stabs",acid303:"acid line"});
+// the genres: [id, label, family, style]
+const CLUK_GENRES=[["bigbeat","Big beat","Big beat & breaks","BIG BEAT"],["breaks","Breakbeat","Big beat & breaks","BREAKBEAT"],["funkbreaks","Funky breaks","Big beat & breaks","FUNKY BREAKS"],
+  ["acidbreaks","Acid breaks","Big beat & breaks","ACID BREAKS"],["ravebreaks","Rave breaks","Big beat & breaks","RAVE BREAKS"],
+  ["electro","Electro","Electro & hard house","ELECTRO"],["electrohouse","Electro house","Electro & hard house","ELECTRO HOUSE"],["hardhouse","Hard house","Electro & hard house","HARD HOUSE"]];
+// longer forms than MDFM's: two to two and a half minutes, with a breakdown and a double hook at the end
+const CLUK_FORMS=[
+  [["intro",1],["verse",1],["pre",.5],["hook",1],["verse",1],["pre",.5],["hook",1],["break",1],["hook",2],["outro",.5]],
+  [["intro",1],["hook",1],["verse",1],["pre",.5],["hook",1],["break",.5],["bridge",1],["hook",2],["outro",1]],
+  [["intro",.5],["verse",1],["hook",1],["verse",1],["pre",.5],["hook",1],["break",1],["hook",1],["hook",1],["outro",.5]]];
+const CK={forms:CLUK_FORMS,unit:8,meters:[],cx:1};
+const BRK_K=["x.........x..x..","x......x..x.....","x.x.......x.....","x.........xx...."];
+Object.assign(STY,{
+  "BIG BEAT":{...CK,lvl:0.73,bpm:[118,132],sw:[.5,.54],scales:[AE,DO,MIXO],mode:"any",voicing:"triad",K:BRK_K,S:[["....x.......x...","....x.......x..x"],["....x.......x...","....x..x....x..."]],
+    H:["x.x.x.x.x.x.x.x.","xxx.x.xxx.x.x.x.","x.xxx.x.x.xxx.xr"],O:["......o.......o.",""],P:["...x.....x......",".x....x....x..x."],perc:"ghost",snare:"crack",kv:1.1,drive:1.5,
+    bass:"riff",chords:"bstab",pad:"none",lead:"brass1",leadFrom:2,octLead:72,crashBar:1,fam:{chords:["bstab","bstab","scratch","stab1"],lead:["brass1","gtrlead","acid303","chop"],pad:["none","strings"]}},
+  "BREAKBEAT":{...CK,lvl:0.8,bpm:[128,136],sw:[.5,.52],scales:[AE,PH,DO],mode:"min",voicing:"triad",K:["x.........x..x..","x......x..x.....","x.x.......x....."],S:[["....x.......x..."]],
+    H:["x.xxx.xxx.xxx.xx","x.x.x.x.x.x.x.x."],O:["..o...o...o...o.",""],P:["......x.......x.","..x.......x....."],perc:"ghost",snare:"crack",kv:1.05,drive:1.3,
+    bass:"rubber",chords:"estab",pad:"pad",lead:"sqlead",leadFrom:2,octLead:72,fam:{chords:["estab","stab1","supersaw"],lead:["sqlead","fmlead","saw","chop"],pad:["pad","none","strings"]}},
+  "FUNKY BREAKS":{...CK,lvl:1.15,hv:.55,bpm:[110,120],sw:[.53,.57],scales:[DO,MIXO],mode:"any",voicing:"ext",K:["x.x.......x..x..","x......x.x......","x.........x.x..."],S:[["....x.......x..."],["....x.......x...","....x.......x.x."]],
+    H:["x.xxx.xxx.xxx.xx"],O:["..........o.....",""],P:["",""],perc:"",snare:"crack",kv:1.05,drive:1.2,
+    bass:"slap",chords:"scratch",pad:"none",lead:"brass1",leadFrom:2,octLead:72,cpb:2,fam:{chords:["scratch","scratch","clav"],lead:["brass1","sax","gtrlead"],pad:["none","pad"]},progs:{min:[[0,0,3,3],[0,3,0,4],[0,6,0,3]],maj:[[0,3,0,3],[0,0,3,4]]}},
+  "ACID BREAKS":{...CK,lvl:1.2,hv:.55,bpm:[130,136],sw:[.5,.52],scales:[PH,AE],mode:"min",voicing:"triad",K:BRK_K,S:[["....x.......x..."],["....x.......x..x"]],
+    H:["x.xxx.xxx.xxx.xx","x.x.x.x.x.x.x.x."],O:["..o.......o.....",""],P:["......x.......x.",""],perc:"ghost",snare:"crack",kv:1.1,drive:1.4,
+    bass:"acidline",chords:"padonly",pad:"pad",lead:"sqlead",leadFrom:4,octLead:72,fam:{chords:["padonly","estab","stab1"],lead:["sqlead","chop","fmlead"],pad:["pad","none"]}},
+  "RAVE BREAKS":{...CK,lvl:0.78,bpm:[134,140],sw:[.5,.52],scales:[AE,HM],mode:"min",voicing:"triad",K:["x.........x.....","x.........xx....","x......x..x....."],S:[["....x.......x..."],["....x.......x.x."]],
+    H:["x.x.x.x.x.x.x.x.","x.xxx.x.x.xxx.x."],O:["..o...o...o...o.",""],P:["......x.......x.",""],perc:"ghost",snare:"crack",kv:1.05,drive:1.3,
+    bass:"reese",chords:"ravepiano",pad:"strings",lead:"saw",leadFrom:2,octLead:76,fam:{chords:["ravepiano","ravepiano","supersaw"],lead:["saw","chop","pluck"],pad:["strings","pad","choir"]}},
+  "ELECTRO":{...CK,lvl:0.92,bpm:[118,128],sw:[.5,.53],scales:[PH,AE],mode:"min",voicing:"triad",K:["x.....x...x.....","x.....x.......x.","x..x......x....."],S:[["....x.......x..."]],
+    H:["x.x.x.x.x.x.x.x.","xxxxxxxxxxxxxxxx"],O:[""],P:["..x.......x.....","......x.......x."],perc:"rim",snare:"elec",kv:1.1,laser:1,
+    bass:"electro",chords:"estab",pad:"pad",lead:"sqlead",leadFrom:2,octLead:72,fam:{chords:["estab","pluckarp","stab1"],lead:["sqlead","fmlead","saw"],pad:["pad","warm","none"]}},
+  "ELECTRO HOUSE":{...CK,lvl:0.75,bpm:[126,129],sw:[.5,.52],scales:[AE,DO,PH],mode:"min",voicing:"triad",K:[F4],S:[["....x.......x..."]],
+    H:["..x...x...x...x.","x.xxx.xxx.xxx.xx"],O:["..o...o...o...o."],P:["...x.......x....",""],perc:"rim",snare:"elec",kv:1.1,drive:1.2,laser:1,
+    bass:"rubber",chords:"supersaw",pad:"pad",lead:"saw",leadFrom:2,octLead:74,fam:{chords:["supersaw","estab","stab1"],lead:["saw","sqlead","chop"],pad:["pad","none"]}},
+  "HARD HOUSE":{...CK,lvl:0.8,bpm:[142,148],sw:[.5,.51],scales:[AE,PH,HM],mode:"min",voicing:"triad",K:[F4],S:[["....x.......x..."]],
+    H:["..x...x...x...x.","..xx..x...xx..x."],O:["..o...o...o...o."],P:["...x..x....x..x.",""],perc:"rim",snare:"elec",kv:1.1,drive:1.3,
+    bass:"hhbass",chords:"hhstab",pad:"pad",lead:"saw",leadFrom:2,octLead:74,fam:{chords:["hhstab","supersaw","estab"],lead:["saw","sqlead","chop"],pad:["pad","none"]}},
+});
+for(const g of CLUK_GENRES) STYLE_FAM[g[3]]="cluk";
+KIT_W.cluk={punch:.55,classic:.25,boom:.2}; METER_FIT.cluk=[];
+const CLUK_KEY=Object.fromEntries(CLUK_GENRES.map(g=>[g[3],g]));
+// the extras on top: a soft laser in electro hooks, and (in the apps, which render voices) shouted station words, chopped like a big-beat sample
+let VSC=null, vscLoading=false;
+const CLUK_WORDS=["Cluck","ninety two point three","everything in the chicken","go hard","feed time","bawk","make some noise","lazers"];
+function loadClukSamples(){ if(VSC||vscLoading||typeof opts.tts!=="function"||!ctx) return; vscLoading=true;
+  const say=(w,v)=>Promise.race([opts.tts({text:w,voice:v,rate:1,pitch:1}),new Promise((_,rej)=>setTimeout(()=>rej(new Error("tts timeout")),15000))]);
+  const one=w=>say(w,pick(["Daniel","Samantha","Karen","Tom","Moira","Ava"])).catch(()=>say(w,null))
+    .then(buf=>ctx.decodeAudioData(buf instanceof ArrayBuffer?buf:buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength))).then(b=>({b,r:revBuf(b)})).catch(()=>null);
+  Promise.all(CLUK_WORDS.map(one)).then(a=>{ VSC=a.filter(Boolean); vscLoading=false; }); }
+function clukExtras(s,sec,sb,i,tt,lastBar,nextSec){ const st=s.st, sp=s.sp;
+  if(st.laser&&sec.kind==="hook"&&sb%4===3&&(i===14||(i===10&&sb%8===7))) D.laser(s,tt,.8);
+  const smp=VSC&&VSC.length?VSC:null; if(!smp) return;
+  if(sec.kind==="hook"&&sb===0&&i===0&&R()<.65) M.sample(s,tt,pick(smp),pick([0,0,-3]),sp*10,.85,{thr:.3});
+  else if(sec.kind==="hook"&&sb%4===3&&i===12&&R()<.4){ const w=pick(smp); for(let k=0;k<4;k++) M.sample(s,tt+k*sp,w,0,sp*.8,.7); }
+  else if(lastBar&&i===8&&nextSec.kind==="hook"&&(sec.kind==="break"||sec.kind==="pre")&&R()<.6) M.sample(s,tt,pick(smp),pick([0,-5]),sp*8,.75,{rev:1});
+}
+/* The station: a song (about two minutes, it rips), then every song or two a break: a show, the request line or ads,
+   each with its own music (a theme from the show's genre, stingers at every segment break, a bed under the talk, an
+   outro), then Rhonda brings in the next song. Breaks are lines played one at a time, so a station ID can cut in. */
+const CLUKW=typeof createCluk==="function"?createCluk(R):null;
+const CLUK_LEVEL=1;
+let clukIn=null, clukRv=null;
+function cDest(){ if(!clukIn||clukIn.context!==ctx){ clukIn=G(CLUK_LEVEL); const hs=filt("highshelf",7500); hs.gain.value=-3; clukIn.connect(hs).connect(pre);   // a touch less fizz up top: hard, not harsh
+    clukRv=ctx.createConvolver(); clukRv.buffer=songRev.buffer; clukRv.connect(filt("lowpass",4500)).connect(G(.4)).connect(clukIn); } return clukIn; }
+const clukTypes=Object.fromEntries([...CLUK_GENRES.map(g=>[g[0],true]),...(CLUKW?CLUKW.shows.map(s=>[s.id,true]):[]),["callers",true],["ads",true],["ids",true]]);
+STATION_TYPES.cluk=CLUKW?[...CLUK_GENRES.map(g=>[g[0],g[1],g[2]]),...CLUKW.shows.map(s=>[s.id,s.label,"Shows"]),["callers","Rhonda's request line","On the air"],["ads","Ads from inside the Chicken","On the air"],["ids","Rhonda and Clark between songs","On the air"]]:[];
+STATIONS.splice(1,0,{id:"cluk",name:"CLUK 92.3",freq:"92.3",tagline:"Everything in the Chicken.",style:"Big beat, breaks, electro"});   // by frequency: 88.1, 92.3, 95.5, 99.9, 101.1, 108.0
+const clukPool=()=>{ const on2=CLUK_GENRES.filter(g=>clukTypes[g[0]]).map(g=>g[3]); return on2.length?on2:CLUK_GENRES.map(g=>g[3]); };
+const clukRecent=[];
+let cluk=null;
+const clukCast=extra=>talkCast({voice:CLUKW.HOSTS.voice,dj:CLUKW.HOSTS.dj,...extra});
+const clukNp=s=>({title:s.title,artist:s.artist});
+function clukMake(){ const made=makeSong(null,clukPool(),clukRecent); if(GON.cluk) gSongLen(made,"cluk"); made.title=CLUKW.title(); made.artist=CLUKW.artist(); made.genre=(CLUK_KEY[made.name]||[0,made.name])[1]; return made; }
+function clukOn(){ clukOff(.01); if(!CLUKW) return; cluk={n:0,next:clukMake(),song:null,since:0,gap:1,bed:null,dead:false,talkRecent:[],t:0,lines:null,i:0,cast:null,style:"electro",timer:0,rave:null,mode:"talk"};
+  const st=cluk; st.timer=setInterval(()=>clukTick(st),40); const L=[]; if(clukTypes.ids) L.push(["music","id"],["voice",CLUKW.ids()]); L.push(["song"]); if(clukTypes.ids) L.push(["pause",2200],["dj",CLUKW.djIntro(clukNp(st.next))]);
+  st.t=setTimeout(()=>clukRun(st,L),500); }
+function clukOff(fade=1.2){ const st=cluk; if(!st) return; st.dead=true; cluk=null; clearTimeout(st.t); clearInterval(st.timer); cBedOff(st,.8); clukSongEnd(st,fade); clukRaveEnd(st,fade); }
+// the song on air: ticked like MDFM's (40 ms, a quarter second ahead)
+function clukTick(st){ if(st.dead||!on||station!=="cluk"||!ctx) return; const now=ctx.currentTime, ahead=now+(typeof document!=="undefined"&&document.hidden?1.6:.25), late=now-.3;
+  for(const s of [st.song,st.rave&&st.rave.s]){ if(!s||s.done) continue; while(!s.done&&s.next<ahead){ const adv=mStep(s,s.next,s.next>late); s.step++; s.next+=adv; if(s.step>=s.endStep) s.done=true; } }
+  const s=st.song; if(s&&s.done&&now>s.next+1.2&&!s.over){ s.over=true; clukSongEnd(st,.4); clukAfterSong(st); }
+  const rv=st.rave; if(rv&&!rv.over&&now>=rv.until){ rv.over=true; clukRaveEnd(st,2.2); setTimeout(()=>{ if(!st.dead) clukStep(st,rv.n); },2300); } }
+function clukSongStart(st){ const made=st.next||clukMake(); st.next=null; const recipe={...made}, t0=ctx.currentTime+.12, s=setupSong(made,t0,0,cDest(),clukRv,"cluk");
+  s.recipe=recipe; s.sp0=s.sp; s.swing0=s.swing; s.endStep=s.bars*16; s.lv=s.st.lvl||1; st.song=s; st.since++; st.mode="song";
+  nowPlaying={station:"cluk",title:s.title,style:s.genre,artist:s.artist,bpm:s.bpm,...songFacts(s)}; emit("nowplaying",nowPlaying); }
+function clukSongEnd(st,fade){ const s=st&&st.song; if(!s) return; st.song=null; st.last=s; if(!ctx) return; const t=ctx.currentTime;
+  for(const g of [s.bus.gain,s.rvf.gain]) try{ holdAt(g,t); g.linearRampToValueAtTime(.0001,t+fade); }catch(e){} s.done=true; setTimeout(()=>{ try{ s.bus.disconnect(); s.rvf.disconnect(); }catch(e){} },fade*1000+3500); }
+const clukDuck=(st,on2)=>{ const s=st.song; if(!s||s.duckOn===on2) return; s.duckOn=on2; fadeTo(s.bus.gain,s.lv*(on2?.3:1),on2?.4:1.5,ctx.currentTime); };
+function clukAfterSong(st){ if(st.dead||!on) return; st.mode="talk"; const prev=st.last, nx=st.next=clukMake(), L=[], talky=["callers","ads",...CLUKW.shows.map(s=>s.id)].some(k=>clukTypes[k]);
+  if(talky&&st.since>=st.gap){ st.since=0; st.gap=R()<.45?1:2;
+    if(clukTypes.ids&&prev) L.push(["dj",CLUKW.djBack(clukNp(prev))]);
+    if(clukTypes.ids&&R()<.45) L.push(["music","id"],["voice",CLUKW.ids()]);
+    L.push(...clukSegment(st));
+    L.push(["song"]); if(clukTypes.ids) L.push(["pause",2200],["dj",R()<.12?CLUKW.raveOpen():CLUKW.djIntro(clukNp(nx))]); }
+  else if(clukTypes.ids&&prev&&R()<.45) L.push(["dj",CLUKW.djBack(clukNp(prev))],["song"],["pause",2200],["dj",R()<.6?CLUKW.djIntro(clukNp(nx)):CLUKW.bridge()]);
+  else L.push(["pause",1200],["song"]);
+  clukRun(st,L); }
+// one break: a show, the request line or an ad block (shows sometimes have ads after)
+function clukSegment(st){
+  const W=[]; const shows=CLUKW.shows.filter(s=>clukTypes[s.id]&&!st.talkRecent.includes(s.id)), allShows=CLUKW.shows.filter(s=>clukTypes[s.id]);
+  if(shows.length||allShows.length) W.push(["show",4]); if(clukTypes.callers) W.push(["callers",1.2]); if(clukTypes.ads) W.push(["ads",1]);
+  if(!W.length) return []; let r=R()*W.reduce((a,x)=>a+x[1],0), k=W[0][0]; for(const [x,w] of W){ if((r-=w)<=0){ k=x; break; } }
+  let L=[];
+  if(k==="show"){ const pool=shows.length?shows:allShows, ned=pool.find(s=>s.id==="ned"), sh=ned&&R()<.22?ned:pick(pool); st.talkRecent.push(sh.id); while(st.talkRecent.length>Math.min(4,CLUKW.shows.length-1)) st.talkRecent.shift(); L=clukShowLines(CLUKW.show(sh.id)); }   // Lazer Hour comes up a little more often
+  else if(k==="callers"){ const c=CLUKW.caller(); L=[["style",pick(["funkbreaks","electro","bigbeat"])],["np",{title:"A caller",style:"Rhonda's Request Line",artist:CLUKW.HOSTS.dj.name}],["rec",{show:"Rhonda's Request Line",title:"A caller",hosts:CLUKW.HOSTS.dj.name}],["cast",c.cast],["music","sting"],["music","bedOn"],...c.lines,["music","bedOff"],["recstop"]]; }
+  if(k==="show"&&clukTypes.ads&&R()<.4) L.push(...clukAdLines(R()<.6?1:2));
+  if(k==="ads") L=clukAdLines(R()<.5?2:3);
+  return L; }
+function clukAdLines(n){ const L=[["voice",CLUKW.adIntro()]]; for(let i=0;i<n;i++){ const a=CLUKW.ad(), sty=pick(["funkbreaks","bigbeat","electrohouse","electro","breaks"]);
+    L.push(["style",sty],["np",{title:a.title,style:"Ad",artist:"A word from inside the Chicken"}],["rec",{show:"Ad",title:a.title,hosts:"CLUK sponsors",ad:true}],["cast",a.cast],["music","sting"],["music","bedOn"],...a.lines,["music","bedOff"],["recstop"]); }
+  return L; }
+// a scripted show: the station voice's intro, the theme with its bed under the opening lines, a stinger at every segment break, the bed back under the sign-off, the outro
+function clukShowLines(ep){ const spoken=l=>!["sfx","music","pause","seg","rave"].includes(l[0]), L=[["style",ep.style],["np",{title:ep.title,style:ep.show,artist:ep.hosts}],["rec",{show:ep.show,title:ep.title,hosts:ep.hosts}],["cast",ep.cast]];
+  L.push(["voice",ep.open[0]],["music","theme"],["voice",ep.open[1]]);
+  const body=[]; for(const l of ep.lines){ const m=l[0]==="seg"?["music","sting"]:l; if(m[0]==="music"&&(!body.length||body[body.length-1][0]==="music")) continue; body.push(m); }
+  let i2=-1, k=0; for(let i=0;i<body.length;i++) if(spoken(body[i])&&++k===1){ i2=i; break; }
+  let last=-1; for(let i=body.length-1;i>=0;i--) if(spoken(body[i])){ last=i; break; }
+  body.forEach((l,i)=>{ if(i===last&&i>i2+1) L.push(["music","bedOn"]); L.push(l); if(i===i2) L.push(["music","bedOff"]); });
+  L.push(["music","outro"],["voice",ep.close],["recstop"]); return L; }
+function clukRun(st,L){ if(st.dead) return; st.lines=L; st.i=0; st.n++; st.cast=clukCast({}); clukStep(st,st.n); }
+const clukSay=t=>String(t).replace(/\bCLUK\b/g,"Cluck");   // "CLUK" is said "cluck"; captions keep the call letters
+function clukStep(st,n){
+  if(st.dead||n!==st.n||!on) return;
+  if(st.i>=st.lines.length){ cBedOff(st,1); if(REC&&REC.sp&&REC.sp.station==="cluk") recStop(); speaking=false; if(st.song) clukDuck(st,false); return; }
+  const line=st.lines[st.i++], nx=d=>{ st.t=setTimeout(()=>clukStep(st,n),Math.max(0,d)); };
+  if(line[0]==="song"){ speaking=false; cBedOff(st,1.2); clukSongStart(st); nx(0); return; }
+  if(line[0]==="style"){ st.style=line[1]; nx(0); return; }
+  if(line[0]==="cast"){ st.cast=clukCast(line[1]||{}); nx(0); return; }
+  if(line[0]==="np"){ nowPlaying={station:"cluk",bpm:null,talk:true,...line[1]}; emit("nowplaying",nowPlaying); nx(0); return; }
+  if(line[0]==="rec"){ const sp={kind:"cluk",station:"cluk",...line[1]}; emit("spot",sp); recStart(sp); st.mode="talk"; nx(0); return; }
+  if(line[0]==="recstop"){ cBedOff(st,1.2); if(REC&&REC.sp&&REC.sp.station==="cluk") recStop(); nx(300); return; }
+  if(line[0]==="rave"){ speaking=false; cBedOff(st,.6); clukRave(st,n,Math.max(30,Math.min(120,+line[1]||75))); return; }   // Lazer Hour: Ned does a rave (the show waits for it)
+  if(line[0]==="music"){ const t=ctx.currentTime+.05, k=line[1]; let d=0;
+    try{ if(k==="bedOn"){ cBedOn(st,st.style,t); d=1100; } else if(k==="bedOff"){ cBedOff(st,2.2); d=100; }
+      else if(k==="theme"){ const len=cCue(st.style,"theme",t); cBedOn(st,st.style,t+len-.6); d=Math.max(1,len-.5)*1000; }
+      else if(k==="outro"){ cBedOff(st,.6); d=(cCue(st.style,"outro",t)+.1)*1000; }
+      else { if(st.song) clukDuck(st,true); d=cCue(k==="id"?"electro":st.style,k,t)*850; } }catch(e){}
+    nx(d); return; }
+  speaking=true; let l=line; if(typeof l[1]==="string"&&l[0]!=="sfx"&&l[0]!=="pause"){ const v=spelled(l[1]), say=clukSay(l[1]); if(v!==l[1]||say!==l[1]) l=[l[0],{say,show:v}]; }
+  if(st.song&&l[0]!=="pause"&&l[0]!=="sfx") clukDuck(st,true);   // Rhonda talks over the start of a song: it dips under her
+  speakLines([l],st.cast,()=>{ if(st.dead||n!==st.n) return; if(st.song&&st.i>=st.lines.length) clukDuck(st,false); clukStep(st,n); });
+}
+/* Show music, built from each genre's own song: one song per genre is written the first time it's needed and kept,
+   so a show's theme, stingers and bed stay the same all session. Theme: the hook, four bars, and a hit. Stingers: a bar
+   of the hook into a hit, a snare roll into a hit, or a reversed riser into a hit. Bed: the verse, quietly, looping. */
+const CUE_REC={}, cStingDeck={};
+const cRec=style=>{ const g=CLUK_GENRES.find(x=>x[0]===style)||CLUK_GENRES[5]; return CUE_REC[g[0]]||(CUE_REC[g[0]]=makeSong(g[3],[g[3]],[])); };
+const CUE_GAIN=.85;
+function cSong(rec,t,level){ const s=setupSong({...rec},t,0,cDest(),clukRv,"cluk"); s.bus.gain.setValueAtTime(level*(rec.st.lvl||1),t); s.next=t; return s; }
+function cPlay(s,fromBar,bars){ s.step=fromBar*16; const end=(fromBar+bars)*16; while(s.step<end){ const adv=mStep(s,s.next,true); s.step++; s.next+=adv; } return s.next; }
+function cFree(s,t,fade=.6){ for(const g of [s.bus.gain,s.rvf.gain]) try{ g.setValueAtTime(g.value,t); g.exponentialRampToValueAtTime(.0001,t+fade); }catch(e){} setTimeout(()=>{ try{ s.bus.disconnect(); s.rvf.disconnect(); }catch(e){} },(t-ctx.currentTime+fade)*1000+4000); }
+function cHit(s,t,big=1){ const r=bRoot(s,s.prog[0],0,31,43), ch=s.chord(s.prog[0]); D.kick(s,t,1.1,s.kTune); D.snare(s,t,.9,.5,s.sTone); D.crash(s,t,big); M.dirt(s,t,r,1.2*big,1,null,1); M.bstab(s,t,ch.slice(0,3),.9*big,.9); }
+function cCue(style,kind,t){ const rec=cRec(style), hk=(rec.sections.find(x=>x.kind==="hook")||rec.sections[0]).start, bar=rec.sp*16;
+  if(kind==="theme"){ const n=bar>2.1?2:4, s=cSong(rec,t,CUE_GAIN); const e=cPlay(s,hk,n); cHit(s,e,1.2); cFree(s,e+2,1.4); return e-t+1.6; }
+  if(kind==="outro"){ const s=cSong(rec,t,CUE_GAIN); const e=cPlay(s,hk,bar>2.1?1:2); cHit(s,e,1.4); cFree(s,e+2.6,1.6); return e-t+2.4; }
+  if(kind==="sting"||kind==="id"){ const key=kind+style; let dk=cStingDeck[key]; if(!dk||!dk.length) dk=cStingDeck[key]=[0,1,2].sort(()=>R()-.5); const v=kind==="id"?pick([0,2]):dk.pop(), s=cSong(rec,t,CUE_GAIN*.95);
+    if(v===0){ const e=cPlay(s,hk,1); cHit(s,e,.9); cFree(s,e+1.4,1); return e-t+1.2; }
+    if(v===1){ for(let k=0;k<8;k++) D.snare(s,t+k*rec.sp,.35+k*.08,.12,s.sTone); const e=t+rec.sp*8; cHit(s,e,1); cFree(s,e+1.4,1); return e-t+1.2; }
+    D.riser(s,t,bar/2); if(rec.st.laser) D.laser(s,t+bar/4,.9); const e=t+bar/2; cHit(s,e,1); cFree(s,e+1.4,1); return e-t+1.2; }
+  return 0; }
+// the bed under talk: the genre's verse, softly, a bar at a time, stopping by itself after 50 seconds
+function cBedOn(st,style,t0){ if(!st||st.bed) return; const rec=cRec(style), vs=(rec.sections.find(x=>x.kind==="verse")||rec.sections[0]).start, s=cSong(rec,t0,.0001), L=.15*(rec.st.lvl||1);
+  s.bus.gain.setValueAtTime(.0001,ctx.currentTime); s.bus.gain.linearRampToValueAtTime(L,t0+.8); const bed={s,bar:0,stop:false,until:Date.now()+50000}; st.bed=bed;
+  const pump=()=>{ if(bed.stop||!ctx||st.dead) return cBedOff(st,1.5,bed); if(Date.now()>bed.until) return cBedOff(st,3,bed);
+    while(s.next<ctx.currentTime+1.5){ if(s.next<ctx.currentTime) s.next=ctx.currentTime+.05; s.step=(vs+bed.bar%4)*16; const end=s.step+16; while(s.step<end){ const adv=mStep(s,s.next,true); s.step++; s.next+=adv; } bed.bar++; }
+    bed.t=setTimeout(pump,400); };
+  pump(); }
+function cBedOff(st,fade=1.6,which){ const bed=which||(st&&st.bed); if(!bed) return; if(st&&st.bed===bed) st.bed=null; if(bed.off) return; bed.off=bed.stop=true; clearTimeout(bed.t);
+  try{ fadeTo(bed.s.bus.gain,.0001,fade,ctx.currentTime); }catch(e){} setTimeout(()=>{ try{ bed.s.bus.disconnect(); bed.s.rvf.disconnect(); }catch(e){} },fade*1000+4000); }
+/* Lazer Hour's raves: Ned says the word, and the hardest genre that's switched on plays from its hook (the drop) for a
+   minute or so, lasers on every other bar, then fades back to the show. */
+function clukRave(st,n,secs){ const pool=["ELECTRO","ELECTRO HOUSE","HARD HOUSE","RAVE BREAKS","BIG BEAT"].filter(k=>clukPool().includes(k)), made=makeSong(pool.length?pick(pool):pick(clukPool()),clukPool(),[]);
+  const t0=ctx.currentTime+.15, s=setupSong(made,t0,0,cDest(),clukRv,"cluk"), hk=(s.sections.find(x=>x.kind==="hook")||s.sections[0]).start-1;
+  s.step=Math.max(0,hk)*16; s.endStep=s.bars*16; s.lv=s.st.lvl||1; s.bus.gain.setValueAtTime(.0001,t0); s.bus.gain.exponentialRampToValueAtTime(s.lv,t0+.8);
+  const bar=s.sp*16; for(let b=1;b*bar<secs;b+=2) D.laser(s,t0+b*bar+s.sp*R2(14),.9);
+  st.rave={s,n,until:ctx.currentTime+secs,over:false}; emit("spot",{kind:"rave",station:"cluk",text:"Rave"}); }
+const R2=n=>Math.floor(R()*n);
+function clukRaveEnd(st,fade){ const rv=st&&st.rave; if(!rv) return; st.rave=null; const s=rv.s; if(!ctx) return; const t=ctx.currentTime;
+  for(const g of [s.bus.gain,s.rvf.gain]) try{ holdAt(g,t); g.linearRampToValueAtTime(.0001,t+fade); }catch(e){} s.done=true; setTimeout(()=>{ try{ s.bus.disconnect(); s.rvf.disconnect(); }catch(e){} },fade*1000+3500); }
+function clukId(){ const st=cluk; if(!on||station!=="cluk"||!st||!clukTypes.ids) return; const line=CLUKW.ids(); emit("spot",{kind:"id",station:"cluk",text:line});
+  if(st.lines&&st.i<st.lines.length&&speaking){ st.lines.splice(st.i,0,["music","id"],["voice",line]); return; }
+  if(speaking||st.rave) return; speaking=true; const g=gen; if(st.song) clukDuck(st,true);
+  const d=cCue("electro","id",ctx.currentTime+.05);
+  setTimeout(()=>{ if(g!==gen||st.dead){ speaking=false; return; } speakLines([["voice",{say:clukSay(line),show:line}]],st.cast||clukCast({}),()=>{ speaking=false; if(st.song) clukDuck(st,false); }); },d*850); }
+function clukSkip(){ const st=cluk; if(!on||!st) return; if(st.rave){ st.rave.until=0; return; }
+  if(st.song){ if(speaking){ gen++; hush(); } st.song.over=true; clukSongEnd(st,1.5); st.n++; clukAfterSong(st); return; }   // a song on (Rhonda may be talking over its start): on to whatever comes after it
+  gen++; hush(); cBedOff(st,.6); recStop(true); st.n++; clukSongEnd(st,1.2); clukRun(st,[["pause",700],["song"]]); }
+// "Save" on CLUK: the song on air (or the last one), rendered again from the top
+async function renderCluk(){ const st=cluk, live=st&&(st.song||st.last); if(!live) return null;
+  const sp=gOn("cluk","bpm")?15/GRV.cluk.bpm:live.sp0||live.sp, secs=Math.min(900,live.bars*16*sp*meterRatio(live)+3);
+  const info=gFacts({station:"cluk",stationName:"CLUK 92.3",title:live.title,artist:live.artist,style:live.genre,bpm:Math.round(15/sp),...songFacts(live)});
+  midiStart("cluk",.05,secs,{bpm:15/sp,time:songMeter(live)||"4/4",title:info.title,text:`CLUK 92.3. ${info.style}, ${info.key}. ${info.artist}`});
+  const pr=renderOffline("cluk",secs,{recipe:live.recipe}), midi=midiEnd(), buffer=await pr;
+  let pk=0; for(let c=0;c<2;c++){ const d=buffer.getChannelData(c); for(let i=0;i<d.length;i++){ const a=Math.abs(d[i]); if(a>pk) pk=a; } }
+  const k=pk>0?Math.min(8,.89/pk):1; for(let c=0;c<2;c++){ const d=buffer.getChannelData(c); for(let i=0;i<d.length;i++) d[i]*=k; }
+  return {buffer,midi,info}; }
 /* ---------- STYLE MATRIX (1.17): pull the station's music toward pop, hip-hop, rock, classical, country, galactic ----------
    The song on air sits in the middle. Each slider pulls it toward a style: the song keeps its own notes, chords, melody,
    form and rhythm, but its instruments are played as that style would play them (a piano chord becomes power chords,
@@ -2694,7 +2969,7 @@ const GROOVE_KEYS=[["bpm","BPM","The tempo (SONG: the song's own, where the slid
   ["humanize","HUMANIZE","Tight to loose: timing and touch, like a drummer"],["drums","DRUMS","The drum kit's level: off to loud (SONG: as mixed)"]];
 const GRV={}, GON={};
 const grvOf=id=>GRV[id]||(GRV[id]={...GROOVE_DEF});
-const GSUP={mdfm:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},ptrn:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},hearye:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},
+const GSUP={mdfm:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},cluk:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},ptrn:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},hearye:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},
   ptlk:{bpm:1,meter:1,swing:1,length:0,key:1,drums:1},wybc:{bpm:1,meter:0,swing:1,length:1,key:1,drums:1}};
 const GDRUM=new Set(["kick","snare","clap","hat","perc","shaker","tom","crash"]);
 function cleanGroove(v){ const o={}; if(!v) return o;
@@ -2800,7 +3075,7 @@ function midiRec(obj,name,role,vi,a){ const C=MIDICAP, t=a[0]; if(!C||typeof t!=
   let m=role==="gchord"?[a[1],a[1]+7,a[1]+12]:Array.isArray(a[1])?a[1]:[a[1]]; m=m.filter(x=>typeof x==="number"&&Number.isFinite(x)).map(Math.round); if(!m.length) return;
   const d=vi>=3&&typeof a[2]==="number"?a[2]:role==="chord"||role==="gchord"?.8:.5;
   C.ev.push({tr:role==="gchord"?"Chords":{bass:"Bass",chord:"Chords",pad:"Pad",lead:"Lead"}[role]||"Lead",m,t,d:Math.max(.03,Math.min(30,d)),vel}); }
-const MIDI_PROG={mdfm:{Bass:38,Chords:4,Pad:89,Lead:81,Timpani:47},ptrn:{Bass:33,Chords:4,Pad:89,Lead:81,Timpani:47},hearye:{Bass:32,Chords:46,Pad:48,Lead:73,Timpani:47},
+const MIDI_PROG={mdfm:{Bass:38,Chords:4,Pad:89,Lead:81,Timpani:47},cluk:{Bass:39,Chords:62,Pad:89,Lead:81,Timpani:47},ptrn:{Bass:33,Chords:4,Pad:89,Lead:81,Timpani:47},hearye:{Bass:32,Chords:46,Pad:48,Lead:73,Timpani:47},
   wybc:{Piano:0,Strings:48,Winds:71,Bass:33,Chords:4,Pad:89,Lead:81}};
 const MIDI_ORDER=["Drums","Bass","Chords","Pad","Lead","Timpani","Piano","Strings","Winds"];
 function midiFile(C){ const PPQ=480, bpm=Math.max(20,Math.min(300,C.bpm||120)), tk=sec=>Math.max(0,Math.round((sec-C.t0)*bpm/60*PPQ));
@@ -2828,8 +3103,8 @@ function setOn(v){
   if(v===on) return; on=v; gen++;
   if(v){ iosPlayback(true); primeSpeech(); if(!ctx) init(opts.audioContext); try{ const pr=ctx.resume(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){} watchAudio(); const t=ctx.currentTime; fadeTo(master.gain,(opts.volume??1)*VOL,.4,t);
     if(bed){ bed.stopped=true; try{ bed.bus.disconnect(); }catch(e){} bed=null; } fadeTo(musicDuck.gain,1,.3,t);   // restarted before the stop finished: the old break is gone
-    if(station==="wybc"&&AMB()){ clearInterval(timer); timer=0; wybcOn(); } else if(station==="ptlk"&&TALK){ clearInterval(timer); timer=0; ptlkOn(); } else if(station==="hearye"&&FAIRE){ clearInterval(timer); timer=0; fairOn(); } else if(station==="ptrn"){ clearInterval(timer); timer=0; ptrnOn(); } else { station="mdfm"; if(!songs.length){ startSong(t+.1,0); lastSpot=t-999; } clearInterval(timer); timer=setInterval(tick,40); tick(); } }
-  else if(ctx){ iosPlayback(false); recStop(true); wybcOff(.3); ptlkOff(); fairOff(); ptrnOff(.3); const t=ctx.currentTime; fadeTo(master.gain,0,.3,t); clearInterval(timer); try{speechSynthesis.cancel();}catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
+    if(station==="wybc"&&AMB()){ clearInterval(timer); timer=0; wybcOn(); } else if(station==="ptlk"&&TALK){ clearInterval(timer); timer=0; ptlkOn(); } else if(station==="hearye"&&FAIRE){ clearInterval(timer); timer=0; fairOn(); } else if(station==="ptrn"){ clearInterval(timer); timer=0; ptrnOn(); } else if(station==="cluk"&&CLUKW){ clearInterval(timer); timer=0; clukOn(); } else { station="mdfm"; if(!songs.length){ startSong(t+.1,0); lastSpot=t-999; } clearInterval(timer); timer=setInterval(tick,40); tick(); } }
+  else if(ctx){ iosPlayback(false); recStop(true); wybcOff(.3); ptlkOff(); fairOff(); ptrnOff(.3); clukOff(.3); const t=ctx.currentTime; fadeTo(master.gain,0,.3,t); clearInterval(timer); try{speechSynthesis.cancel();}catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false;
     const c=ctx,md=musicDuck; setTimeout(()=>{ if(!on){ for(const s of songs) try{s.bus.disconnect();}catch(e){} songs=[]; if(bed){ try{bed.bus.disconnect();}catch(e){} bed=null; } fadeTo(md.gain,1,.01,c.currentTime); c.suspend(); } },400); }
   emit(v?"start":"stop");
 }
@@ -2850,7 +3125,7 @@ function getLevels(){
   return lv;
 }
 async function renderOffline(kind,secs,arg){
-  const keep={ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE,voiceIn,extDuck,recIn,ST,mixOut,ambIn,ptrnIn,ptrnRv};
+  const keep={ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE,voiceIn,extDuck,recIn,ST,mixOut,ambIn,ptrnIn,ptrnRv,clukIn,clukRv};
   const oc=new OfflineAudioContext(2,Math.floor(44100*secs),44100); let rendering;
   try{ init(oc); master.gain.value=VOL;
   let fxS=null;
@@ -2861,6 +3136,14 @@ async function renderOffline(kind,secs,arg){
     const beat=(gOn("ptrn","bpm")?15/GRV.ptrn.bpm:s.sp0)*4, bar=beat*4*meterRatio(s), tags=(arg&&arg.tags)||[];
     tags.slice(0,3).forEach((it,k)=>{ const at=.05+bar*[1,Math.max(2,s.sections[Math.min(2,s.sections.length-1)].start),Math.max(3,s.bars-6)][k]; if(at<secs-3) try{ ptrnTagPlay(s,at,it,beat,k===0?"hype":null,null); }catch(e){} });
     const end=Math.min(secs-.05,s.next+2.6); master.gain.setValueAtTime(VOL,Math.max(.1,end-2.4)); master.gain.linearRampToValueAtTime(0,end); }
+  else if(kind==="cluk"){   // a CLUK song: from its recipe (Save), or a fresh one in a genre (tests and level checks)
+    clukIn=null; const s=fxS=setupSong(arg&&arg.recipe?{...arg.recipe}:makeSong(arg&&arg.style||null,clukPool(),[]),.05,0,cDest(),clukRv,"cluk"); s.sp0=s.sp; s.swing0=s.swing;
+    if(arg&&arg.from) s.step=arg.from*16;
+    while(s.next<secs-.1&&s.step<s.bars*16){ s.next+=mStep(s,s.next,true); s.step++; }
+    const end=Math.min(secs-.05,s.next+2.6); master.gain.setValueAtTime(VOL,Math.max(.1,end-2.4)); master.gain.linearRampToValueAtTime(0,end); }
+  else if(kind==="ccue"){ clukIn=null; const t=.1;   // CLUK show music, for tests and level checks
+    if(arg.cue==="bed"){ const rec=cRec(arg.style), vs=(rec.sections.find(x=>x.kind==="verse")||rec.sections[0]).start, s=cSong(rec,t,.15*(rec.st.lvl||1)); let b=0; while(s.next<secs-1){ s.step=(vs+b%4)*16; const e=s.step+16; while(s.step<e){ s.next+=mStep(s,s.next,true); s.step++; } b++; } }
+    else cCue(arg.style,arg.cue,t); }
   else if(kind==="bed"){ const b=startBed(.05); if(arg!=null) b.def=BEDS[arg]; while(b.next<secs-2.5){ playBed(b,b.next); b.step++; b.next+=b.sp; } endBed(b,secs-2.4); }
   else if(kind==="sting"){ STINGS[arg](.1); }
   else if(kind==="current"){   // the song on air, from the top, as written (and as long as it runs now, Let It Ride included)
@@ -2896,9 +3179,9 @@ async function renderOffline(kind,secs,arg){
     inst._scheduleAll(secs,true); }
   else if(kind==="famb"){ const A=ambNew(arg.scene,62); A.out.gain.value=A.sg*ambMul(); ambRun(A,secs-.2); }
   if(fxIsOn()){ fxApply(true); fxBeat(.05,fxS?fxS.sp*4:.5,true); }   // TUNE's effects, as they are live
-  { const id=kind==="fpiece"?"hearye":kind==="current"||kind==="song"?"mdfm":kind==="wybc"?"wybc":kind==="ptrn"?"ptrn":null;   // the style matrix's sound (drive, lo-fi, hall, slap, phaser...) as it is live
+  { const id=kind==="fpiece"?"hearye":kind==="current"||kind==="song"?"mdfm":kind==="wybc"?"wybc":kind==="ptrn"?"ptrn":kind==="cluk"?"cluk":null;   // the style matrix's sound (drive, lo-fi, hall, slap, phaser...) as it is live
     if(id&&MXON[id]){ mxFx(); mxFxLevels(mixOf(id),0,true); } }
-  rendering=oc.startRendering(); }finally{ ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE,voiceIn,extDuck,recIn,ST,mixOut,ambIn,ptrnIn,ptrnRv}=keep); }   // restore before the await: the live station keeps ticking meanwhile
+  rendering=oc.startRendering(); }finally{ ({ctx,pre,master,analyser,freq,vuA,vuBuf,noiseBuf,songRev,fxRev,fxDelay,musicDuck,SAT,SAT808,UW,TONE,voiceIn,extDuck,recIn,ST,mixOut,ambIn,ptrnIn,ptrnRv,clukIn,clukRv}=keep); }   // restore before the await: the live station keeps ticking meanwhile
   return await rendering;
 }
 return {
@@ -2907,8 +3190,8 @@ return {
   stop(){ setOn(false); },
   toggle(){ setOn(!on); return on; },
   isOn(){ return on; },
-  skip(){ if(station==="ptrn"){ ptrnSkip(); return; } if(station==="ptlk"){ ptlkSkip(); return; } if(station==="hearye"){ fairSkip(); return; } if(station==="wybc"){ if(on&&amb){ const a=amb; amb=null; ambRetire(a,4); ambStart(4); } return; } for(const s of songs) if(!s.handed) s.step=Math.max(s.step,(s.bars-4)*16-1); },
-  spotNow(kind){ if(station==="ptrn"){ ptrnTagNow(); return; } if(station==="ptlk"){ ptlkId(); return; } if(station==="hearye"){ fairId(); return; } if(station==="wybc"){ wybcId(true); return; } spot(kind); },
+  skip(){ if(station==="cluk"){ clukSkip(); return; } if(station==="ptrn"){ ptrnSkip(); return; } if(station==="ptlk"){ ptlkSkip(); return; } if(station==="hearye"){ fairSkip(); return; } if(station==="wybc"){ if(on&&amb){ const a=amb; amb=null; ambRetire(a,4); ambStart(4); } return; } for(const s of songs) if(!s.handed) s.step=Math.max(s.step,(s.bars-4)*16-1); },
+  spotNow(kind){ if(station==="cluk"){ clukId(); return; } if(station==="ptrn"){ ptrnTagNow(); return; } if(station==="ptlk"){ ptlkId(); return; } if(station==="hearye"){ fairId(); return; } if(station==="wybc"){ wybcId(true); return; } spot(kind); },
   setDuck(v){ v=Math.max(0,Math.min(1,+v)); if(!Number.isFinite(v)) return; duckLevel=v; if(ctx&&extDuck){ const t=ctx.currentTime; extDuck.gain.cancelScheduledValues(t); extDuck.gain.setTargetAtTime(Math.max(v,0),t,v<1?.08:.35); } },   // 0..1 over everything (music and DJ), eased
   setProviders(p){ for(const k of ["weather","sports","news","tts","cannedFallback","headlines"]) if(k in p) opts[k]=p[k]; wxCache=spCache=null; },   // kind optional: "weather" | "sports"
   stingNow(){ voiceSting(); },
@@ -2935,7 +3218,7 @@ return {
   nextSpotText(){ return nextSpot(); },
   renderOffline,
   /* "Save song": renders the song on air again, from the top, off the live audio path, and returns {buffer, info}. */
-  async renderSong(){ if(station==="ptlk") return null;   // talk saves as a recording (onAir / recordBreak), in the apps
+  async renderSong(){ if(station==="ptlk") return null; if(station==="cluk") return renderCluk();   // talk saves as a recording (onAir / recordBreak), in the apps
     if(station==="ptrn"){ const L=ptrn?ptrn.songs:[], live=L.find(x=>!x.handed&&nowPlaying&&x.title===nowPlaying.title)||L.find(x=>!x.handed)||L[L.length-1]; if(!live) return null;
       const sp=gOn("ptrn","bpm")?15/GRV.ptrn.bpm:live.sp0||live.sp, secs=Math.min(900,live.bars*16*sp*meterRatio(live)+3);
       const info=gFacts({station:"ptrn",stationName:"PTRN 101.1",title:live.title,artist:live.artist,style:live.genre,bpm:Math.round(15/sp),...songFacts(live)});
@@ -3013,8 +3296,10 @@ return {
   tapeStop(){ return fxTapeTrick("stop"); },
   spinBack(){ return fxTapeTrick("spin"); },
   _fxState(){ const F=ctx&&FXW.get(ctx); return {on:fxIsOn(),inPath:!!(F&&F.inPath),tape:!!fxTape}; },   // for tests   // MDFM's own list is window.MDFM_TYPES / setTypes
-  getStationTypes(id){ return id==="ptrn"?{...ptrnTypes}:id==="wybc"?{...wybcTypes}:id==="ptlk"?{...ptlkTypes}:id==="hearye"?{...fairTypes}:{...TYPES}; },
-  setStationTypes(id,t){ if(id==="ptrn"){ for(const [k] of STATION_TYPES.ptrn) if(t&&k in t) ptrnTypes[k]=!!t[k]; return; }
+  _clukRun(L){ if(cluk&&Array.isArray(L)){ gen++; hush(); cluk.n++; clukSongEnd(cluk,.5); clukRun(cluk,L); return true; } return false; },   // for tests: play these lines on CLUK now
+  getStationTypes(id){ return id==="cluk"?{...clukTypes}:id==="ptrn"?{...ptrnTypes}:id==="wybc"?{...wybcTypes}:id==="ptlk"?{...ptlkTypes}:id==="hearye"?{...fairTypes}:{...TYPES}; },
+  setStationTypes(id,t){ if(id==="cluk"){ for(const [k] of STATION_TYPES.cluk) if(t&&k in t) clukTypes[k]=!!t[k]; return; }
+    if(id==="ptrn"){ for(const [k] of STATION_TYPES.ptrn) if(t&&k in t) ptrnTypes[k]=!!t[k]; return; }
     if(id==="ptlk"){ for(const [k] of STATION_TYPES.ptlk) if(t&&k in t) ptlkTypes[k]=!!t[k]; return; }
     if(id==="hearye"){ for(const [k] of STATION_TYPES.hearye) if(t&&k in t) fairTypes[k]=!!t[k]; fairSetTypes(); return; }
     if(id!=="wybc"){ this.setTypes(t); return; } for(const [k] of STATION_TYPES.wybc) if(t&&k in t) wybcTypes[k]=!!t[k];

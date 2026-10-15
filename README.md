@@ -62,9 +62,16 @@ The look and controls come from **MedDev Receiver** (`Octoroboto/meddev-receiver
 
 ## Stations
 
-Five stations share one audio output (volume, EQ, meters, visualizer and TUNE), on the dial by frequency:
+Six stations share one audio output (volume, EQ, meters, visualizer and TUNE), on the dial by frequency:
 
 - **WYBC 88.1**: ambient piano composed live by Collin's generator (`vendor/ambient-soundtrack`), with a made-up artist per piece and a whisper DJ every 15-20 minutes. No ads, shows or news.
+- **CLUK 92.3** (1.24): Everything in the Chicken. The whole universe is inside one enormous chicken and this is its
+  station. Music that rips (big beat, breakbeat, funky, acid and rave breaks, electro, electro house and hard house: `CLUK_GENRES`
+  in `src/engine.js`, on MDFM's song writer with riff, acid, electro and rubber basses, stabs and a drum-bus drive), DJ Rhonda
+  Pecks and the station voice Clark Featherstone between songs, Rhonda's request line, 62 ads, and ten scripted shows written
+  by a writers' room (`src/cluk/*.js`, 12 episodes each) plus Lazer Hour with Ned (18 episodes, with raves and rescues of the
+  President's daughter). Each show's theme, stingers, bed and outro come from its own genre. `src/cluk.js` (`createCluk`) deals
+  the shows and writes the procedural parts.
 - **HEARYE 95.5**: Renn Faire Radio, the Home of High Drama. Procedural high-fantasy music (`FS` in `src/engine.js`: elven
   ambience, halfling party, tavern jig, the wizards' council, den of evil, angelic herald, battle orders, glorious battle,
   bard's lament, royal procession) on harps, lutes, flutes, fiddles, strings, horns, brass, organ, Gregorian chant, battle

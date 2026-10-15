@@ -31,12 +31,12 @@
   // Newer apps render the robot voices as audio, so the volume and LOW/MID/HIGH EQ apply to them too.
   if(app&&typeof app.tts==="function") radio.setProviders({tts:spec=>app.tts(spec)});
   const np=$("#np"), cap=$("#cap"); let capT=0;
-  const npText=s=>s.station==="ptrn"?`“${s.title}” · ${s.artist} · ${String(s.style).toLowerCase()} · ${s.bpm} BPM${s.time&&s.time!=="4/4"?" · "+s.time:""}`:s.station==="ptlk"||(s.station==="hearye"&&s.talk)?`${s.style} · “${s.title}” · ${s.artist}`:s.station==="hearye"?`“${s.title}” · ${s.artist} · ${s.style.toLowerCase()}`:s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
+  const npText=s=>s.station==="cluk"?(s.talk?`${s.style} · “${s.title}” · ${s.artist}`:`“${s.title}” · ${s.artist} · ${String(s.style).toLowerCase()} · ${s.bpm} BPM`):s.station==="ptrn"?`“${s.title}” · ${s.artist} · ${String(s.style).toLowerCase()} · ${s.bpm} BPM${s.time&&s.time!=="4/4"?" · "+s.time:""}`:s.station==="ptlk"||(s.station==="hearye"&&s.talk)?`${s.style} · “${s.title}” · ${s.artist}`:s.station==="hearye"?`“${s.title}” · ${s.artist} · ${s.style.toLowerCase()}`:s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
   radio.on("nowplaying",s=>{ np.textContent=`Now playing: ${npText(s)}`; });
   // Stations: WYBC 88.1 (Collin's ambient piano), HEARYE 95.5 (Renn Faire Radio), MDFM 99.9 HD and PTLK 108.0 (talk). The arrows switch; the choice is remembered on this device.
   const stLS="mdfmStation", showStation=st=>{ if(!st) return; $("#stName").textContent=st.name; document.documentElement.dataset.station=st.id;
     const w=st.id==="wybc"||st.id==="hearye", t=st.id==="ptlk", pt=st.id==="ptrn"; $("#skipBtn").textContent=t?"Next show":w?"Next piece":pt?"Next track":"Next song"; $("#spotBtn").textContent=pt?"Drop a tag":w||t?"Station ID":"Station break";
-    $("#skipBtn").title=t?"Skip to a new show":st.id==="hearye"?"On to the next piece":w?"A new piece":pt?"Mix into the next track on the next bar":"Skip to the next song"; $("#spotBtn").title=pt?"A station tag on the beat":""; };
+    $("#skipBtn").title=st.id==="cluk"?"Skip to the next song":t?"Skip to a new show":st.id==="hearye"?"On to the next piece":w?"A new piece":pt?"Mix into the next track on the next bar":"Skip to the next song"; $("#spotBtn").title=pt?"A station tag on the beat":""; };
   if(radio.setStation){ try{ const k=localStorage.getItem(stLS); if(k) radio.setStation(k); }catch(e){}
     showStation(radio.getStation());
     radio.on("station",st=>{ showStation(st); try{ localStorage.setItem(stLS,st.id); }catch(e){}
@@ -72,6 +72,17 @@
       const rs=()=>{ const t={}; rl.querySelectorAll("input[data-rtype]").forEach(cb=>t[cb.dataset.rtype]=cb.checked); return t; };
       radio.setStationTypes("ptrn",rs()); rl.addEventListener("change",()=>{ const t=rs(); radio.setStationTypes("ptrn",t); try{ localStorage.setItem("ptrnTypes",JSON.stringify(t)); }catch(e){} });
       $("#ptrnSet").hidden=false; }
+    // CLUK's genres, shows and on-air switches, in groups with All / None (this device)
+    const cl=$("#clukList"), clist=radio.stationTypeList("cluk");
+    if(cl&&clist.length&&radio.stations().some(s=>s.id==="cluk"&&s.available)){ let ct={}; try{ ct=JSON.parse(localStorage.getItem("clukTypes")||"{}"); }catch(e){}
+      for(const f of [...new Set(clist.map(x=>x[2]))]){ const box=document.createElement("div"); box.className="ptrnfam"; const hd=document.createElement("div"); hd.className="ptrnfamhd"; const nm=document.createElement("span"); nm.textContent=f; hd.append(nm);
+        const items=clist.filter(x=>x[2]===f); if(items.length>1) for(const [lab,v] of [["All",true],["None",false]]){ const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent=lab; b.setAttribute("aria-label",`${lab} of ${f}`); b.addEventListener("click",()=>{ box.querySelectorAll("input").forEach(cb=>cb.checked=v); cl.dispatchEvent(new Event("change")); }); hd.append(b); }
+        const g=document.createElement("div"); g.className="types";
+        for(const [k,label] of items){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-ctype="${k}"> <span></span>`; l.querySelector("span").textContent=label; l.querySelector("input").checked=ct[k]!==false; g.appendChild(l); }
+        box.append(hd,g); cl.appendChild(box); }
+      const cs=()=>{ const t={}; cl.querySelectorAll("input[data-ctype]").forEach(cb=>t[cb.dataset.ctype]=cb.checked); return t; };
+      radio.setStationTypes("cluk",cs()); cl.addEventListener("change",()=>{ const t=cs(); radio.setStationTypes("cluk",t); try{ localStorage.setItem("clukTypes",JSON.stringify(t)); }catch(e){} });
+      $("#clukSet").hidden=false; }
     // Instruments on MDFM and PTRN (1.23): kits, bass, keys, leads and pads, in groups with All / None (this device)
     const il=$("#instList"), ilist=radio.instrumentList?radio.instrumentList():[];
     if(il&&ilist.length){ let it={}; try{ it=JSON.parse(localStorage.getItem("mdfmInstruments")||"{}"); }catch(e){}
@@ -119,7 +130,7 @@
   // and Calm mode mutes the voice drops between songs. Skipped quietly on an older receiver.
   (A=>{ if(!A) return; A.hasSound=true;
     radio.on("caption",c=>A.caption(c.text,{who:c.who}));
-    radio.on("nowplaying",s=>A.sound(s.station==="ptrn"?`PTRN 101.1: “${s.title}” by ${s.artist}, ${String(s.style).toLowerCase()}, ${s.bpm} BPM`:s.station==="ptlk"?`PTLK 108.0: ${s.style}, “${s.title}”, with ${s.artist}`:s.station==="hearye"?(s.talk?`HEARYE 95.5: ${s.style}, “${s.title}”, with ${s.artist}`:`HEARYE 95.5: “${s.title}” by ${s.artist}, ${s.style.toLowerCase()}`):s.station==="wybc"?`WYBC 88.1: “${s.title}” by ${s.artist}, ambient piano`:`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
+    radio.on("nowplaying",s=>A.sound(s.station==="cluk"?(s.talk?`CLUK 92.3: ${s.style}, “${s.title}”, with ${s.artist}`:`CLUK 92.3: “${s.title}” by ${s.artist}, ${String(s.style).toLowerCase()}, ${s.bpm} BPM`):s.station==="ptrn"?`PTRN 101.1: “${s.title}” by ${s.artist}, ${String(s.style).toLowerCase()}, ${s.bpm} BPM`:s.station==="ptlk"?`PTLK 108.0: ${s.style}, “${s.title}”, with ${s.artist}`:s.station==="hearye"?(s.talk?`HEARYE 95.5: ${s.style}, “${s.title}”, with ${s.artist}`:`HEARYE 95.5: “${s.title}” by ${s.artist}, ${s.style.toLowerCase()}`):s.station==="wybc"?`WYBC 88.1: “${s.title}” by ${s.artist}, ambient piano`:`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
     const band=(a,i,j)=>{ let m=0; for(let k=i;k<j;k++) m=Math.max(m,a[k]||0); return Math.round(m*100)+"%"; };
     A.describe($("header.top .lcd.viz"),()=>{ if(!radio.isOn()) return "off"; const s=radio.getSpectrum&&radio.getSpectrum(); return s?`bass ${band(s,0,6)}, mids ${band(s,6,13)}, treble ${band(s,13,19)}`:"on"; },{label:"EQ"});
     A.describe($(".vu"),()=>{ const l=radio.isOn()&&radio.getLevels?radio.getLevels():null; return l?`left ${Math.round(l[0]+14)} VU, right ${Math.round(l[1]+14)} VU`:"radio off"; },{label:"VU meters"});

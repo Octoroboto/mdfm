@@ -2,6 +2,17 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.24.0 (2026-10-15, Rob)
+- **New station: CLUK 92.3, Everything in the Chicken.** The whole universe is inside one enormous chicken, and this is its radio station.
+  - **Music that rips:** big beat, breakbeat, funky breaks, acid breaks, rave breaks, electro, electro house and hard house, with new sounds: a distorted riff bass, an acid line, electro and rubbery electro-house basses, chicken-scratch guitar, horn and guitar stabs, rave piano, hard-house stabs and a soft laser in electro hooks. Songs run about two minutes with breakdowns and drops. In the apps, shouted station words are chopped into the songs like samples.
+  - **Shows** (written by a writers' room, played without repeats): Lazer Hour with Ned (18 episodes, with raves and rescues of the President's daughter), The Gizzard Report, Wishbone Court, The Egg Question, Outside, Molt, Pecking Order, Down the Drumstick, Nest Egg and Pluck! (12 each). Each has its own theme, stingers, bed and outro.
+  - **Between songs:** DJ Rhonda Pecks, the station voice Clark Featherstone, Rhonda's request line and 62 ads.
+  - **Settings:** "What plays on CLUK 92.3": the genres, the shows, the request line, the ads and the DJs.
+  - Save renders the song on air; shows, call-ins and ads save as recordings in the apps.
+- **Fixed:** since 1.23.0, TUNE's key and swing skipped MDFM and PTRN songs (a line had slipped into a comment).
+- New sound effects for shows: laser, gavel, whoosh, cheer, ding.
+- MDFM 99.9 and PTRN sound exactly as before (seeded renders about -100 dB apart).
+
 ## 1.23.0 (2026-10-14, Rob)
 - **More instruments on MDFM 99.9 and PTRN 101.1.** Each song now picks its drum kit and bass sound to suit its genre, and newer keys, leads and pads turn up some of the time:
   - **Drum kits:** the classic kit plus an 808 boom kit (long, deep kick; tight snare), a punchy kit (hard click, crisp snare, bright hats) and a dusty lo-fi kit (soft, dark, a little saturated).

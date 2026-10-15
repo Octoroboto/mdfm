@@ -65,6 +65,17 @@ const r = await p.evaluate(async () => {
   radio.spotNow(); await new Promise(r => setTimeout(r, 2500)); out.ptrnGenres = radio.stationTypeList("ptrn").length; offP();
   radio.setStation("mdfm"); await new Promise(r => setTimeout(r, 1500)); out.backNp4 = radio.nowPlaying() && radio.nowPlaying().bpm; radio.stop();
   out.ptrnRenders = []; for (const style of ["HOUSE", "SWING JAZZ", "SALSA", "METAL", "AMBIENT", "CHIPTUNE"]) { const m = await radio.renderOffline("ptrn", 6, { style }), d = m.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } out.ptrnRenders.push([style, +Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]); }
+  // CLUK 92.3 (1.24): plays a song with an artist, a skip brings a break (a show, the request line or ads), an ID, back to MDFM; every genre renders; show music renders
+  radio.setStation("cluk"); radio.start(); const cnp = [], cspots = [], ccaps = []; const offC = radio.on("nowplaying", n => cnp.push(n)), offCs = radio.on("spot", x => cspots.push(x)), offCc = radio.on("caption", c => ccaps.push(c));
+  let cmax = 0; for (let i = 0; i < 60 && !(cnp.some(n => n.station === "cluk" && !n.talk && n.artist && n.bpm)); i++) { await new Promise(r => setTimeout(r, 250)); const s2 = radio.getSpectrum(); if (s2) cmax = Math.max(cmax, ...s2); }
+  for (let i = 0; i < 20; i++) { await new Promise(r => setTimeout(r, 100)); const s2 = radio.getSpectrum(); if (s2) cmax = Math.max(cmax, ...s2); }
+  out.clukSpectrum = cmax; out.clukSong = cnp.find(n => n.station === "cluk" && !n.talk) || null; radio.skip();
+  for (let i = 0; i < 80 && !cspots.some(x => x.kind === "cluk"); i++) await new Promise(r => setTimeout(r, 250)); out.clukBreak = (cspots.find(x => x.kind === "cluk") || {}).show || null; out.clukAir = radio.onAir();
+  radio.spotNow(); await new Promise(r => setTimeout(r, 1500)); out.clukId = cspots.some(x => x.kind === "id" && x.station === "cluk"); out.clukWho = [...new Set(ccaps.map(c => c.who))]; offC(); offCs(); offCc();
+  radio.setStation("mdfm"); await new Promise(r => setTimeout(r, 1500)); out.backNp5 = radio.nowPlaying() && radio.nowPlaying().bpm; radio.stop();
+  out.clukRenders = []; for (const style of ["BIG BEAT", "BREAKBEAT", "FUNKY BREAKS", "ACID BREAKS", "RAVE BREAKS", "ELECTRO", "ELECTRO HOUSE", "HARD HOUSE"]) { const m = await radio.renderOffline("cluk", 6, { style, from: 16 }), d = m.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } out.clukRenders.push([style, +Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]); }
+  out.clukCues = []; for (const cue of ["theme", "sting", "outro", "bed"]) { const m = await radio.renderOffline("ccue", 6, { style: "bigbeat", cue }), d = m.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } out.clukCues.push([cue, +Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]); }
+  out.clukTypes = radio.stationTypeList("cluk").length;
   // TUNE effects (1.22): all on renders with sound and no clipping; off is back to the defaults
   out.fxKeys = radio.fxKeys().length; radio.setFx({ echo: .6, reverb: .5, chorus: .5, flange: .4, phaser: .4, warble: .3, crush: .3, drive: .4, filter: .3, gate: .4, pump: .5 });
   out.fxRender = await (async () => { const b2 = await radio.renderOffline("song", 6); const d = b2.getChannelData(0); let q = 0, p = 0; for (const x of d) { q += x * x; p = Math.max(p, Math.abs(x)); } return [+Math.sqrt(q / d.length).toFixed(3), +p.toFixed(2)]; })();
@@ -78,12 +89,14 @@ const r = await p.evaluate(async () => {
   out.rms = Math.sqrt(s / d.length); out.peak = pk; return out;
 });
 console.log(r); await b.close(); srv.close();
-const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.kinds.includes("interview") && r.examplePackUsed && r.np && r.fb.length > 4 && r.pod > 5 && r.cook > 5 && r.sp > 10 && r.hr > 5 && r.ga > 5 && r.stations.join() === "wybc,hearye,mdfm,ptrn,ptlk" && r.wybcSpectrum > 0.05 && r.wybcNp === "wybc" && r.backNp > 0
+const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.kinds.includes("interview") && r.examplePackUsed && r.np && r.fb.length > 4 && r.pod > 5 && r.cook > 5 && r.sp > 10 && r.hr > 5 && r.ga > 5 && r.stations.join() === "wybc,cluk,hearye,mdfm,ptrn,ptlk" && r.wybcSpectrum > 0.05 && r.wybcNp === "wybc" && r.backNp > 0
   && r.ptlkSpectrum > 0.05 && r.ptlkNp && r.ptlkNp.station === "ptlk" && r.ptlkNp.style === "Button Mashers" && r.ptlkLive && r.ptlkWho.includes("Sal") && r.ptlkAir && r.ptlkAir.saveable && r.ptlkSkip === "ptlk" && r.backNp2 > 0
   && r.hearyeSpectrum > 0.05 && r.hearyeNp && r.hearyeNp.station === "hearye" && r.hearyeNp.artist && r.hearyeWho.some(w => /Crier/.test(w)) && r.hearyeJoust && r.hearyeAir && r.hearyeAir.saveable && r.backNp3 > 0 && r.hearyeSave[0] > 0.01 && r.hearyeSave[1] < 1.2
   && r.mixKeys === 7 && r.mixOther === 0 && r.mixRender[0] > 0.02 && r.mixRender[1] < 1.2 && r.mixZero && r.grvKeys === 11 && r.grvModes >= 15 && r.grvOther === 0 && r.grvRender[0] > 0.02 && r.grvRender[1] < 1.3 && r.grvZero && r.wybcSave.every(([rms, pk]) => rms > 0.01 && pk < 1.3)
   && r.ptMusic.length === 10 && r.ptMusic.every(([, rms, pk]) => rms > 0.02 && pk < 1.2) && r.phoneVsDry < 0 && r.presets >= 5 && r.tuned === "car" && r.untuned
   && r.ptrnSpectrum > 0.05 && r.ptrnNp && r.ptrnNp.station === "ptrn" && r.ptrnNp.style === "Funk" && r.ptrnNp.artist && r.ptrnSkip && r.ptrnGenres >= 31 && r.backNp4 > 0 && r.ptrnRenders.every(([, rms, pk]) => rms > 0.01 && pk < 1.3)
-  && r.fxKeys === 11 && r.fxRender[0] > 0.02 && r.fxRender[1] < 1.3 && r.fxZero && r.instN >= 40 && r.instClassic >= 20 && r.instRender[0] > 0.01 && r.instRender[1] < 1.3 && r.instAll;
+  && r.fxKeys === 11 && r.fxRender[0] > 0.02 && r.fxRender[1] < 1.3 && r.fxZero && r.instN >= 40 && r.instClassic >= 20 && r.instRender[0] > 0.01 && r.instRender[1] < 1.3 && r.instAll
+  && r.clukSpectrum > 0.05 && r.clukSong && r.clukSong.artist && r.clukSong.bpm > 100 && r.clukBreak && r.clukId && r.clukWho.some(w => /Rhonda|Clark/.test(w)) && r.backNp5 > 0 && r.clukTypes >= 20
+  && r.clukRenders.every(([, rms, pk]) => rms > 0.02 && pk < 1.3) && r.clukCues.every(([, rms, pk]) => rms > 0.005 && pk < 1.3);
 if (errs.length) console.log("page errors:", errs);
 console.log(ok ? "SMOKE TEST PASSED" : "SMOKE TEST FAILED"); process.exit(ok ? 0 : 1);

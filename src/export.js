@@ -64,10 +64,10 @@ const safeName = s => String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " "
 async function saveBreak(radio, air, { app = null, onStatus = () => {} } = {}) {
   onStatus(`Recording “${air.title}”. It saves when it's over…`);
   const r = await radio.recordBreak(); if (!r) throw new Error("It ended before it could be saved.");
-  const i = r.info, pt = i.station === "ptlk" || i.station === "hearye", call = i.station === "hearye" ? "HEARYE 95.5" : "PTLK 108.0";   // talk shows (PTLK 108.0, HEARYE 95.5): artist = the hosts, album = the station
-  const mp3 = await encodeMp3(r.buffer, pt ? { title: i.episode || i.show, artist: i.hosts || call, album: `${call}: ${i.show}`, genre: i.station === "hearye" ? "Radio drama" : "Talk", comment: `${call}. ${i.show}${i.episode ? ": " + i.episode : ""}. ${i.station === "hearye" ? "Renn Faire Radio, the Home of High Drama. Recorded off the air." : "Written by the station as it aired; never the same twice."}` }
+  const i = r.info, pt = i.station === "ptlk" || i.station === "hearye" || i.station === "cluk", call = i.station === "hearye" ? "HEARYE 95.5" : i.station === "cluk" ? "CLUK 92.3" : "PTLK 108.0";   // talk shows (PTLK 108.0, HEARYE 95.5): artist = the hosts, album = the station
+  const mp3 = await encodeMp3(r.buffer, pt ? { title: i.episode || i.show, artist: i.hosts || call, album: `${call}: ${i.show}`, genre: i.station === "hearye" ? "Radio drama" : i.station === "cluk" ? "Radio comedy" : "Talk", comment: `${call}. ${i.show}${i.episode ? ": " + i.episode : ""}. ${i.station === "hearye" ? "Renn Faire Radio, the Home of High Drama. Recorded off the air." : i.station === "cluk" ? "Everything in the Chicken. Recorded off the air." : "Written by the station as it aired; never the same twice."}` }
     : { title: i.title, album: i.show, genre: "Radio", comment: `MDFM 99.9 HD. ${i.show}${i.episode ? ": " + i.episode : ""}. Recorded off the air.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
-  const name = safeName(pt ? `${i.station === "hearye" ? "HEARYE" : "PTLK"} - ${i.show}${i.episode && i.episode !== i.show ? " - " + i.episode : ""}` : `MDFM - ${i.title}`) + ".mp3";
+  const name = safeName(pt ? `${i.station === "hearye" ? "HEARYE" : i.station === "cluk" ? "CLUK" : "PTLK"} - ${i.show}${i.episode && i.episode !== i.show ? " - " + i.episode : ""}` : `MDFM - ${i.title}`) + ".mp3";
   onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app })), title: i.title, bytes: mp3.length, kind: "break" };
 }
 /** The whole "Save" flow: the break on top if one is playing (shows, weather, ads...), else the song on air rendered again from the top. onStatus(text) reports progress. */
@@ -80,7 +80,7 @@ async function saveSong(radio, { app = null, onStatus = () => {} } = {}) {
   if (radio.getStation && radio.getStation() && radio.getStation().id === "ptlk") throw new Error("Wait for the next show to start, then press save.");
   if (air) onStatus("Shows save in the MDFM Radio app. Saving the last song instead…");
   const sid = radio.getStation && radio.getStation() && radio.getStation().id;
-  onStatus(sid === "wybc" ? "Recording a fresh piece (about 2½ minutes of music)…" : sid === "hearye" ? "Recording the piece from the top…" : sid === "ptrn" ? "Recording the track from the top…" : "Recording the song…"); const r = await radio.renderSong(); if (!r) throw new Error("Nothing is playing yet.");
+  onStatus(sid === "wybc" ? "Recording a fresh piece (about 2½ minutes of music)…" : sid === "hearye" ? "Recording the piece from the top…" : sid === "ptrn" ? "Recording the track from the top…" : sid === "cluk" ? "Recording the song from the top…" : "Recording the song…"); const r = await radio.renderSong(); if (!r) throw new Error("Nothing is playing yet.");
   if (r.info && r.info.station === "wybc") {   // WYBC 88.1: Collin's ambient piano
     const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "WYBC 88.1", album: "WYBC 88.1", genre: "Ambient", comment: "WYBC 88.1. Ambient piano, composed by the station the moment you saved it." }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
     const name = safeName(`WYBC - ${i.artist ? i.artist + " - " : ""}${i.title} (ambient piano)`) + ".mp3";
@@ -89,6 +89,11 @@ async function saveSong(radio, { app = null, onStatus = () => {} } = {}) {
   if (r.info && r.info.station === "hearye") {   // HEARYE 95.5: Renn Faire Radio's procedural fantasy music
     const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "HEARYE 95.5", album: "HEARYE 95.5", genre: "Fantasy", bpm: i.bpm, comment: `HEARYE 95.5, Renn Faire Radio. ${i.style}${i.key ? ", " + i.key : ""}. Composed by the station as it played.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
     const name = safeName(`HEARYE - ${i.artist ? i.artist + " - " : ""}${i.title} (${String(i.style || "").toLowerCase()})`) + ".mp3";
+    onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app, extras: midiOf(r, name) })), title: i.title, bytes: mp3.length, midi: !!r.midi };
+  }
+  if (r.info && r.info.station === "cluk") {   // CLUK 92.3: Everything in the Chicken's big beat, breaks, electro and hard house
+    const i = r.info, mp3 = await encodeMp3(r.buffer, { title: i.title, artist: i.artist || "CLUK 92.3", album: "CLUK 92.3", genre: i.style, bpm: i.bpm, comment: `CLUK 92.3, Everything in the Chicken. ${i.style}, ${i.bpm} BPM${i.key ? ", " + i.key : ""}. Written by the station as it played.` }, p => onStatus(`Making the MP3… ${Math.round(p * 100)}%`));
+    const name = safeName(`CLUK - ${i.artist ? i.artist + " - " : ""}${i.title} (${String(i.style || "").toLowerCase()})`) + ".mp3";
     onStatus("Saving…"); return { ...(await saveBytes(mp3, name, { app, extras: midiOf(r, name) })), title: i.title, bytes: mp3.length, midi: !!r.midi };
   }
   if (r.info && r.info.station === "ptrn") {   // PTRN 101.1: every genre, with the tags and TUNE's effects as they are
