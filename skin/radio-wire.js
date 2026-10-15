@@ -12,7 +12,7 @@
     app.win.onFullScreen(fs=>document.documentElement.classList.toggle("fullscreen",!!fs));
     // Drag by the metal: a press anywhere that isn't a control moves the window (works even where CSS drag regions don't).
     // tabindex="-1" isn't a control: AXMOD puts it on .wrap as the skip-link target, which made every press look like a control.
-    if(app.win.dragStart){ const CONTROL="button,input,select,textarea,label,a,summary,[role=slider],[tabindex]:not([tabindex^=\"-\"]),.rd-btn,.rd-k,.settings[open] .setgrid,#nozzle,.swatter";
+    if(app.win.dragStart){ const CONTROL="button,input,select,textarea,label,a,summary,[role=slider],[tabindex]:not([tabindex^=\"-\"]),.rd-btn,.rd-k,.mx-k,.mx-ft,.mx-lcd,.mixdrawer,.settings[open] .setlist,#nozzle,.swatter";
       let dragging=false; const end=()=>{ if(dragging){ dragging=false; app.win.dragEnd(); document.documentElement.classList.remove("dragging"); } };
       document.addEventListener("mousedown",e=>{ if(e.button!==0||e.detail>1||document.documentElement.classList.contains("fullscreen")||e.target.closest(CONTROL)) return;
         // The skin's parts above and around the receiver (a crown, a stage) sit on the bare page: they move the window too.
@@ -20,7 +20,14 @@
       addEventListener("mouseup",end); addEventListener("pointerup",end); addEventListener("blur",end);
       // A lost mouse-up must never leave the window stuck to the cursor: any move or scroll with the button up ends the drag.
       addEventListener("mousemove",e=>{ if(dragging&&!(e.buttons&1)) end(); }); addEventListener("wheel",end,{passive:true}); }
-    const fit=()=>app.win.fit(Math.ceil(document.documentElement.scrollHeight)); setTimeout(fit,400);
+    // The content's own height, not scrollHeight: body has min-height:100vh, so scrollHeight never drops below the window
+    // and the window could only ever grow (the receiver's bug-spray .canlayer spans the page and lags a frame, so it's left out). deck = the same with MIX closed, the floor the app never shrinks below.
+    const contentH=()=>{ const cs=getComputedStyle(document.body), top=document.documentElement.getBoundingClientRect().top; let b=0; for(const el of document.body.children){ if(el.hidden||el.tagName==="SCRIPT"||el.tagName==="STYLE"||el.classList.contains("canlayer")) continue; const st=getComputedStyle(el);
+        if(st.position==="fixed"||st.display==="none") continue; const r=el.getBoundingClientRect(); if(r.height) b=Math.max(b,r.bottom+(parseFloat(st.marginBottom)||0)); }
+      return Math.ceil(b-top+(parseFloat(cs.paddingBottom)||0)+(parseFloat(cs.borderBottomWidth)||0)); };
+    const fit=()=>{ const h=contentH(), d=$("#tunePop"), mh=d&&!d.hidden?d.getBoundingClientRect().height+(parseFloat(getComputedStyle(d).marginTop)||0):0; app.win.fit(h,Math.max(0,Math.round(h-mh))); }; setTimeout(fit,400);
+    // MIX grows the receiver: every open, close or section change asks the app to refit the window (after the animation).
+    addEventListener("mdfm:mixresize",()=>requestAnimationFrame(fit));
     // If the whole receiver fits, it is never left scrolled part-way (which looked like the top being cut off).
     const unscroll=()=>{ const se=document.scrollingElement; if(se&&se.scrollTop>0&&se.scrollHeight<=innerHeight+1) se.scrollTop=0; };
     addEventListener("resize",unscroll); addEventListener("focus",unscroll); document.addEventListener("visibilitychange",unscroll); }
@@ -46,7 +53,7 @@
     if(!radio.stations().some(s=>s.id!=="mdfm"&&s.available)) $("#stBtns").hidden=true;
     // WYBC's own "what plays" switches (this device)
     const wl=$("#wybcList"), list=radio.stationTypeList("wybc");
-    if(wl&&list.length&&radio.stations().some(s=>s.id==="wybc"&&s.available)){ let wt={}; try{ wt=JSON.parse(localStorage.getItem("wybcTypes")||"{}"); }catch(e){}
+    if(wl&&list.length&&radio.stations().some(s=>s.id==="wybc"&&s.available)){ let wt={}; try{ wt=JSON.parse(localStorage.getItem("wybcTypes")||"{}"); }catch(e){} if(!wt||typeof wt!=="object"||Array.isArray(wt)) wt={};
       for(const [k,label] of list){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-wtype="${k}"> <span>${label}</span>`;
         l.querySelector("input").checked=wt[k]!==false; wl.appendChild(l); }
       const ws=()=>{ const t={}; wl.querySelectorAll("input[data-wtype]").forEach(cb=>t[cb.dataset.wtype]=cb.checked); return t; };
@@ -54,7 +61,7 @@
       $("#wybcSet").hidden=false; }
     // HEARYE's show and segment switches (this device)
     const hl=$("#hearyeList"), hlist=radio.stationTypeList("hearye");
-    if(hl&&hlist.length&&radio.stations().some(s=>s.id==="hearye"&&s.available)){ let ht={}; try{ ht=JSON.parse(localStorage.getItem("hearyeTypes")||"{}"); }catch(e){}
+    if(hl&&hlist.length&&radio.stations().some(s=>s.id==="hearye"&&s.available)){ let ht={}; try{ ht=JSON.parse(localStorage.getItem("hearyeTypes")||"{}"); }catch(e){} if(!ht||typeof ht!=="object"||Array.isArray(ht)) ht={};
       for(const [k,label] of hlist){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-htype="${k}"> <span></span>`; l.querySelector("span").textContent=label;
         l.querySelector("input").checked=ht[k]!==false; hl.appendChild(l); }
       const hs=()=>{ const t={}; hl.querySelectorAll("input[data-htype]").forEach(cb=>t[cb.dataset.htype]=cb.checked); return t; };
@@ -62,7 +69,7 @@
       $("#hearyeSet").hidden=false; }
     // PTRN's genre switches, in families, with All / None for each (this device)
     const rl=$("#ptrnList"), rlist=radio.stationTypeList("ptrn");
-    if(rl&&rlist.length&&radio.stations().some(s=>s.id==="ptrn"&&s.available)){ let rt={}; try{ rt=JSON.parse(localStorage.getItem("ptrnTypes")||"{}"); }catch(e){}
+    if(rl&&rlist.length&&radio.stations().some(s=>s.id==="ptrn"&&s.available)){ let rt={}; try{ rt=JSON.parse(localStorage.getItem("ptrnTypes")||"{}"); }catch(e){} if(!rt||typeof rt!=="object"||Array.isArray(rt)) rt={};
       const fams=[...new Set(rlist.map(x=>x[2]))];
       for(const f of fams){ const box=document.createElement("div"); box.className="ptrnfam"; const hd=document.createElement("div"); hd.className="ptrnfamhd"; const nm=document.createElement("span"); nm.textContent=f; hd.append(nm);
         const items=rlist.filter(x=>x[2]===f); if(items.length>1) for(const [lab,v] of [["All",true],["None",false]]){ const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent=lab; b.setAttribute("aria-label",`${lab} of ${f}`); b.addEventListener("click",()=>{ box.querySelectorAll("input").forEach(cb=>cb.checked=v); rl.dispatchEvent(new Event("change")); }); hd.append(b); }
@@ -74,7 +81,7 @@
       $("#ptrnSet").hidden=false; }
     // CLUK's genres, shows and on-air switches, in groups with All / None (this device)
     const cl=$("#clukList"), clist=radio.stationTypeList("cluk");
-    if(cl&&clist.length&&radio.stations().some(s=>s.id==="cluk"&&s.available)){ let ct={}; try{ ct=JSON.parse(localStorage.getItem("clukTypes")||"{}"); }catch(e){}
+    if(cl&&clist.length&&radio.stations().some(s=>s.id==="cluk"&&s.available)){ let ct={}; try{ ct=JSON.parse(localStorage.getItem("clukTypes")||"{}"); }catch(e){} if(!ct||typeof ct!=="object"||Array.isArray(ct)) ct={};
       for(const f of [...new Set(clist.map(x=>x[2]))]){ const box=document.createElement("div"); box.className="ptrnfam"; const hd=document.createElement("div"); hd.className="ptrnfamhd"; const nm=document.createElement("span"); nm.textContent=f; hd.append(nm);
         const items=clist.filter(x=>x[2]===f); if(items.length>1) for(const [lab,v] of [["All",true],["None",false]]){ const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent=lab; b.setAttribute("aria-label",`${lab} of ${f}`); b.addEventListener("click",()=>{ box.querySelectorAll("input").forEach(cb=>cb.checked=v); cl.dispatchEvent(new Event("change")); }); hd.append(b); }
         const g=document.createElement("div"); g.className="types";
@@ -85,7 +92,7 @@
       $("#clukSet").hidden=false; }
     // Instruments on MDFM and PTRN (1.23): kits, bass, keys, leads and pads, in groups with All / None (this device)
     const il=$("#instList"), ilist=radio.instrumentList?radio.instrumentList():[];
-    if(il&&ilist.length){ let it={}; try{ it=JSON.parse(localStorage.getItem("mdfmInstruments")||"{}"); }catch(e){}
+    if(il&&ilist.length){ let it={}; try{ it=JSON.parse(localStorage.getItem("mdfmInstruments")||"{}"); }catch(e){} if(!it||typeof it!=="object"||Array.isArray(it)) it={};
       const CAT={kit:"Drum kits",bass:"Bass",keys:"Keys and guitars",lead:"Leads",pad:"Pads"}, TAG={classic:"classic","1.22":"PTRN","1.23":"new"};
       for(const c of Object.keys(CAT)){ const items=ilist.filter(x=>x[2]===c); if(!items.length) continue; const box=document.createElement("div"); box.className="ptrnfam"; const hd=document.createElement("div"); hd.className="ptrnfamhd"; const nm=document.createElement("span"); nm.textContent=CAT[c]; hd.append(nm);
         for(const [lab,v] of [["All",true],["None",false]]){ const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent=lab; b.setAttribute("aria-label",`${lab} of ${CAT[c]}`); b.addEventListener("click",()=>{ box.querySelectorAll("input").forEach(cb=>cb.checked=v); il.dispatchEvent(new Event("change")); }); hd.append(b); }
@@ -100,7 +107,7 @@
       $("#instSet").hidden=false; }
     // PTLK's show switches (this device)
     const pl=$("#ptlkList"), plist=radio.stationTypeList("ptlk");
-    if(pl&&plist.length&&radio.stations().some(s=>s.id==="ptlk"&&s.available)){ let pt={}; try{ pt=JSON.parse(localStorage.getItem("ptlkTypes")||"{}"); }catch(e){}
+    if(pl&&plist.length&&radio.stations().some(s=>s.id==="ptlk"&&s.available)){ let pt={}; try{ pt=JSON.parse(localStorage.getItem("ptlkTypes")||"{}"); }catch(e){} if(!pt||typeof pt!=="object"||Array.isArray(pt)) pt={};
       for(const [k,label] of plist){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-ptype="${k}"> <span>${label}</span>`;
         l.querySelector("input").checked=pt[k]!==false; pl.appendChild(l); }
       const ps=()=>{ const t={}; pl.querySelectorAll("input[data-ptype]").forEach(cb=>t[cb.dataset.ptype]=cb.checked); return t; };
@@ -121,8 +128,10 @@
     try{ const r=await MDFM.saveSong(radio,{app,onStatus:say}); cap.textContent=MDFM.savedText?MDFM.savedText(r):`Saved “${r.title}”.`; }
     catch(e){ cap.textContent=e&&e.code==="declined"?"Not saved.":`Couldn't save it: ${(e&&e.message)||e}`; }
     finally{ saveBtn.removeAttribute("aria-busy"); capT=setTimeout(()=>{ cap.textContent=""; },9000); } });
-  // TUNE: the sound-tuning pop-out (realism, soundstage, clarity, warmth, room, trunk rattle, radio grain). Kept on this device.
-  if(MDFM.mountTune&&radio.setSound&&$("#tunePop")) MDFM.mountTune(radio,{panel:$("#tunePop"),toggle:$("#tuneOn")});
+  // MIX (was TUNE): the mixing drawer under the deck: EQ and sound, style, groove and key, effects. Kept on this device.
+  // It runs before MDFM_receiver: the receiver wires #uwBtn, which MIX puts in FX > COLOUR.
+  const mountMix=MDFM.mountMix||MDFM.mountTune;
+  if(mountMix&&radio.setSound&&$("#tunePop")) mountMix(radio,{panel:$("#tunePop"),toggle:$("#tuneOn")});
   else if($("#tuneOn")) $("#tuneOn").closest("label").hidden=true;
   $("#stEngine").textContent=`v${MDFM.VERSION}`;
   window.MDFM_receiver(radio,{app});
@@ -139,8 +148,24 @@
     if(A.get().calm&&radio.setTypes) radio.setTypes({stingers:false});
     const tl=$("#typeList"); if(tl) tl.addEventListener("change",()=>{ if(A.get().calm&&radio.setTypes) radio.setTypes({stingers:false}); });
   })(window.AXMOD);
+  // MDFM 99.9's list: "Songs in 3/4…" is music, the rest is talk and breaks; each gets a heading (same container, so the receiver's handler still reads it)
+  { const tl=$("#typeList"), m=tl&&tl.querySelector('input[data-type="meters"]');
+    if(m){ const h=t=>{ const d=document.createElement("div"); d.className="tsub"; d.textContent=t; return d; };
+      tl.prepend(h("Music"),m.closest("label"),h("Talk and breaks")); } }
   $("#settings").hidden=false;
   document.querySelectorAll(".apponly").forEach(el=>el.hidden=!app);
+  // Settings sections: the station on air opens by itself (ON AIR); the others remember being opened (mdfmSetOpen).
+  { const secs=[...document.querySelectorAll("#settings details.setsec")]; let mine={}; try{ mine=JSON.parse(localStorage.getItem("mdfmSetOpen")||"{}")||{}; }catch(e){} if(typeof mine!=="object"||Array.isArray(mine)) mine={};
+    let auto=null;
+    for(const d of secs){ const k=d.dataset.sec; if(k in mine) d.open=!!mine[k];
+      d.addEventListener("toggle",()=>{ if(d===auto&&!d.open) auto=null; if(d.dataset.auto){ delete d.dataset.auto; return; } mine[k]=d.open; try{ localStorage.setItem("mdfmSetOpen",JSON.stringify(mine)); }catch(e){} }); }
+    const onAir=st=>{ if(!st) return; for(const d of secs){ const on=d.dataset.station===st.id; d.classList.toggle("live",on); }
+      if(auto&&auto.dataset.station!==st.id&&!mine[auto.dataset.sec]){ auto.dataset.auto="1"; auto.open=false; }
+      const d=secs.find(x=>x.dataset.station===st.id); if(d&&!d.open){ d.dataset.auto="1"; d.open=true; auto=d; } };
+    if(radio.getStation){ onAir(radio.getStation()); radio.on("station",onAir); }
+    // "9 of 11 on" beside each list
+    const count=d=>{ const c=d.querySelector(".setcount"); if(!c) return; const all=[...d.querySelectorAll('input[type=checkbox]')].filter(x=>!x.disabled); c.textContent=all.length?`${all.filter(x=>x.checked).length} of ${all.length} on`:""; };
+    for(const d of secs){ count(d); d.addEventListener("change",()=>count(d)); d.addEventListener("click",e=>{ if(e.target.closest("button")) setTimeout(()=>count(d),0); }); } }
   if(!app) return;
   // What this app can do. The MDFM Radio app has everything; another kit app may have only some of it (live data and
   // Slack come from the kit's mdfm-live module), and anything it can't do is hidden rather than left to fail silently.
@@ -150,6 +175,7 @@
   if(!liveOK||!S){ hideBox("#setCity"); hideBox("#setUnits"); }
   if(!slackOK) hideBox("#slackSet");
   const logFn=has(app.showBouncerLog)?app.showBouncerLog:has(app.liveBouncerLog)?app.liveBouncerLog:null; if(!logFn) $("#bouncerLog").hidden=true;
+  for(const d of document.querySelectorAll("#settings details.setsec.apponly")) if(![...d.children].some(c=>c.tagName!=="SUMMARY"&&!c.hidden)) d.hidden=true;
   if(app.autoplay) setTimeout(()=>{ box.checked=true; radio.start(); },600);
   // The Mac's own location (macOS asks once). If it's off or unavailable, the app uses a rough network location and says so.
   const geoWhy=e=>e&&e.code===1?"not allowed (System Settings → Privacy & Security → Location Services → this app)":e&&e.code===3?"timed out":"unavailable";

@@ -43,3 +43,32 @@ test("headlines: RSS feeds come first, CDATA and entities decoded, sources named
     assert.equal(v.length, 3); assert.ok(v.every(x => x.source === "NPR" || x.source === "BBC News")); assert.ok(!urls.some(u => /gdelt/.test(u)), "GDELT not needed");
   } finally { net.getJSON = real; delete require.cache[require.resolve("../src/common/headlines")]; }
 });
+
+test("headlines: a bad number reference doesn't throw the whole feed away", () => {
+  const { rssTitles } = require("../src/common/headlines");
+  const t = rssTitles("<rss><item><title>Retailer &#x110000; opens a store &#9999999; in Ohio &#x2014; today</title></item></rss>", "NPR");
+  assert.equal(t[0].title, "Retailer   opens a store   in Ohio — today");
+});
+test("headlines: asking again while a refresh runs joins it (no pile-up of feed fetches)", async () => {
+  const net = require("../src/common/net"), real = net.getJSON; let feedCalls = 0;
+  const item = s => `<item><title>${s}</title></item>`;
+  net.getJSON = async url => { if (/gdelt/.test(url)) return "{}"; feedCalls++; await new Promise(r => setTimeout(r, 100));
+    return `<rss>${item("Coffee chain tests a subscription for unlimited refills")}${item("Retailer opens its biggest store yet in Ohio this week")}${item("Chipmaker raises prices on its newest graphics cards")}</rss>`; };
+  delete require.cache[require.resolve("../src/common/headlines")];
+  try { const h = require("../src/common/headlines").createHeadlines({ prefetch: false });
+    const [a, b, c] = await Promise.all([h.get("headlines:business"), h.get("headlines:business"), h.get("headlines:business")]);
+    assert.equal(feedCalls, 2, "the two business feeds, fetched once"); assert.ok(a && b && c);
+  } finally { net.getJSON = real; delete require.cache[require.resolve("../src/common/headlines")]; }
+});
+test("encyclopedia: at most 300 fetches a day, and the cache keeps the newest 200 pages", async () => {
+  const net = require("../src/common/net"), real = net.getJSON; let calls = 0;
+  net.getJSON = async url => { calls++; return { title: decodeURIComponent(url.split("/summary/")[1].split("?")[0]), extract: "A long enough summary of an animal that lives somewhere and does things all day long." }; };
+  delete require.cache[require.resolve("../src/common/headlines")];
+  try { const h = require("../src/common/headlines").createHeadlines({ prefetch: false });
+    const name = i => "Animal " + String.fromCharCode(65 + (i % 26)) + String.fromCharCode(65 + Math.floor(i / 26) % 26) + String.fromCharCode(65 + Math.floor(i / 676));
+    for (let i = 0; i < 320; i++) await h.get("wiki:" + name(i));
+    assert.equal(calls, 300, "the daily budget");
+    assert.ok(await h.get("wiki:" + name(299)), "a recent page is still cached"); assert.equal(calls, 300);
+    assert.equal(await h.get("wiki:" + name(0)), null, "the oldest pages were let go (and the budget is spent)");
+  } finally { net.getJSON = real; delete require.cache[require.resolve("../src/common/headlines")]; }
+});

@@ -62,7 +62,7 @@ The look and controls come from **MedDev Receiver** (`Octoroboto/meddev-receiver
 
 ## Stations
 
-Six stations share one audio output (volume, EQ, meters, visualizer and TUNE), on the dial by frequency:
+Six stations share one audio output (volume, EQ, meters, visualizer and MIX), on the dial by frequency:
 
 - **WYBC 88.1**: ambient piano composed live by Collin's generator (`vendor/ambient-soundtrack`), with a made-up artist per piece and a whisper DJ every 15-20 minutes. No ads, shows or news.
 - **CLUK 92.3** (1.24): Everything in the Chicken. The whole universe is inside one enormous chicken and this is its
@@ -115,6 +115,16 @@ are its switches. On HEARYE, `skip()` moves on to the next piece (or ends the se
 ads, callers, ids, amb })` are its switches. `renderOffline("fpiece", secs, { style, seed })` and `renderOffline("fcue", secs,
 { style, cue })` render its music for checks. The radio page has ◀ ▶ arrows on the lower button row and a
 "What plays" section per station; it remembers the station and WYBC's switches on the device.
+
+## MIX (1.25; was TUNE)
+
+The MIX drawer (`mountMix`, alias `mountTune`, in `src/tune.js`) opens under the main panel and has four sections:
+- **Sound:** a parametric EQ (`setEq`, `getEq`, `eqResponse`), tone knobs, room and presets.
+- **Style:** the style matrix, with pad and fader views (`setStyleMix`, `setStylePad`, `padToMix`, `getStylePlan`). Ten directions: rock, pop, dance, hip-hop, lo-fi, space, orchestral, jazz, latin, country.
+- **Groove & Key:** `setGroove`, `grooveKeyInfo()` for ranges and defaults, including the drum controls: push/pull, ghosts, accent, hat swing, hat density, kick/snare/hat level.
+- **FX:** `setFx`, including `glitch`.
+
+`setMixBypass(true)` is ORIGINAL. Every control at its default is the station as written. The sections below describe the engine's sound stage (older notes; the names TUNE and CHAOS are from before 1.25).
 
 ## Sound tuning (TUNE)
 

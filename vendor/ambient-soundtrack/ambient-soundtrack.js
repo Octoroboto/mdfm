@@ -319,9 +319,12 @@ function create(opts={}){
     /** The AudioContext (created on first start) and the final output node, for routing into your own graph or a stream. */
     get context(){ return ctx; }, get output(){ return out; },
     // used by renderWav(): lay the whole piece out ahead of time on an OfflineAudioContext
-    _scheduleAll(seconds,fade){ init(); begin(); schedule(seconds);
+    // MDFM patch (1.25): `first` lays out only the start, and _scheduleTo(t) the rest a slice at a time, so a long offline render
+    // doesn't keep every note of the piece scheduled at once (Chromium pulls every scheduled node on every render quantum)
+    _scheduleAll(seconds,fade,first){ init(); begin(); schedule(Math.min(seconds,first??seconds));
       for(let t=20+Math.random()*30;t<seconds-6;t+=25+Math.random()*45) hallSound(t);
-      if(fade){ master.gain.setValueAtTime(VOL*M.master,Math.max(0,seconds-5)); master.gain.linearRampToValueAtTime(0,seconds); } }
+      if(fade){ master.gain.setValueAtTime(VOL*M.master,Math.max(0,seconds-5)); master.gain.linearRampToValueAtTime(0,seconds); } },
+    _scheduleTo(t){ schedule(t); }
   };
   if(opts.pauseWhenHidden!==false&&!offline&&typeof document!=='undefined')
     document.addEventListener('visibilitychange',()=>{ if(!ctx||!playing) return; if(document.hidden) ctx.suspend(); else ctx.resume(); });

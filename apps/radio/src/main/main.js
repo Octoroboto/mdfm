@@ -17,6 +17,7 @@ const { createUpdater, validateEngine, inlineScripts } = require("./updater");
 const { startFutureproofer } = require("./futureproof");
 const { createReceiverUpdater, applyToPage, versionOf } = require("../common/receiver");
 const tts = require("./tts");
+const { createFitter } = require("./winfit");
 
 protocol.registerSchemesAsPrivileged([{ scheme: "mdfm", privileges: { standard: true, secure: true, supportFetchAPI: false } }]);
 if (!app.requestSingleInstanceLock()) { app.quit(); }
@@ -51,7 +52,7 @@ const updater = createUpdater({ app, getSettings, bundledDir, appVersion: app.ge
 // The look (MedDev Receiver, its own repo): newer versions are fetched quietly and swapped into the page on the next launch or Cmd+R.
 const lookOn = () => !!(settings && settings.contentUpdates && !settings.useBundled);
 const bundledLook = () => { try { const h = fs.readFileSync(path.join(bundledDir, "radio.html"), "utf8"); return { version: versionOf((/<style id="mdfm-skin">([\s\S]{0,400})/.exec(h) || [])[1]) || "0.0.0" }; } catch { return { version: "0.0.0" }; } };
-const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, { timeout: 30000, ...o }), bundled: bundledLook, enabled: lookOn,
+const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, { timeout: 30000, maxBytes: 20e6, ...o }), bundled: bundledLook, enabled: lookOn,
   onChange: s => freshOrSay(`A new receiver look (${s.version}) is ready. It shows from the next launch, or press Cmd+R now.`) });
 
 function status(note) { return { ...updater.status, engine: servedEngine || updater.status.engine, live: { ...live.status }, bouncer: bouncerSummary(), futureproofer: fp ? fpSummary() : null, slack: slack ? { ...slack.status, ready: slack.ready, builder: !!setupAvailable({ app }) } : null, note: note || null, appVersion: app.getVersion() }; }
@@ -112,33 +113,38 @@ app.whenReady().then(async () => {
   protocol.handle("mdfm", () => { const html = pageToServe(); return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": csp(html) } }); });
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(perm === "geolocation"));
   session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === "geolocation");
-  ipcMain.handle("live:get", async (e, kind) => { const v = kind === "weather" ? await live.weather() : kind === "sports" ? await live.sports() : kind === "news" ? await slack.fetchNews()
+  // The radio page's calls: only from the radio window's own page (not the setup wizard or any other window).
+  const fromRadio = e => !!win && !win.isDestroyed() && e.sender === win.webContents && !!e.senderFrame && !e.senderFrame.parent;
+  ipcMain.handle("live:get", async (e, kind) => { if (!fromRadio(e)) return null; const v = kind === "weather" ? await live.weather() : kind === "sports" ? await live.sports() : kind === "news" ? await slack.fetchNews()
     : /^(headlines:(business|gaming)|wiki:[A-Z][A-Za-z' -]{1,60})$/.test(String(kind)) ? await ptlkLive.get(kind) : null; if (!/^(headlines|wiki):/.test(String(kind))) sendStatus(); return v; });
   const refreshLive = () => live.weather().then(() => live.sports()).then(() => sendStatus()).catch(() => sendStatus());
-  ipcMain.on("live:coords", (e, c) => { live.setCoords(c); refreshLive(); });
-  ipcMain.on("live:geoError", (e, msg) => { live.setGeoError(msg); sendStatus(); });
+  let coordsAt = 0;   // a new position refreshes weather and sports at most once a minute (same spot: nothing to do)
+  ipcMain.on("live:coords", (e, c) => { if (!fromRadio(e) || !live.setCoords(c) || Date.now() - coordsAt < 60e3) return; coordsAt = Date.now(); refreshLive(); });
+  ipcMain.on("live:geoError", (e, msg) => { if (!fromRadio(e)) return; live.setGeoError(msg); sendStatus(); });
   // Don't wait for a weather break: find the location and fetch weather and scores at launch, then every 15 minutes.
   setTimeout(refreshLive, 4000); setInterval(refreshLive, 15 * 60e3);
-  ipcMain.on("settings:get", e => { e.returnValue = settings; });
-  ipcMain.handle("settings:set", (e, s) => {
+  ipcMain.on("settings:get", e => { e.returnValue = fromRadio(e) ? settings : {}; });
+  ipcMain.handle("settings:set", (e, s) => { if (!fromRadio(e)) return settings;
     const before = settings; settings = { ...settings, ...pick(s, ["contentUpdates", "useBundled", "city", "units", "slackNews", "slackChannels", "nameFixes", "types", "skin"]) };
     if (s && "axmod" in s) settings.axmod = cleanAxmod(s.axmod);   // AXMOD accessibility settings (MedDev Receiver 1.7+)
     settings.skin = /^[a-z0-9][a-z0-9-]{0,39}$/.test(String(settings.skin || "")) ? String(settings.skin) : "";
-    { const t = {}; for (const k of ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "homerepair", "garage", "funnelball", "showponies", "technews", "news"]) if (settings.types && k in settings.types) t[k] = !!settings.types[k]; settings.types = t; }
+    { const t = {}; for (const k of ["meters", "ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "homerepair", "garage", "funnelball", "showponies", "technews", "news"]) if (settings.types && k in settings.types) t[k] = !!settings.types[k]; settings.types = t; }
+    settings.city = String(settings.city || "").slice(0, 120); settings.units = settings.units === "c" ? "c" : "f";
+    settings.contentUpdates = settings.contentUpdates !== false; settings.useBundled = !!settings.useBundled;
     settings.slackNews = !!settings.slackNews; settings.slackChannels = String(settings.slackChannels || "").slice(0, 500); settings.nameFixes = String(settings.nameFixes || "").slice(0, 4000);
     settingsStore.save(app, settings);
     if (before.city !== settings.city || before.units !== settings.units) { live.reset(); setTimeout(() => live.weather().then(() => live.sports()).then(() => sendStatus()), 200); }
     sendStatus(before.useBundled !== settings.useBundled ? "Version choice saved. It applies from the next launch, or press Cmd+R now." : null); return settings;
   });
-  ipcMain.handle("slack:connect", async () => { try { await slack.connect(); if (!settings.slackNews) { settings = { ...settings, slackNews: true }; settingsStore.save(app, settings); } sendStatus("Slack connected. Company news plays at the top of the hour."); return true; }
+  ipcMain.handle("slack:connect", async e => { if (!fromRadio(e)) return false; try { await slack.connect(); if (!settings.slackNews) { settings = { ...settings, slackNews: true }; settingsStore.save(app, settings); } sendStatus("Slack connected. Company news plays at the top of the hour."); return true; }
     catch (e) { sendStatus(e.message); return false; } });
-  ipcMain.handle("slack:setup", () => { if (setupAvailable({ app })) openSlackSetup(); return !!setupAvailable({ app }); });
-  ipcMain.handle("slack:disconnect", async () => { await slack.disconnect(); sendStatus("Slack disconnected. The app no longer has access."); return true; });
-  ipcMain.handle("update:check", async () => { await fp.run({ force: true }); return status(); });
-  ipcMain.handle("status:get", () => status());
+  ipcMain.handle("slack:setup", e => { if (!fromRadio(e)) return false; if (setupAvailable({ app })) openSlackSetup(); return !!setupAvailable({ app }); });
+  ipcMain.handle("slack:disconnect", async e => { if (!fromRadio(e)) return false; await slack.disconnect(); sendStatus("Slack disconnected. The app no longer has access."); return true; });
+  ipcMain.handle("update:check", async e => { if (!fromRadio(e)) return null; await fp.run({ force: true }); return status(); });
+  ipcMain.handle("status:get", e => fromRadio(e) ? status() : null);
   // Save song (the floppy): the page makes the MP3 (and a MIDI file of the song), this asks where to put them (Music/MDFM by default). App kit save-file.
   require("../../kit/save-file/main.js").registerSaveFile({ subfolder: "MDFM", types: ["mp3", "mid"], isAllowedSender: e => !!win && !win.isDestroyed() && e.sender === win.webContents });
-  ipcMain.handle("tts:render", async (e, spec) => tts.render({ text: String(spec && spec.text || ""), voice: spec && spec.voice ? String(spec.voice) : null, rate: +(spec && spec.rate) || 1, pitch: +(spec && spec.pitch) || 1 }));
+  ipcMain.handle("tts:render", async (e, spec) => { if (!fromRadio(e)) throw new Error("not allowed"); return tts.render({ text: String(spec && spec.text || ""), voice: spec && spec.voice ? String(spec.voice) : null, rate: +(spec && spec.rate) || 1, pitch: +(spec && spec.pitch) || 1 }); });
   const from = e => BrowserWindow.fromWebContents(e.sender);
   ipcMain.on("win:close", e => from(e) && from(e).close());
   ipcMain.on("win:min", e => from(e) && from(e).minimize());
@@ -155,12 +161,14 @@ app.whenReady().then(async () => {
     w.removeListener("blur", stopDrag); w.once("blur", stopDrag); });   // one listener per window, not one per drag
   ipcMain.on("win:dragEnd", stopDrag);
   ipcMain.on("win:zoom", e => { const w = from(e); if (w) w.isMaximized() ? w.unmaximize() : w.maximize(); });
-  let fitted = false;   // first load only: make the window as tall as the receiver (within the screen); after that the person decides
-  ipcMain.on("win:fit", (e, h) => { const w = from(e); if (!w || fitted || !(h > 200)) return; fitted = true;
-    const { screen } = require("electron"), wa = screen.getDisplayMatching(w.getBounds()).workArea, b = w.getBounds();
-    const height = Math.min(Math.round(h), wa.height); w.setBounds({ x: b.x, y: Math.max(wa.y, Math.min(b.y, wa.y + wa.height - height)), width: b.width, height }); });
-  ipcMain.handle("bouncer:showLog", () => { const f = bouncer.status().log.file; if (f && fs.existsSync(f)) shell.showItemInFolder(f); else shell.openPath(path.dirname(f)); });
-  ipcMain.handle("open:url", (e, url) => { if (isReleaseDmg(url)) { downloadUpdate(String(url), "MDFM Radio"); return; } if (/^https:\/\/(github\.com\/Octoroboto\/|osv\.dev\/vulnerability\/|www\.electronjs\.org\/)/.test(url)) shell.openExternal(url); });
+  // The window follows the receiver's height: on load, and every time MIX opens, closes or changes section (1.25).
+  // Clamped to the screen's work area, debounced, never below the deck (the receiver with MIX closed). See winfit.js.
+  const fitters = new WeakMap();
+  ipcMain.on("win:fit", (e, h, deck) => { const w = from(e); if (!w || w !== win) return;
+    if (!fitters.has(w)) fitters.set(w, createFitter({ win: w, screen: require("electron").screen }));
+    fitters.get(w).request(h, deck); });
+  ipcMain.handle("bouncer:showLog", e => { if (!fromRadio(e)) return; const f = bouncer.status().log.file; if (f && fs.existsSync(f)) shell.showItemInFolder(f); else shell.openPath(path.dirname(f)); });
+  ipcMain.handle("open:url", (e, url) => { if (!fromRadio(e)) return; if (isReleaseDmg(url)) { downloadUpdate(String(url), "MDFM Radio"); return; } if (/^https:\/\/(github\.com\/Octoroboto\/|osv\.dev\/vulnerability\/|www\.electronjs\.org\/)/.test(url)) shell.openExternal(url); });
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: "appMenu" }, { role: "editMenu" },
     { label: "View", submenu: [{ role: "reload", label: "Reload (applies new content)" }, { type: "separator" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" }] },

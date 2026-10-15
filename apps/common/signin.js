@@ -42,7 +42,11 @@ function openSignInWindow(url, { parent, title = "Sign in", hosts = SLACK_HOSTS,
   win.webContents.setWindowOpenHandler(({ url: u }) => allowed(u, opts)
     ? { action: "allow", overrideBrowserWindowOptions: { parent: win, width: 520, height: 700, autoHideMenuBar: true, webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false } } }
     : (/^https:/.test(u) && shell.openExternal(u), { action: "deny" }));
-  win.webContents.on("did-create-window", w => { if (bouncer) bouncer.tag(w.webContents, caller); w.webContents.on("will-navigate", (e, u) => { if (!allowed((e && e.url) || u, opts)) e.preventDefault(); }); });
+  // The popup gets the parent's rules: the same sites (navigations and redirects), and no further windows of its own.
+  win.webContents.on("did-create-window", w => { if (bouncer) bouncer.tag(w.webContents, caller);
+    const g = (e, u) => { const to = (e && e.url) || u; if (allowed(to, opts)) return; e.preventDefault(); if (/^https:/.test(String(to))) shell.openExternal(to); };
+    w.webContents.on("will-navigate", g); w.webContents.on("will-redirect", g);
+    w.webContents.setWindowOpenHandler(({ url: u }) => { if (/^https:/.test(u)) shell.openExternal(u); return { action: "deny" }; }); });
   let closedByUs = false;
   win.on("closed", () => { if (!closedByUs && onClosed) onClosed(); });
   const close = win.close.bind(win); win.close = () => { closedByUs = true; if (!win.isDestroyed()) close(); if (parent && !parent.isDestroyed()) parent.focus(); };

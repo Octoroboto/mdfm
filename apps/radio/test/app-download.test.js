@@ -26,3 +26,22 @@ test("app download: a redirect to any other host is refused", async () => {
   try { const dl = createAppDownload({ downloadsDir: os.tmpdir(), openFile: () => {} }); await assert.rejects(dl.start(URL0), /blocked host/); }
   finally { global.fetch = real; }
 });
+test("app download: an encoded name can't climb out of Downloads, and a bad '%' doesn't throw", async () => {
+  const dl = createAppDownload({ downloadsDir: os.tmpdir(), openFile: () => {} });
+  for (const u of ["https://github.com/Octoroboto/mdfm/releases/download/hub-v9.9.9/..%2F..%2FLibrary%2FLaunchAgents%2Fx.dmg", "https://github.com/Octoroboto/mdfm/releases/download/hub-v9.9.9/a%zz.dmg"]) {
+    assert.equal(isReleaseDmg(u), false, u);
+    let p; assert.doesNotThrow(() => { p = dl.start(u); }); await assert.rejects(p, /not an MDFM release/);
+  }
+  await assert.rejects(dl.start("https://github.com/Octoroboto/mdfm/releases/download/hub-v9.9.9/.hidden.dmg"), /bad file name/);
+});
+test("app download: a download that stalls fails (and the next press starts afresh)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dl-")), real = global.fetch;
+  global.fetch = async (u, o) => new Response(new ReadableStream({ start(c) { c.enqueue(new Uint8Array(1000)); o.signal.addEventListener("abort", () => c.error(o.signal.reason)); } }),
+    { status: 200, headers: { "content-length": "5000" } });   // sends a little, then nothing
+  try {
+    const states = [], dl = createAppDownload({ downloadsDir: dir, openFile: () => {}, stallMs: 200, onProgress: p => states.push(p.state) });
+    await assert.rejects(dl.start(URL0), /stalled/);
+    assert.equal(states[states.length - 1], "failed"); assert.deepEqual(fs.readdirSync(dir), [], "the partial file is removed");
+    await assert.rejects(dl.start(URL0), /stalled/, "a new press is a new download, not the stuck one");
+  } finally { global.fetch = real; }
+});

@@ -2,6 +2,71 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.25.0 (2026-10-15, Rob)
+- **TUNE is now MIX, and it opens in place.** MIX expands under the main panel and pushes the page down; nothing floats over the radio. It has four sections:
+  - **Sound:** a six-band parametric EQ (low cut, low shelf, two mids, high shelf, high cut) with a curve you drag, plus the tone knobs, room and presets. The quick LOW/MID/HIGH knobs moved here from the station panel.
+  - **Style:** a new matrix with a **PAD** view (drag one puck around ten directions, with an amount ring) and a **FADERS** view.
+  - **Groove & Key:** a BPM dial with TAP, time, key and mode, and new drum controls.
+  - **FX:** effects in groups, plus GLITCH and the tape tricks.
+  - **ORIGINAL:** hold it to hear the station without any mixing.
+  - On a phone the sections become tabs. MIX remembers which ones are open.
+- **Built for touch.** Every knob, fader and button is at least 44 px. Knobs drag up and down, with a fine mode, double-tap to reset and long-press. Faders have thick tracks and big thumbs. Dragging no longer scrolls the page.
+- **A tidier layout:**
+  - **Main panel:** only what a listener needs (SOUND, stations, Next, Station ID/break, Save, Volume, MIX).
+  - **Looks:** skins, the display, meters and light colours now have their own drawer.
+  - **Settings:** in dial order (General, then 88.1 → 108.0, then Instruments, Slack and Futureproofer). Sections fold away, the on-air station's section opens by itself, and "Songs in 3/4, 6/8…" moved under MDFM's music.
+- **The style matrix, rebuilt.**
+  - **Directions:** ten around a circle: rock, pop, dance, hip-hop, lo-fi, space (was galactic), orchestral (was classical), jazz, latin, country.
+  - **Gentler at low settings:** low settings change the feel first, then the drums, then the keys, bass and lead. It no longer stacks a second copy of the band over the song.
+  - **Tempo:** only moves above 50%, and only when the song is far from the style.
+  - **In key, at a steady level:** melodies keep their shape and tuned percussion follows the key. Levels are matched, so nothing jumps or clips.
+  - **CHAOS is now GLITCH**, an effect: at most one trick per bar, back on the next downbeat.
+  - Saved mixes carry over.
+- **New drum controls:** push/pull (ahead or behind the beat), ghost notes, accent, hat swing, hat density, and kick, snare and hat level, on every station with drums. They're off by default, and Save includes them.
+- **A producer's pass on the sound** (MDFM, PTRN, CLUK and HEARYE):
+  - **Melody:** lead notes no longer clash with the chord on the beat (21% of strong beats did, now none).
+  - **Chords:** no accidental sour chords (6.8% → 0), and every mode keeps its signature chord.
+  - **Register:** leads sit lower and sweeter (the typical top note went from about 2 kHz to about 600 Hz; notes above C6 from 55% to 8%), and the octave-up doubles are now soft panned doubles.
+  - **Key changes:** only in genres where they belong, with the old key cut off cleanly.
+  - **Low end:** the kick no longer pumps the melody, bass stays above 41 Hz, and the kick is tuned to the key.
+  - **Master:** a de-harsh dip, a lighter top cut, gentler glue and a soft clip, so nothing clips any more.
+  - **Instruments:** a smoother guitar, fiddle, whistle, FM bell, sax and shawm, and lead levels evened out.
+  - **Character kept:** the phonk cowbell, G-funk whistle, 808 slides, the DJ set's chops, CLUK's grit and HEARYE's shawm and chant all stay.
+- **PTRN 101.1 plays CLUK's genres:** a new "Big beat & electro" family with big beat, breakbeat, funky, acid and rave breaks, electro, electro house and hard house, in PTRN's own song form and blends.
+- **Faster:**
+  - **Save:** 2–5x faster (renders run in slices), and long pieces even more.
+  - **Live:** about 35% less audio-thread work. Hi-hats, rides and crashes use pre-rendered metal, the organ is one waveform per note, panners and reverb sends are shared, and CLUK's instruments are lighter.
+  - **Visuals:** they stop drawing when they're off screen.
+  - The receiver patch for its own repo is in the 1.25 notes.
+- **Fixed:**
+  - Saved effects and style sounds weren't heard after a reload until a slider moved.
+  - CLUK songs played at half length, and Lazer Hour raves could run into silence.
+  - TUNE's key and mode moved vocal chops, lutes, flutes and timpani twice.
+  - An empty custom-pack list said "undefined" and could freeze MDFM in a break.
+  - Skipping during a crossfade skipped two songs.
+  - A context suspended by the OS was never resumed.
+  - Sports said "{score}".
+  - HEARYE shows stopped coming back with three or fewer switched on.
+  - PTRN and CLUK Save cut the end off when the tempo was pulled.
+  - A failed voice line after a station change spoke over the new station.
+  - Saved style matrices never came back on load.
+  - Smaller fixes: stingers on the wrong station, fills under 3/4 and 6/8, and bad stored settings.
+- The station code is now one registry (one entry per station). `createMDFM({station:"cluk"})` now starts on CLUK.
+- WYBC's generator has one marked "MDFM patch" line for sliced Save renders.
+
+## Apps: MDFM Radio 0.3.10 and MD Hub 0.2.10 (2026-10-15, Rob)
+Security and robustness fixes from the Oct 15 apps audit (needs an app release). No MDFM content change.
+- **MD Hub's radio bridge is pinned to the hub.** Only the hub artifact's own sandbox frame (`*.claudeusercontent.com`, under `claude.ai/artifact/<hub id>`) gets `window.mdfmApp`. Other chats' artifacts, or someone else's shared or published artifact opened inside MD Hub, no longer get live data, voices or settings; their radio uses canned lines. If claude.ai's addresses change so the hub page isn't recognisable as an artifact address, the bridge still works and the app logs a warning once. Details in `apps/hub/README.md`.
+- **Location and notifications in MD Hub** are only given to the hub page, not to other sites, embedded frames or login pop-ups.
+- **Pop-ups keep the rules:** MD Hub's login pop-ups and the Slack sign-in pop-ups can't open further windows or wander off to other sites (those open in the browser).
+- **Voices:** at most 2 `say` runs at a time with a short queue (past it, a line uses the system voice); the same line asked for twice at once is rendered once; the voice cache is capped at 40 MB; `say`'s own `[[...]]` commands inside Slack posts or headlines are no longer acted on.
+- **Downloads:** an update that stalls for a minute fails (and Download works again) instead of hanging until restart; the saved name is never decoded into a path.
+- **Kept copies:** only the newest 2 downloaded MDFM content versions and receiver looks are kept (plus the bundled copy). One content check runs at a time.
+- **Pre-releases** on GitHub are no longer offered as app updates. Mark a build as a full release when it should reach people.
+- **Smaller fixes:** the radio app's bridge only answers its own window; settings fields are type-checked; answers from the network are size-capped (2 MB, 20 MB for content and looks); a new location refreshes weather and sports at most once a minute, and the same spot again does nothing; a missing latitude or longitude from the IP lookup or the Mac is no longer read as 0; PTLK headline refreshes don't pile up, a bad character in a feed no longer throws the feed away, and encyclopedia pages are capped (200 cached, 300 fetches a day); the Slack token, Slack config and Futureproofer state are written atomically, and a token that can't be stored fails the sign-in instead of the app.
+- **Fixed:** the apps now keep the "meters" switch (songs in 3/4, 6/8, 5/4, 7/8) in their settings; it had been dropped since it was added to the shared list.
+- `apps/slack-relay/.gitignore` ignores wrangler's local cache.
+
 ## 1.24.0 (2026-10-15, Rob)
 - **New station: CLUK 92.3, Everything in the Chicken.** The whole universe is inside one enormous chicken, and this is its radio station.
   - **Music that rips:** big beat, breakbeat, funky breaks, acid breaks, rave breaks, electro, electro house and hard house, with new sounds: a distorted riff bass, an acid line, electro and rubbery electro-house basses, chicken-scratch guitar, horn and guitar stabs, rave piano, hard-house stabs and a soft laser in electro hooks. Songs run about two minutes with breakdowns and drops. In the apps, shouted station words are chopped into the songs like samples.

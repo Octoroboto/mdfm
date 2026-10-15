@@ -5,6 +5,7 @@
 // relayUrl can be a string or a function (the address can arrive later, from the mdfm repo's config/slack.json).
 const http = require("http"), crypto = require("crypto"), fs = require("fs"), path = require("path");
 const { getJSON } = require("./net");
+const { writeAtomic } = require("./write-atomic");
 const { personFromProfile, toItems, parseFixes, KIND_BY_NAME, parseChannelList } = require("./slack-parse");
 const DEFAULT_CHANNELS = ["general", "littlevisionaries", "animal-pics"];
 
@@ -17,7 +18,7 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
     try { if (safeStorage.isEncryptionAvailable() && fs.existsSync(tokenFile)) token = safeStorage.decryptString(fs.readFileSync(tokenFile)); } catch { token = null; }
     status.connected = !!token; return token;
   }
-  function saveToken(t) { fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(tokenFile, safeStorage.encryptString(t), { mode: 0o600 }); token = t; status.connected = true; }
+  function saveToken(t) { writeAtomic(tokenFile, safeStorage.encryptString(t), 0o600); token = t; status.connected = true; }
   async function api(method, params = {}) {
     const q = new URLSearchParams(params).toString();
     const j = await getJSON(`https://slack.com/api/${method}${q ? "?" + q : ""}`, { token });
@@ -84,13 +85,15 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
         if (req.method !== "POST" || req.url !== "/slack") { res.writeHead(404).end(); return; }
         let body = ""; req.on("data", d => { body += d; if (body.length > 8192) req.destroy(); });
         req.on("end", () => {
-          const f = new URLSearchParams(body), ok = f.get("nonce") === nonce && /^xoxp-/.test(f.get("token") || "");
+          const f = new URLSearchParams(body); let ok = f.get("nonce") === nonce && /^xoxp-/.test(f.get("token") || ""), err = null;
+          if (ok) { try { saveToken(f.get("token")); } catch (e) { ok = false; err = new Error("Couldn't store the Slack token: " + e.message); } }   // stored first, so the page never says "connected" when it isn't
           res.writeHead(ok ? 200 : 400, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
             .end(`<!doctype html><meta charset="utf-8"><title>MDFM</title><body style="font:16px system-ui;background:#111;color:#eee;padding:40px">${ok ? "Slack is connected. Taking you back to MDFM..." : "That didn't work. Try Connect Slack again from the app."}</body>`);
-          if (ok) { saveToken(f.get("token")); status.team = f.get("team") || null; news = null; finish(null, true); }
+          if (ok) { status.team = f.get("team") || null; news = null; finish(null, true); } else if (err) finish(err);
         });
       });
       const timer = setTimeout(() => finish(new Error("Slack sign-in timed out.")), 5 * 60e3);
+      srv.on("error", e => finish(e));
       srv.listen(0, "127.0.0.1", () => {
         const url = `${relayBase}/start?port=${srv.address().port}&nonce=${nonce}`;
         try { if (openSignIn) { p.win = openSignIn(url, () => finish(new Error("Slack sign-in was closed before it finished."))); }

@@ -127,8 +127,7 @@ function startSlackSetup({ app, parent, saveOverride, onDone, bouncer }) {
     async save() {
       if (!validRelay(st.relay)) return { ok: false, note: "Deploy the helper first." };
       saveOverride(st.relay);
-      fs.mkdirSync(path.join(where.repo, "config"), { recursive: true });
-      fs.writeFileSync(path.join(where.repo, "config/slack.json"), JSON.stringify({ relay: st.relay }, null, 2) + "\n");
+      require("./write-atomic").writeAtomic(path.join(where.repo, "config/slack.json"), JSON.stringify({ relay: st.relay }, null, 2) + "\n");
       onDone && onDone(st.relay);
       return { ok: true, relay: st.relay, push: `cd ${where.repo.replace(require("os").homedir(), "~")} && git add config/slack.json && git commit -m "Switch on Slack sign-in" && git push` };
     },

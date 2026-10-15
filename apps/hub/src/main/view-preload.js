@@ -1,9 +1,13 @@
-// Runs in the hub window's frames. Only the hub artifact's own frame (a claude.ai sandbox frame) gets the MDFM bridge,
-// and the main process checks again on every call. Everything here is about the radio: live data, voices, settings.
+// Runs in the hub window's frames. Only the hub artifact's own frame (its claudeusercontent.com sandbox frame, under the hub
+// artifact's page) gets the MDFM bridge: main decides (bridge-scope.js) and checks again on every call.
+// Everything here is about the radio: live data, voices, settings.
 const { contextBridge, ipcRenderer, webFrame } = require("electron");
 try { webFrame.insertCSS("::-webkit-scrollbar{width:0!important;height:0!important;background:transparent}"); } catch {}   // no scroll bars on the receiver
+const n = v => (v == null || v === "" ? null : +v);   // a missing coordinate stays missing (not 0)
 const host = location.hostname, isFrame = window.top !== window;
-if (isFrame && /(^|\.)(claudeusercontent\.com|claude\.ai|claude\.site|claude\.com)$/.test(host)) {
+let bridgeOk = false;
+if (isFrame && /(^|\.)claudeusercontent\.com$/.test(host)) { try { bridgeOk = ipcRenderer.sendSync("hub:bridgeOk") === true; } catch {} }
+if (bridgeOk) {
   // Newer receiver look: add it over the page's own copy, but only when it's newer than what the page has.
   window.addEventListener("DOMContentLoaded", () => { try {
     const st = document.getElementById("mdfm-skin"), have = st && (/MedDev Receiver (\d+\.\d+\.\d+)/.exec(st.textContent.slice(0, 400)) || [])[1];
@@ -14,7 +18,7 @@ if (isFrame && /(^|\.)(claudeusercontent\.com|claude\.ai|claude\.site|claude\.co
   contextBridge.exposeInMainWorld("mdfmApp", {
     hub: true,
     live: kind => ipcRenderer.invoke("hub:live", String(kind)),
-    coords: (lat, lon) => ipcRenderer.send("hub:coords", { lat: +lat, lon: +lon }),
+    coords: (lat, lon) => ipcRenderer.send("hub:coords", { lat: n(lat), lon: n(lon) }),
     geoError: msg => ipcRenderer.send("hub:geoError", String(msg || "")),
     tts: spec => ipcRenderer.invoke("hub:tts", spec),
     skins: () => ipcRenderer.sendSync("hub:skins"),

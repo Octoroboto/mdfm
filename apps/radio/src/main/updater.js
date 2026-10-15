@@ -3,6 +3,7 @@
 const fs = require("fs"), path = require("path"), vm = require("vm"), crypto = require("crypto");
 const { getJSON } = require("../common/net");
 const { cmpVersion } = require("../common/live-parse");
+const { writeAtomic } = require("../common/write-atomic");
 const RAW = "https://raw.githubusercontent.com/Octoroboto/mdfm/main/";
 const REL = "https://api.github.com/repos/Octoroboto/mdfm/releases?per_page=20";
 // A content update is the whole radio page (engine + ads + look), built by "npm run build" in the mdfm repo.
@@ -25,7 +26,7 @@ function createUpdater({ app, getSettings, bundledDir, appVersion, onEngine, onS
   const say = () => onStatus && onStatus({ ...status });
   function bundled() { const v = JSON.parse(fs.readFileSync(path.join(bundledDir, "version.json"), "utf8")).version; return { version: v, file: path.join(bundledDir, "radio.html"), source: "bundled" }; }
   function cached() {
-    try { return fs.readdirSync(dir).filter(v => fs.existsSync(path.join(dir, v, "radio.html"))).sort(cmpVersion).reverse()
+    try { return fs.readdirSync(dir).filter(v => /^\d+\.\d+\.\d+$/.test(v) && fs.existsSync(path.join(dir, v, "radio.html"))).sort(cmpVersion).reverse()
       .map(v => ({ version: v, file: path.join(dir, v, "radio.html"), source: "updated" })); } catch { return []; }
   }
   function active() {
@@ -34,25 +35,33 @@ function createUpdater({ app, getSettings, bundledDir, appVersion, onEngine, onS
     const c = cached()[0];
     return c && cmpVersion(c.version, b.version) > 0 ? c : b;
   }
-  async function checkContent() {
+  // Old content is let go: the newest `keep` copies stay (plus the one in use), so each release doesn't leave ~9 MB behind.
+  function prune(keep = 2) {
+    const inUse = active().version;
+    for (const c of cached().slice(keep)) if (c.version !== inUse) { try { fs.rmSync(path.join(dir, c.version), { recursive: true, force: true }); } catch {} }
+  }
+  // One check at a time: the launch check and Futureproofer's can overlap; the second joins the first.
+  let checking = null;
+  const checkContent = () => checking || (checking = doCheckContent().finally(() => { checking = null; }));
+  async function doCheckContent() {
     if (!getSettings().contentUpdates) { status.result = "off in Settings"; say(); return; }
     status.lastCheck = new Date().toISOString();
     try {
       const pkg = await getJSON(RAW + "package.json"), cur = active();
       if (!/^\d+\.\d+\.\d+$/.test(String(pkg.version || "")) || cmpVersion(pkg.version, cur.version) <= 0) { status.result = `up to date (${cur.version})`; say(); return; }
-      const code = await getJSON(RAW + "dist/radio.html", { text: true, timeout: 30000 });
+      const code = await getJSON(RAW + "dist/radio.html", { text: true, timeout: 30000, maxBytes: 20e6 });
       const bad = validateEngine(code, pkg.version);
       if (bad) { status.result = `skipped ${pkg.version}: ${bad}`; say(); return; }
-      const d = path.join(dir, pkg.version); fs.mkdirSync(d, { recursive: true });
-      fs.writeFileSync(path.join(d, "radio.html.tmp"), code); fs.renameSync(path.join(d, "radio.html.tmp"), path.join(d, "radio.html"));
-      fs.writeFileSync(path.join(d, "sha256.txt"), crypto.createHash("sha256").update(code).digest("hex"));
-      status.result = `got ${pkg.version}`; say(); onEngine && onEngine(active());
+      const d = path.join(dir, pkg.version);
+      writeAtomic(path.join(d, "radio.html"), code);
+      writeAtomic(path.join(d, "sha256.txt"), crypto.createHash("sha256").update(code).digest("hex"));
+      status.result = `got ${pkg.version}`; prune(); say(); onEngine && onEngine(active());
     } catch (e) { status.result = "check failed: " + e.message; say(); }
   }
   async function checkApp() {
     try {
       const rels = await getJSON(REL);
-      const best = rels.filter(r => !r.draft && /^radio-v/.test(r.tag_name)).sort((a, b) => cmpVersion(b.tag_name, a.tag_name))[0];
+      const best = rels.filter(r => !r.draft && !r.prerelease && /^radio-v/.test(r.tag_name)).sort((a, b) => cmpVersion(b.tag_name, a.tag_name))[0];
       const want = process.arch === "arm64" ? /arm64/i : /^(?!.*arm64).*\.dmg$/i;   // the .dmg for this Mac's chip
       const dmg = best && (best.assets || []).find(a => /\.dmg$/i.test(a.name) && want.test(a.name));
       status.appUpdate = best && cmpVersion(best.tag_name, appVersion) > 0 ? { version: best.tag_name.replace(/^radio-v/, ""), url: best.html_url, download: dmg ? dmg.browser_download_url : null } : null;
@@ -61,6 +70,6 @@ function createUpdater({ app, getSettings, bundledDir, appVersion, onEngine, onS
   }
   // Futureproofer schedules the checks (src/main/futureproof.js); this only reports what's active.
   function start() { status.engine = active(); say(); }
-  return { start, active, checkContent, checkApp, status, validateEngine };
+  return { start, active, checkContent, checkApp, status, validateEngine, prune };
 }
 module.exports = { createUpdater, validateEngine, inlineScripts };

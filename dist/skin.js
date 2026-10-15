@@ -7,7 +7,11 @@ window.MDFM_BADGES="<svg class=\"mdpin\" viewBox=\"0 0 320 120\" role=\"img\" ar
 window.MDFM_tok=(()=>{ let cache={}; const get=(n,fb)=>{ if(n in cache) return cache[n]; let v=""; try{ v=getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }catch(e){} return cache[n]=v||fb; };
   window.addEventListener("meddev:skin",()=>{ cache={}; }); window.addEventListener("axmod:change",()=>{ cache={}; }); return get; })();
 /* Hold still? The computer's reduce-motion setting, or AXMOD's Reduce motion / No idle surprises / Buttons stay put / Calm mode. Checked live. */
-window.MDFM_still=()=>{ try{ if(window.AXMOD&&window.AXMOD.still) return window.AXMOD.still(); }catch(e){} try{ return matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){ return false; } };
+/* MDFM patch (mdfm 1.25.0, perf: visuals gating; to go upstream): the media query is made once, not on every frame */
+const MDFM_RM=(()=>{ try{ return matchMedia("(prefers-reduced-motion: reduce)"); }catch(e){ return null; } })();
+window.MDFM_still=()=>{ try{ if(window.AXMOD&&window.AXMOD.still) return window.AXMOD.still(); }catch(e){} return !!(MDFM_RM&&MDFM_RM.matches); };
+/* MDFM patch: is a canvas on screen? (the meters skip their work while scrolled away or in a hidden tab) */
+window.MDFM_seen=(()=>{ const m=new WeakMap(); return el=>{ if(!m.has(el)){ m.set(el,true); try{ new IntersectionObserver(es=>{ for(const e of es) m.set(e.target,e.isIntersecting); },{threshold:0}).observe(el); }catch(e){} } return m.get(el)&&!document.hidden; }; })();
 /* Spectrum analyzer: classic 19-band LED bars dancing to made-up music. No audio, no network, no credits. */
 (()=>{
   const cv=document.getElementById("vizCanvas"); if(!cv) return;
@@ -99,22 +103,26 @@ window.MDFM_still=()=>{ try{ if(window.AXMOD&&window.AXMOD.still) return window.
     return out;
   }
   let grad=null, gradH=0; window.addEventListener("meddev:skin",()=>{ grad=null; }); window.addEventListener("axmod:change",()=>{ grad=null; });
+  /* MDFM patch: the unlit ladder is drawn once per size or skin into its own canvas; each frame copies it, clears each bar's
+     lit run and fills every lit segment and peak cap as one path (was ~380 fillRect calls a frame). Looks the same. */
+  let bg=null, bgKey="";
   function draw(){
-    ctx.clearRect(0,0,W,H);
     const bw=W/N, seg=SEG*dpr, gap=GAP*dpr, rows=Math.floor(H/(seg+gap));
     const T=window.MDFM_tok;
-    if(!grad||gradH!==H){ gradH=H; grad=ctx.createLinearGradient(0,H,0,0); grad.addColorStop(0,T("--eq-1","#1ec81e"));grad.addColorStop(.45,T("--eq-2","#7fe22a"));grad.addColorStop(.68,T("--eq-3","#e8e030"));grad.addColorStop(.85,T("--eq-4","#ff9a1e"));grad.addColorStop(1,T("--eq-5","#ff3b2a")); }
-    const g=grad;
+    if(!grad||gradH!==H){ gradH=H; grad=ctx.createLinearGradient(0,H,0,0); grad.addColorStop(0,T("--eq-1","#1ec81e"));grad.addColorStop(.45,T("--eq-2","#7fe22a"));grad.addColorStop(.68,T("--eq-3","#e8e030"));grad.addColorStop(.85,T("--eq-4","#ff9a1e"));grad.addColorStop(1,T("--eq-5","#ff3b2a")); bg=null; }
+    const key=W+"x"+H+"|"+dpr; if(!bg||bgKey!==key){ bgKey=key; bg=document.createElement("canvas"); bg.width=W; bg.height=H; const b=bg.getContext("2d");
+      b.fillStyle=T("--eq-off","rgba(60,90,60,.16)");   // unlit segments, faintly visible like a real LED ladder
+      for(let i=0;i<N;i++){ const x=Math.round(i*bw+gap), w=Math.max(1,Math.round(bw-gap*2)); for(let r=0;r<rows;r++) b.fillRect(x,H-(r+1)*(seg+gap),w,seg); } }
+    ctx.clearRect(0,0,W,H); ctx.drawImage(bg,0,0);
+    const lit=new Path2D(), caps=new Path2D(); let anyCap=false;
     for(let i=0;i<N;i++){
       const x=Math.round(i*bw+gap), w=Math.max(1,Math.round(bw-gap*2)), on=Math.round(lvl[i]*rows);
-      // unlit segments, faintly visible like a real LED ladder
-      ctx.fillStyle=T("--eq-off","rgba(60,90,60,.16)");
-      for(let r=on;r<rows;r++) ctx.fillRect(x,H-(r+1)*(seg+gap),w,seg);
-      ctx.fillStyle=g;
-      for(let r=0;r<on;r++) ctx.fillRect(x,H-(r+1)*(seg+gap),w,seg);
+      if(on>0) ctx.clearRect(x,H-on*(seg+gap),w,on*(seg+gap));   // the lit run replaces the unlit ladder there
+      for(let r=0;r<on;r++) lit.rect(x,H-(r+1)*(seg+gap),w,seg);
       const pr=Math.min(rows-1,Math.round(peak[i]*rows));
-      if(pr>0){ctx.fillStyle=T("--eq-peak","#d8dbe6");ctx.fillRect(x,H-(pr+1)*(seg+gap),w,Math.max(1,Math.round(seg*.7)));}
+      if(pr>0){ caps.rect(x,H-(pr+1)*(seg+gap),w,Math.max(1,Math.round(seg*.7))); anyCap=true; }
     }
+    ctx.fillStyle=grad; ctx.fill(lit); if(anyCap){ ctx.fillStyle=T("--eq-peak","#d8dbe6"); ctx.fill(caps); }
   }
   let on=true; const box=document.getElementById("vizOn");
   try{ if(localStorage.getItem("hubVizOff")==="1") on=false; }catch(e){}
@@ -127,7 +135,7 @@ window.MDFM_still=()=>{ try{ if(window.AXMOD&&window.AXMOD.still) return window.
   function step(now){
     requestAnimationFrame(step);
     if(still()){ if(!frozen&&on){ frozen=true; freeze(); } return; } frozen=false;
-    if(!on||document.hidden||now-last<16) return;
+    if(!on||!window.MDFM_seen(cv)||now-last<32) return;   // MDFM patch: 30 fps, and nothing while off screen or hidden (no analyser read either)
     const dt=Math.min(.1,(now-last)/1000); last=now;
     const tg=(window.__vizSource&&window.__vizSource())||target(Math.max(0,(now-t0)/1000));
     for(let i=0;i<N;i++){
@@ -593,6 +601,7 @@ ${[0,1,2,3,4,5,6,7].map(k=>`<rect x="52" y="${262+k*7}" width="16" height="2.4" 
   }
   let last=performance.now();
   function frame(now){
+    if(!cans.some(c=>window.MDFM_seen(c))){ last=now; requestAnimationFrame(frame); return; }   // MDFM patch: hidden or scrolled away: no level read, no repaint
     const dt=Math.max(0,Math.min(.05,(now-last)/1000)); last=now;
     const radio=window.__radio, live=meterOn&&!!(radio&&radio.isOn&&radio.isOn());
     const lv=live&&radio.getLevels?radio.getLevels():null;
@@ -1129,7 +1138,7 @@ window.MDFM_receiver=function(radio,{app=null}={}){
 
 window.MedDevReceiver={version:"1.13.3",mountBadges:()=>window.MDFM_mountBadges(),mountControls:(radio,o)=>window.MDFM_receiver(radio,o||{})};
 
-/* MDFM 1.24.0: content types for the receiver controls */
+/* MDFM 1.25.0: content types for the receiver controls */
 /* What plays between songs: the talk types people can switch off (music always plays), plus (1.22) the songs that aren't in 4/4. Shared by every MDFM receiver and the MD Hub settings. */
 window.MDFM_TYPES=[["meters","Songs in 3/4, 6/8, 5/4, 7/8"],["ids","Station IDs"],["stingers","Voice drops between songs"],["ads","Ads"],["interviews","Interviews"],["callers","Call-ins"],
   ["weather","Weather with Tabitha"],["sports","Sports with Chip"],["plays","Golden Age radio plays"],["arts","Arts and Culture"],["podcast","The Apex Grind (hustle podcast)"],["cooking","Simmer Down (cooking show)"],

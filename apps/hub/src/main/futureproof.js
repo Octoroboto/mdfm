@@ -11,10 +11,10 @@ const MIN_MACOS = 13, TESTED_MACOS = 26;
 function underRosetta() { try { return execFileSync("sysctl", ["-in", "sysctl.proc_translated"], { encoding: "utf8" }).trim() === "1"; } catch { return false; } }
 function buildReport() { try { return JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "build", "dependency-report.json"), "utf8")); } catch { return null; } }
 
-// Newest hub-v* release on the mdfm releases page, with the .dmg for this Mac's chip.
+// Newest hub-v* release on the mdfm releases page (drafts and pre-releases aren't offered), with the .dmg for this Mac's chip.
 async function latestRelease() {
   const rels = await getJSON(REL);
-  const best = rels.filter(r => !r.draft && /^hub-v/.test(r.tag_name)).sort((a, b) => cmpVersion(b.tag_name, a.tag_name))[0];
+  const best = rels.filter(r => !r.draft && !r.prerelease && /^hub-v/.test(r.tag_name)).sort((a, b) => cmpVersion(b.tag_name, a.tag_name))[0];
   if (!best) return null;
   const want = process.arch === "arm64" ? /arm64/i : /^(?!.*arm64).*\.dmg$/i, dmg = (best.assets || []).find(a => /\.dmg$/i.test(a.name) && want.test(a.name));
   return { version: best.tag_name.replace(/^hub-v/, ""), url: best.html_url, download: dmg ? dmg.browser_download_url : best.html_url, notes: String(best.body || "").slice(0, 600) };

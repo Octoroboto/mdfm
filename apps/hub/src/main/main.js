@@ -28,7 +28,7 @@ const SHELL_SKIN = path.join(__dirname, "../shell/skin.css"), SHELL_RX = path.jo
 const { cleanAxmod } = require("../common/axmod-settings");
 // A new look found right after launch is put on screen straight away (frame and hub reload), so a restart is all anyone needs.
 const launchedAt = Date.now(), FRESH_MS = 90e3;
-const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, { timeout: 30000, ...o }),
+const look = createReceiverUpdater({ dir: path.join(app.getPath("userData"), "receiver"), getJSON: (u, o) => require("../common/net").getJSON(u, { timeout: 30000, maxBytes: 20e6, ...o }),
   bundled: () => { try { const css = fs.readFileSync(SHELL_SKIN, "utf8"); let js = null; try { js = fs.readFileSync(SHELL_RX, "utf8"); } catch {} return { version: versionOf(css) || "0.0.0", css, js }; } catch { return { version: "0.0.0" }; } },
   onChange: s => { if (win && !win.isDestroyed() && Date.now() - launchedAt < FRESH_MS) { win.webContents.reload(); if (view) view.webContents.reload(); }
     else sendStatus(`A new receiver look (${s.version}) is ready. It shows from the next launch, or reload the hub (Cmd+R).`); } });
@@ -37,11 +37,33 @@ const SKIN_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 function skinsBundle() { const a = look.active(); if (a.source === "updated" && a.skins && Array.isArray(a.skins.skins)) return a.skins;
   try { return JSON.parse(fs.readFileSync(SHELL_SKINS, "utf8")); } catch { return { version: "0.0.0", default: "default", skins: [{ id: "default", name: "Default", description: "", css: "" }] }; } }
 function currentSkin() { const b = skinsBundle(), want = settings && settings.skin; return b.skins.find(k => k.id === want) || b.skins.find(k => k.id === b.default) || b.skins[0]; }
-const TYPE_KEYS = ["ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "homerepair", "garage", "funnelball", "showponies", "technews", "news"];
-const HUB_HOSTS = /(^|\.)(claude\.ai|claudeusercontent\.com|claude\.site|claude\.com|anthropic\.com)$/;
+const TYPE_KEYS = ["meters", "ids", "stingers", "ads", "interviews", "callers", "weather", "sports", "plays", "arts", "podcast", "cooking", "homerepair", "garage", "funnelball", "showponies", "technews", "news"];
+const scope = require("./bridge-scope");   // which frames get the radio bridge: only the hub artifact's own (see bridge-scope.js)
+const HUB_HOSTS = scope.HUB_HOSTS;
 const LOGIN_HOSTS = /(^|\.)(accounts\.google\.com|appleid\.apple\.com)$/;
 let slackCfg = null;
 let win = null, view = null, settings = null, fp = null, slack = null, settingsOpen = false;
+// Is this frame (an Electron WebFrameMain in the hub view) the hub artifact's own? Checked when the preload asks, on every
+// bridge call, and before settings are pushed to a frame.
+let scopeNoted = false;
+function hubFrame(f) {
+  try {
+    if (!view || !f || !f.parent) return false;   // the top page itself never gets the bridge
+    const top = view.webContents.mainFrame, between = [];
+    for (let p = f.parent; p && p.parent; p = p.parent) between.push(p.url);
+    const v = scope.frameVerdict({ frameUrl: f.url, between, topUrl: top.url, ids: scope.allowedIds(settings) });
+    if (v !== "deny" && !scopeNoted && (v === "unknown" || !app.isPackaged)) { scopeNoted = true;   // once: what the hub's frames look like, for checking live
+      const msg = `MD Hub radio bridge: ${v === "unknown" ? "allowed under a top page that isn't a recognised claude.ai artifact address (check the hub address)" : "given to the hub artifact's frame"}. Top: ${top.url}. Frames: ${top.framesInSubtree.map(x => x.url).join(" | ")}`;
+      v === "unknown" ? console.warn(msg) : console.log(msg); }
+    return v !== "deny";
+  } catch { return false; }
+}
+// Only the hub artifact may use location and notifications; other pages and login pop-ups in the hub's session may not.
+const OWN_ORIGINS = /(^|\.)(claude\.ai|claudeusercontent\.com)$/;
+function hubPermission(wc, url) {
+  try { const u = new URL(String(url)); if (u.protocol !== "https:" || !OWN_ORIGINS.test(u.hostname)) return false; } catch { return false; }
+  return !!view && (!wc || wc === view.webContents) && scope.topVerdict(view.webContents.getURL(), scope.allowedIds(settings)) !== "deny";
+}
 // App updates: Download fetches the newest .dmg into ~/Downloads itself (progress on the Dock icon), then opens it.
 const { createAppDownload, isReleaseDmg } = require("../common/app-download");
 let appDl = null;
@@ -100,7 +122,14 @@ function createWindow() {
     if (/^https:/.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
-  wc.on("did-create-window", w => viewB.tag(w.webContents, "login"));
+  // A login pop-up keeps to sign-in and Claude sites (navigations and redirects), and can't open windows of its own.
+  const loginOk = u => { try { const x = new URL(u); return x.protocol === "https:" && (LOGIN_HOSTS.test(x.hostname) || HUB_HOSTS.test(x.hostname)); } catch { return false; } };
+  wc.on("did-create-window", w => {
+    viewB.tag(w.webContents, "login");
+    w.webContents.setWindowOpenHandler(({ url }) => { if (/^https:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
+    const guard = (e, u) => { const to = (e && e.url) || u; if (loginOk(to)) return; e.preventDefault(); if (/^https:/.test(String(to))) shell.openExternal(to); };
+    w.webContents.on("will-navigate", guard); w.webContents.on("will-redirect", guard);
+  });
   wc.on("did-finish-load", () => sendStatus());
   wc.loadURL(settings.hubUrl);
 
@@ -141,24 +170,27 @@ app.whenReady().then(async () => {
   const hub = session.fromPartition("persist:mdhub");
   chromeUA(hub);
   viewB.attachSession(hub); appB.attachSession(session.defaultSession);
-  const allowed = new Set(["geolocation", "notifications", "clipboard-sanitized-write", "fullscreen"]);
-  hub.setPermissionRequestHandler((wc, perm, cb) => cb(allowed.has(perm)));
-  hub.setPermissionCheckHandler((wc, perm) => allowed.has(perm));
+  const allowed = new Set(["geolocation", "notifications", "clipboard-sanitized-write", "fullscreen"]), ownOnly = new Set(["geolocation", "notifications"]);
+  const permOk = (wc, perm, url) => allowed.has(perm) && (!ownOnly.has(perm) || hubPermission(wc, url));
+  hub.setPermissionRequestHandler((wc, perm, cb, d) => cb(permOk(wc, perm, (d && d.requestingUrl) || (wc && wc.getURL()))));
+  hub.setPermissionCheckHandler((wc, perm, origin) => permOk(wc, perm, origin));
 
-  // ---- the hub page's bridge (only for claude.ai frames inside the hub view) ----
-  const fromHub = e => { try { return view && e.sender === view.webContents && HUB_HOSTS.test(new URL(e.senderFrame.url).hostname); } catch { return false; } };
+  // ---- the hub page's bridge (only for the hub artifact's own frame inside the hub view) ----
+  const fromHub = e => { try { return !!view && e.sender === view.webContents && hubFrame(e.senderFrame); } catch { return false; } };
+  ipcMain.on("hub:bridgeOk", e => { e.returnValue = fromHub(e); });   // the preload asks before it exposes window.mdfmApp
   const refreshLive = () => live.weather().then(() => live.sports()).then(() => sendStatus()).catch(() => sendStatus());
   setTimeout(refreshLive, 4000); setInterval(refreshLive, 15 * 60e3);
   ipcMain.handle("hub:live", async (e, kind) => { if (!fromHub(e)) return null; const v = kind === "weather" ? await live.weather() : kind === "sports" ? await live.sports() : kind === "news" ? await slack.fetchNews()
     : /^(headlines:(business|gaming)|wiki:[A-Z][A-Za-z' -]{1,60})$/.test(String(kind)) ? await ptlkLive.get(kind) : null; if (!/^(headlines|wiki):/.test(String(kind))) sendStatus(); return v; });
-  ipcMain.on("hub:coords", (e, c) => { if (!fromHub(e)) return; live.setCoords(c); refreshLive(); });
+  let coordsAt = 0;   // a new position refreshes weather and sports at most once a minute (same spot: nothing to do)
+  ipcMain.on("hub:coords", (e, c) => { if (!fromHub(e) || !live.setCoords(c) || Date.now() - coordsAt < 60e3) return; coordsAt = Date.now(); refreshLive(); });
   ipcMain.on("hub:geoError", (e, msg) => { if (!fromHub(e)) return; live.setGeoError(msg); sendStatus(); });
   ipcMain.handle("hub:tts", async (e, spec) => { if (!fromHub(e)) throw new Error("not allowed"); return tts.render({ text: String(spec && spec.text || ""), voice: spec && spec.voice ? String(spec.voice) : null, rate: +(spec && spec.rate) || 1, pitch: +(spec && spec.pitch) || 1 }); });
   // The content switches live in two places (the hub page's receiver and Settings): tell both when either changes.
   const typesNow = () => ({ types: { ...settings.types }, slackNews: !!settings.slackNews, skin: settings.skin || "", axmod: cleanAxmod(settings.axmod) });
   const broadcastTypes = () => { const s = typesNow();
     if (win && !win.isDestroyed()) win.webContents.send("settings:types", s);
-    if (view) for (const f of view.webContents.mainFrame.framesInSubtree) { try { if (f !== view.webContents.mainFrame && HUB_HOSTS.test(new URL(f.url).hostname)) f.send("hub:settings:changed", s); } catch {} } };
+    if (view) for (const f of view.webContents.mainFrame.framesInSubtree) { try { if (hubFrame(f)) f.send("hub:settings:changed", s); } catch {} } };
   // A newer look for the hub page's own styling (the preload compares it with the page's version and only ever adds a newer one).
   // The app's look, bundled or updated: the page only takes it when it's newer than its own copy (the hub artifact can lag behind).
   ipcMain.on("hub:look", e => { const a = look.active(); e.returnValue = fromHub(e) && a.css ? { version: a.version, css: a.css } : null; });

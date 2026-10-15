@@ -48,3 +48,20 @@ test("the 15-minute refresh really fetches new weather (the cache is shorter tha
     t = start + 15 * 60e3; await live.weather(); assert.strictEqual(calls, 2, "the next 15-minute tick fetches again");
   } finally { Date.now = realNow; }
 });
+test("network location: a null or missing coordinate is no location (never 0, never NaN)", async () => {
+  answers = { "ipwho.is": { success: true, latitude: null, longitude: null, city: "Nowhere" }, "geojs.io": { latitude: "41.88", city: "Chicago" }, "open-meteo.com/v1/forecast": forecast };
+  const live = createLive(() => ({ units: "f" }));
+  assert.strictEqual(await live.weather(), null, "geojs without a longitude isn't used either");
+  answers["geojs.io"] = { latitude: "41.88", longitude: "-87.63", city: "Chicago" }; live.reset();
+  await live.weather(); assert.match(live.status.location, /Chicago/);
+});
+test("Mac location: nulls and (0, 0) are ignored; the same spot again changes nothing", () => {
+  const live = createLive(() => ({ units: "f" }));
+  assert.strictEqual(live.setCoords({ lat: null, lon: -87.6 }), false);
+  assert.strictEqual(live.setCoords({ lat: 0, lon: 0 }), false);
+  assert.strictEqual(live.setCoords({ lat: "", lon: "" }), false);
+  assert.strictEqual(live.setCoords({ lat: 95, lon: 10 }), false);
+  assert.strictEqual(live.setCoords({ lat: 41.88, lon: -87.63 }), true);
+  assert.strictEqual(live.setCoords({ lat: 41.881, lon: -87.631 }), false, "within about 2 km: keep the cache");
+  assert.strictEqual(live.setCoords({ lat: 42.05, lon: -87.68 }), true);
+});

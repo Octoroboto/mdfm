@@ -4,6 +4,7 @@
 //   3. the mdfm repo's config/slack.json, fetched from GitHub and kept, so pushing that one file switches Slack on for every
 //      installed app without an app release.
 const fs = require("fs"), path = require("path");
+const { writeAtomic } = require("./write-atomic");
 const CONFIG_URL = "https://raw.githubusercontent.com/Octoroboto/mdfm/main/config/slack.json";
 
 // A helper address must be a plain https origin (no path, query or credentials). (pure; tested)
@@ -28,7 +29,7 @@ function createSlackConfig({ dataDir, getJSON, packaged = "", getOverride = () =
     status.lastCheck = new Date().toISOString();
     try {
       const j = await getJSON(CONFIG_URL);
-      if (j && validRelay(j.relay)) { remote = origin(j.relay); fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(file, JSON.stringify({ relay: remote })); status.result = "ok"; }
+      if (j && validRelay(j.relay)) { remote = origin(j.relay); writeAtomic(file, JSON.stringify({ relay: remote })); status.result = "ok"; }
       else status.result = "not switched on yet";
     } catch (e) { status.result = /404/.test(e.message) ? "not switched on yet" : "check failed: " + e.message; }
     return relay();

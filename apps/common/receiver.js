@@ -79,6 +79,11 @@ function createReceiverUpdater({ dir, getJSON, bundled, enabled = () => true, on
     try { return fs.readdirSync(dir).filter(v => /^\d+\.\d+\.\d+$/.test(v) && fs.existsSync(path.join(dir, v, "receiver.js"))).sort(cmp).reverse(); } catch { return []; }
   }
   const seen = new Map();   // version -> { stamp, copy }: a kept copy is re-checked only when its files change
+  // Old looks are let go: the newest `keep` copies stay (plus the one in use), so each release doesn't leave ~7 MB behind.
+  function prune(keep = 2) {
+    const inUse = status.source === "updated" ? status.version : null;
+    for (const v of cached().slice(keep)) if (v !== inUse) { try { fs.rmSync(path.join(dir, v), { recursive: true, force: true }); seen.delete(v); } catch {} }
+  }
   function load(v) {
     let stamp; try { stamp = ["receiver.css", "receiver.js", "skins.json", "manifest.json"].map(n => { try { const st = fs.statSync(path.join(dir, v, n)); return st.size + ":" + st.mtimeMs; } catch { return "-"; } }).join("|"); } catch { stamp = null; }
     const hit = seen.get(v); if (hit && hit.stamp === stamp) return hit.copy;
@@ -123,12 +128,12 @@ function createReceiverUpdater({ dir, getJSON, bundled, enabled = () => true, on
         if (fs.existsSync(d)) { const old = d + `.${Date.now()}.old`; fs.renameSync(d, old); try { fs.rmSync(old, { recursive: true, force: true }); } catch {} }
         fs.renameSync(tmp, d);
       } catch (e) { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} throw e; }
-      status.result = `got ${manifest.version}`; active(); onChange && onChange(status);
+      status.result = `got ${manifest.version}`; active(); prune(); onChange && onChange(status);
     } catch (e) { status.result = "check failed: " + e.message; }
     return status;
   }
   active();
-  return { check, active, status, cached };
+  return { check, active, status, cached, prune };
 }
 
 module.exports = { createReceiverUpdater, applyToPage, validate, validateSkins, versionOf, cmp, RAW };

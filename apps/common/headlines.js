@@ -12,8 +12,9 @@ const FEEDS = {
   gaming: [["https://www.gamespot.com/feeds/game-news/", "GameSpot"]],
 };
 const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+const cp = n => n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : " ";   // a bad number reference is a space, not a thrown feed
 const decode = s => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]*>/g, "")
-  .replace(/&#x([0-9a-f]+);/gi, (m, x) => String.fromCodePoint(parseInt(x, 16))).replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d))
+  .replace(/&#x([0-9a-f]+);/gi, (m, x) => cp(parseInt(x, 16))).replace(/&#(\d+);/g, (m, d) => cp(+d))
   .replace(/&([a-z]+);/gi, (m, n) => ENT[n.toLowerCase()] ?? m);
 function rssTitles(xml, source) {
   return [...String(xml || "").matchAll(/<item\b[\s\S]*?<title[^>]*>([\s\S]*?)<\/title>/g)].slice(0, 60).map(m => ({ title: decode(m[1]), domain: source, language: "English" }));
@@ -39,11 +40,14 @@ function cleanHeadlines(list) {
 // Wikimedia asks every client to name itself and give a way to reach its maker.
 const WIKI_UA = "MDFM-Radio/1.0 (https://github.com/Octoroboto/mdfm; PTLK 108.0 nature show)";
 function createHeadlines({ prefetch = true } = {}) {
-  const cache = new Map(); let lastGdelt = 0, queue = Promise.resolve();
+  const cache = new Map(); let lastGdelt = 0, queue = Promise.resolve(), queued = 0;
+  const wikiCache = new Map(), WIKI_KEEP = 200, WIKI_PER_DAY = 300; let wikiDay = "", wikiCount = 0;   // animal pages: a bounded cache and a daily budget
   // GDELT allows one request every 5 seconds (per IP, so MD Hub and MDFM Radio share it) and answers in 3-10 s.
   // So headlines are fetched in the background (at launch, then every 30 min) one at a time, 6 s apart, and a show
   // always gets the cached list instantly, even an older one. A "please slow down" answer is retried once.
   function gdelt(kind) {
+    if (queued >= 4) return Promise.resolve();   // never a pile-up of slow GDELT jobs (one per kind is all that's useful)
+    queued++;
     const job = queue.then(async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         const wait = lastGdelt + 6000 - Date.now(); if (wait > 0) await new Promise(r => setTimeout(r, wait));
@@ -55,7 +59,7 @@ function createHeadlines({ prefetch = true } = {}) {
         } catch { return; }
       }
     });
-    queue = job.catch(() => {}); return job;
+    queue = job.catch(() => {}).finally(() => { queued--; }); return job;
   }
   // The feeds first (a few seconds, no rate limit), mixed and shuffled; GDELT only if they give fewer than 3.
   async function feeds(kind) {
@@ -65,7 +69,8 @@ function createHeadlines({ prefetch = true } = {}) {
     const v = cleanHeadlines(all); if (v) { cache.set(kind, { at: Date.now(), v }); return true; }
     return false;
   }
-  const refresh = kind => feeds(kind).then(ok => ok || gdelt(kind));
+  const inflight = {};   // one refresh per kind at a time: a show asking again while it runs joins it
+  const refresh = kind => inflight[kind] || (inflight[kind] = feeds(kind).then(ok => ok || gdelt(kind)).finally(() => { delete inflight[kind]; }));
   const refreshAll = () => Object.keys(QUERY).reduce((p, k) => p.then(() => refresh(k)), Promise.resolve());
   if (prefetch) { const t = setTimeout(refreshAll, 3000), i = setInterval(refreshAll, 30 * 60e3); t.unref?.(); i.unref?.(); }
   async function headlines(kind) {
@@ -76,11 +81,15 @@ function createHeadlines({ prefetch = true } = {}) {
   }
   async function wiki(title) {
     title = String(title || ""); if (!WIKI_TITLE.test(title)) return null;
-    const c = cache.get("wiki:" + title); if (c && Date.now() - c.at < 24 * 3600e3) return c.v;
+    const c = wikiCache.get(title); if (c && Date.now() - c.at < 24 * 3600e3) return c.v;
+    const day = new Date().toDateString(); if (day !== wikiDay) { wikiDay = day; wikiCount = 0; }
+    if (wikiCount >= WIKI_PER_DAY) return c ? c.v : null; wikiCount++;
     try {
       const j = await getJSON(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}?redirect=false`, { timeout: 8000, ua: WIKI_UA });
       if (!j || j.type === "disambiguation" || typeof j.extract !== "string" || j.extract.length < 60) return null;
-      const v = { title: String(j.title || title).slice(0, 120), extract: j.extract.slice(0, 2000) }; cache.set("wiki:" + title, { at: Date.now(), v }); return v;
+      const v = { title: String(j.title || title).slice(0, 120), extract: j.extract.slice(0, 2000) };
+      wikiCache.delete(title); wikiCache.set(title, { at: Date.now(), v }); while (wikiCache.size > WIKI_KEEP) wikiCache.delete(wikiCache.keys().next().value);
+      return v;
     } catch { return c ? c.v : null; }
   }
   // kind as the page asks for it: "headlines:business", "headlines:gaming" or "wiki:<Title>"

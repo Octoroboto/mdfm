@@ -2,6 +2,9 @@
 const { getJSON } = require("./net");
 const { parseWeather, parseScoreboard, rankGames, parseAnyGame, OBSCURE, COLLEGE } = require("./live-parse");
 const { nearestMetro } = require("./metros");
+// A coordinate only when it really is a number (isFinite(null) and isFinite("") are true, which read as 0).
+const num = v => (typeof v === "number" || (typeof v === "string" && v.trim() !== "")) && Number.isFinite(+v) ? +v : null;
+const okLL = (la, lo) => la != null && lo != null && Math.abs(la) <= 90 && Math.abs(lo) <= 180 && !(la === 0 && lo === 0);
 const LEAGUES = { nfl: "football/nfl", nba: "basketball/nba", mlb: "baseball/mlb", nhl: "hockey/nhl", mls: "soccer/usa.1", wnba: "basketball/wnba" };
 function createLive(getSettings) {
   let coords = null, where = null, wx = null, wxAt = 0, sp = null, spAt = 0, geoError = null;
@@ -20,9 +23,9 @@ function createLive(getSettings) {
     }
     // No Mac location: a rough one from the network (two services, in case one is down).
     const errs = [];
-    try { const ip = await getJSON("https://ipwho.is/"); if (ip && ip.success !== false && isFinite(ip.latitude)) { where = { lat: +ip.latitude, lon: +ip.longitude, place: ip.city || "your area", state: ip.region || null, source: "network" }; return where; } errs.push("ipwho.is: no answer"); }
+    try { const ip = await getJSON("https://ipwho.is/"), la = num(ip && ip.latitude), lo = num(ip && ip.longitude); if (ip && ip.success !== false && okLL(la, lo)) { where = { lat: la, lon: lo, place: ip.city || "your area", state: ip.region || null, source: "network" }; return where; } errs.push("ipwho.is: no answer"); }
     catch (e) { errs.push("ipwho.is: " + e.message); }
-    try { const g = await getJSON("https://get.geojs.io/v1/ip/geo.json"); if (g && isFinite(+g.latitude)) { where = { lat: +g.latitude, lon: +g.longitude, place: g.city || "your area", state: g.region || null, source: "network" }; return where; } errs.push("geojs: no answer"); }
+    try { const g = await getJSON("https://get.geojs.io/v1/ip/geo.json"), la = num(g && g.latitude), lo = num(g && g.longitude); if (g && okLL(la, lo)) { where = { lat: la, lon: lo, place: g.city || "your area", state: g.region || null, source: "network" }; return where; } errs.push("geojs: no answer"); }
     catch (e) { errs.push("geojs: " + e.message); }
     throw new Error("couldn't find a location (" + errs.join("; ") + ")");
   }
@@ -69,7 +72,10 @@ function createLive(getSettings) {
   }
   return {
     setGeoError(msg) { geoError = String(msg || "unavailable").slice(0, 120); if (where && where.source === "network") status.location = describe(where); },
-    setCoords(c) { if (c && isFinite(c.lat) && isFinite(c.lon)) { coords = { lat: +c.lat, lon: +c.lon }; where = null; wx = sp = null; } },
+    // True when the position really changed. A repeat (within about 2 km) keeps the cached weather and sports.
+    setCoords(c) { const la = num(c && c.lat), lo = num(c && c.lon); if (!okLL(la, lo)) return false;
+      if (coords && Math.abs(coords.lat - la) < .02 && Math.abs(coords.lon - lo) < .02) return false;
+      coords = { lat: la, lon: lo }; where = null; wx = sp = null; return true; },
     reset() { where = null; wx = sp = null; },
     weather, sports, status,
   };

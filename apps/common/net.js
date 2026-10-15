@@ -11,7 +11,16 @@ function gate(url) {
   if (process.env.MDFM_TEST === "1") return;
   throw Object.assign(new Error("Bouncer is not running, so the app is not allowed to send requests."), { code: "BOUNCED" });
 }
-async function getJSON(url, { timeout = 8000, text = false, token = null, ua = "MDFM-Radio" } = {}) {
+// Reads a body up to maxBytes, so a huge answer is refused before it fills memory (checked again as it streams).
+async function readCapped(r, maxBytes, host) {
+  const big = () => new Error(`${host} answer is unexpectedly large`);
+  if (+r.headers.get("content-length") > maxBytes) { try { await r.body?.cancel(); } catch {} throw big(); }
+  const parts = []; let got = 0;
+  if (r.body) for await (const c of r.body) { got += c.length; if (got > maxBytes) throw big(); parts.push(c); }
+  return new TextDecoder().decode(Buffer.concat(parts));
+}
+// maxBytes: 2 MB by default; the content and look updates (radio.html, skins.json) pass 20 MB.
+async function getJSON(url, { timeout = 8000, text = false, token = null, ua = "MDFM-Radio", maxBytes = 2 * 1024 * 1024 } = {}) {
   const u = new URL(url);
   if (u.protocol !== "https:" || !ALLOWED.has(u.hostname)) throw new Error("blocked host: " + u.hostname);
   gate(u);
@@ -19,7 +28,8 @@ async function getJSON(url, { timeout = 8000, text = false, token = null, ua = "
   try {
     const r = await fetch(u, { signal: ac.signal, redirect: "error", headers: { "user-agent": ua, accept: text ? "*/*" : "application/json", ...(token ? { authorization: "Bearer " + token } : {}) } });
     if (!r.ok) throw new Error(`${u.hostname} ${r.status}`);
-    return text ? await r.text() : await r.json();
+    const body = await readCapped(r, maxBytes, u.hostname);
+    return text ? body : JSON.parse(body);
   } finally { clearTimeout(t); }
 }
 // The one POST the app makes: asking OSV (Google's open vulnerability database) about the app's own package versions.
@@ -37,10 +47,10 @@ async function postJSON(url, body, { timeout = 10000 } = {}) {
 }
 // One hop of a file download (app updates, common/app-download.js): https, only the given hosts, through Bouncer.
 // Redirects come back to the caller, which checks the next host before following.
-async function fetchHop(url, { hosts, userAgent = "MDFM-Radio" } = {}) {
+async function fetchHop(url, { hosts, userAgent = "MDFM-Radio", signal } = {}) {
   const u = new URL(url);
   if (u.protocol !== "https:" || !(hosts || ALLOWED).has(u.hostname)) throw new Error("blocked host: " + u.hostname);
   gate(u);
-  return fetch(u, { redirect: "manual", headers: { "user-agent": userAgent, accept: "application/octet-stream" } });
+  return fetch(u, { redirect: "manual", signal, headers: { "user-agent": userAgent, accept: "application/octet-stream" } });
 }
 module.exports = { getJSON, postJSON, ALLOWED, useBouncer, fetchHop };

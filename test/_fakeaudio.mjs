@@ -24,10 +24,14 @@ class Src extends Node {
 }
 export class FakeAudioContext {
   constructor({ sampleRate = 48000 } = {}) { this.sampleRate = sampleRate; this.currentTime = 0; this.state = "running"; this.nodes = 0; this.disconnects = 0; this.sources = []; this.destination = new Node(this); }
-  resume() { this.state = "running"; return Promise.resolve(); }
+  resume() { this.state = "running"; this.resumes = (this.resumes || 0) + 1; return Promise.resolve(); }
+  addEventListener(type, f) { ((this._ls ||= {})[type] ||= []).push(f); }
+  _emit(type) { for (const f of (this._ls && this._ls[type]) || []) f({ type }); }   // tests: the OS changes the context's state
   suspend() { this.state = "suspended"; return Promise.resolve(); }
   createGain() { return new Node(this, { gain: 1 }); }
-  createOscillator() { const o = new Src(this, { frequency: 440, detune: 0 }); o.type = "sine"; return o; }
+  createOscillator() { const o = new Src(this, { frequency: 440, detune: 0 }); o.type = "sine"; o.setPeriodicWave = w => { if (!w || !w.periodic) throw new TypeError("setPeriodicWave: not a PeriodicWave"); o.type = "custom"; }; return o; }
+  createPeriodicWave(re, im) { if (!(re instanceof Float32Array) || !(im instanceof Float32Array) || re.length !== im.length || re.length < 2) throw new TypeError("createPeriodicWave: bad coefficients"); return { periodic: true, n: re.length }; }
+  createConstantSource() { return new Src(this, { offset: 1 }); }
   createBufferSource() { const s = new Src(this, { playbackRate: 1 }); s.buffer = null; s.loop = false; this.sources.push(s); return s; }
   createBiquadFilter() { const b = new Node(this, { frequency: 350, Q: 1, gain: 0 }); b.type = "lowpass"; return b; }
   createStereoPanner() { return new Node(this, { pan: 0 }); }

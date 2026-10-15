@@ -48,7 +48,10 @@ Settings → **ACCESSIBILITY** (or Cmd+Option+A anywhere) slides out the AXMOD d
 - **Futureproofer** (`kit/futureproofer`, `src/main/futureproof.js`), in the background: checks the app, MDFM
   content, Electron, Bouncer's engine, known security problems (OSV), this Mac and the build. Results are in
   Settings → Keeping things current, including a "Receiver look" line. Nothing is ever forced: new content and looks
-  show from the next launch, and a new app version is offered as a download.
+  show from the next launch, and a new app version is offered as a download (full releases only, never pre-releases).
+  The newest 2 downloaded content and look versions are kept (plus the bundled copy); older ones are deleted.
+- **The page's calls**: only the radio window's own page can use the app's bridge (live data, voices, settings, Slack,
+  updates). Voices: at most 2 `say` runs at a time, a short queue, and a size-capped cache.
 - **Build**: Electron fuses (no RunAsNode, NODE_OPTIONS or inspect; app only from app.asar, integrity checked) and an
   ad-hoc signature (`scripts/adhoc-sign.js`). With an Apple Developer ID this becomes real signing + notarization,
   and the Open Anyway step goes away.

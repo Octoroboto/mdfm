@@ -11,10 +11,6 @@ header.top .lcd.viz{min-height:110px}
 .strow{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-start}
 .strow .rdeck{margin-left:0}
 .lcd.status{flex:1 1 280px;min-width:0;font:1.05rem/1.35 var(--f-mono);padding:10px 12px}
-.settings summary{cursor:pointer;font-weight:700;color:var(--label,#cfd2de);text-shadow:var(--engrave)}
-.setgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 18px;margin-top:10px}
-.setgrid .opt{display:flex;gap:8px;align-items:center;color:var(--label,#e6e6ee)}
-.setgrid .fld{display:flex;flex-direction:column;gap:4px;color:var(--label,#cfd2de);font-size:.9rem}
 #skipBtn,#spotBtn{font-size:.85rem;padding-inline:clamp(10px,1.2vw,16px)}
 .savebtn{width:34px;min-width:34px;height:34px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
 .savebtn svg{width:19px;height:19px;display:block;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
@@ -31,7 +27,7 @@ html.appwin,html.appwin body{background:transparent!important}
 html.appwin body{padding:10px 74px 14px 10px;min-height:100vh;box-sizing:border-box}
 html.appwin .wrap{border-radius:14px;padding:14px;background:linear-gradient(180deg,#30323d,#17181e);border:2px solid;border-color:#6a6d80 #050507 #050507 #6a6d80;
   box-shadow:0 18px 40px rgba(0,0,0,.55),0 4px 10px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);-webkit-app-region:no-drag}
-html.appwin .wrap :is(button,input,select,textarea,label,a,summary,[role=slider],[tabindex],.rd-btn,.rd-k,.vu-m,.settings[open] .setgrid){-webkit-app-region:no-drag}
+html.appwin .wrap :is(button,input,select,textarea,label,a,summary,[role=slider],[tabindex],.rd-btn,.rd-k,.mx-k,.mx-ft,.vu-m,.settings[open] .setlist,.mixdrawer){-webkit-app-region:no-drag}
 /* No CSS drag regions, in any skin: macOS swallows scrolling (and sometimes the mouse-up) over them. The receiver is
    dragged by its metal in skin/radio-wire.js instead. */
 html.appwin header.top .wtitle,html.appwin .lcd{-webkit-app-region:no-drag}
@@ -70,72 +66,67 @@ html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;
 .stbtns[hidden]{display:none}
 .stbtn{width:34px;min-width:34px;height:34px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
 .stbtn svg{width:16px;height:16px;display:block;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
-/* TUNE: the sound-tuning pop-out */
-header.top .deck{position:relative}
-.tunepop[hidden]{display:none!important}
-.tunepop{position:absolute;right:12px;top:calc(100% - 10px);z-index:70;width:min(840px,calc(100% - 24px));padding:14px;display:flex;flex-direction:column;gap:12px;border-left-width:2px}
-.tunepop .wtitle{margin:-14px -14px 2px}
-.tunerow{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
-.tunefld{display:flex;flex-direction:column;gap:4px;font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--caption,#cfd2de)}
-.tunefld select{min-width:170px;font:600 .85rem/1.2 var(--f-body,Tahoma,sans-serif);letter-spacing:0;text-transform:none;padding:6px 8px}
-.tunebtns{display:flex;gap:14px;margin-left:auto}
-.tunepop small,.tuneknobs small{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;color:var(--caption);text-shadow:0 1px 0 rgba(0,0,0,.65);text-align:center}
-.tuneknobs{display:flex;flex-wrap:wrap;gap:12px 10px;justify-content:space-between}
-.tuneknobs .rd-k{width:76px}
-.tuneknobs .rd-mm{width:64px}
-.tuneknobs .rd-knob{--kc:var(--knob-pointer,#ffb347)}
-.tuneknobs .rd-k.moved .rd-knob{--kc:#7fe22a}
-.tunehint{margin:0;font-size:.78rem;color:var(--hint,#b9bdc9)}
-.tunemix{border-top:1px solid rgba(0,0,0,.45);box-shadow:0 -1px 0 rgba(255,255,255,.08);padding-top:10px}
-.tunemixhd{display:flex;align-items:center;gap:10px}
-.tunemixt{font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.2em;color:var(--caption,#cfd2de);text-shadow:0 1px 0 rgba(0,0,0,.65)}
-.tunemixst{font:600 .74rem/1.2 var(--f-body,Tahoma,sans-serif);color:var(--hint,#b9bdc9);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tunemix{display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);grid-template-areas:"hd hd" "radar hint";gap:6px 18px;align-items:center}
-.tunemix>.tunemixhd{grid-area:hd}.tunemix .tuneradarbox{grid-area:radar}.tunemix .tunehint{grid-area:hint}
-.tunemix:has(.tunegrv){grid-template-columns:minmax(0,1fr) minmax(260px,310px);grid-template-areas:"hd grv" "radar grv" "hint grv";align-items:start}
-.tunemix .tunegrv{grid-area:grv;display:flex;flex-direction:column;gap:8px;padding-left:16px;border-left:1px solid rgba(0,0,0,.45);box-shadow:-1px 0 0 rgba(255,255,255,.08)}
-@media (max-width:640px){.tunemix,.tunemix:has(.tunegrv){grid-template-columns:minmax(0,1fr);grid-template-areas:"hd" "radar" "grv" "hint"}.tunemix .tunegrv{padding:10px 0 0;border-left:0;box-shadow:none;border-top:1px solid rgba(0,0,0,.45)}}
-.tunegrv .tg-sec{display:flex;flex-direction:column;gap:5px}
-.tunegrv .tg-sub{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.2em;color:var(--caption,#cfd2de);opacity:.8;margin-top:2px}
-:is(.tunegrv,.tunefx) .tg-row{display:grid;grid-template-columns:62px minmax(0,1fr) 74px;align-items:center;gap:8px;min-height:24px}
-.tunegrv .tg-key .tg-row,.tunegrv .tg-row:has(select){grid-template-columns:62px minmax(0,1fr)}
-:is(.tunegrv,.tunefx) .tg-l{font:700 .56rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;color:var(--caption,#cfd2de);text-shadow:0 1px 0 rgba(0,0,0,.65);white-space:nowrap}
-:is(.tunegrv,.tunefx) .tg-row.moved .tg-l{color:#7fe22a}
-.tunegrv .tg-row.na{opacity:.4}
-:is(.tunegrv,.tunefx) input[type=range]{width:100%;min-width:0;margin:0;accent-color:var(--knob-pointer,#ffb347);cursor:pointer;height:18px}
-:is(.tunegrv,.tunefx) .tg-row.moved input[type=range]{accent-color:#7fe22a}
-.tunegrv select{min-width:0;width:100%;font:600 .8rem/1.2 var(--f-body,Tahoma,sans-serif);padding:3px 6px}
-:is(.tunegrv,.tunefx) .tg-v{font:400 15px/1 var(--f-mono,"VT323",monospace);color:var(--lcd,#00e000);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.45);border-radius:3px;padding:2px 4px}
-.tunegrv .tg-hd .rd-btn{margin-left:auto}
-.tunegrv .tg-row.tg-hasong{grid-template-columns:62px minmax(0,1fr) 58px 44px;gap:6px}
-.tunegrv .tg-song{font:700 .52rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.1em;padding:5px 0;border-radius:4px;border:1px solid rgba(0,0,0,.6);background:linear-gradient(#4a4d5a,#25262e);color:var(--caption,#cfd2de);cursor:pointer;text-shadow:0 1px 0 rgba(0,0,0,.6)}
-.tunegrv .tg-song[aria-pressed=true]{background:linear-gradient(#2f4a1c,#1b2b10);color:#7fe22a;box-shadow:0 0 6px rgba(127,226,42,.45)}
-.tunegrv .tg-song:focus-visible{outline:2px solid var(--gold,#e2c86b);outline-offset:1px}
-.tunegrv .tg-row.song input[type=range]{opacity:.45}
-.tunefx{border-top:1px solid rgba(0,0,0,.45);box-shadow:0 -1px 0 rgba(255,255,255,.08);padding-top:10px;display:flex;flex-direction:column;gap:8px}
-.tfx-btns{display:flex;gap:12px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
-.tfx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:5px 18px}
-.tunefx .tg-row{grid-template-columns:66px minmax(0,1fr) 70px}
-.tunefx .rd-btn.busy button{box-shadow:0 0 0 2px var(--btn-bezel,#111),0 0 10px #7fe22a}
-@media (max-width:640px){.tunefx .tunemixhd{flex-wrap:wrap}.tfx-btns{margin-left:0;width:100%;justify-content:flex-start}}
 /* PTRN 101.1's genre switches, in families */
 .ptrnfam{display:grid;gap:4px}
 .ptrnfamhd{display:flex;align-items:center;gap:8px;font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--caption,#cfd2de);margin-top:4px}
 .ptrnfamhd .btn{min-height:24px;padding:2px 10px;font-size:.74rem;letter-spacing:0;text-transform:none}
 .ptrnfamhd .btn:first-of-type{margin-left:auto}
-.tuneradarbox{width:100%;max-width:440px;justify-self:center}
-.tradar{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair;overflow:visible}
-.tradar .tr-ring{fill:none;stroke:rgba(226,229,238,.18);stroke-width:1}
-.tradar .tr-ring.out{stroke:rgba(226,229,238,.45);fill:rgba(0,0,0,.28)}
-.tradar .tr-ax{stroke:rgba(226,229,238,.22);stroke-width:1}
-.tradar .tr-shape{fill:color-mix(in srgb,var(--knob-pointer,#ffb347) 30%,transparent);stroke:var(--knob-pointer,#ffb347);stroke-width:1.6;stroke-linejoin:round;transition:points .08s}
-.tradar.moved .tr-shape{fill:rgba(127,226,42,.3);stroke:#7fe22a}
-.tradar .tr-song{fill:var(--lcd,#00e000);stroke:#000;stroke-width:1}
-.tradar .tr-h{fill:#cfd3de;stroke:#000;stroke-width:1.2;cursor:grab;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
-.tradar .tr-h.moved{fill:#7fe22a}.tradar .tr-h.chaos.moved{fill:#ff5f56}
-.tradar .tr-h:focus-visible{outline:none;stroke:var(--gold,#e2c86b);stroke-width:3}
-.tradar .tr-lab{font:700 9px/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;fill:var(--caption,#cfd2de);paint-order:stroke;stroke:rgba(0,0,0,.55);stroke-width:2px}
-.tradar .tr-lab.chaos{fill:#ff8a80}
-.tradar .tr-val{font:400 14px/1 var(--f-mono,"VT323",monospace);letter-spacing:0;fill:var(--lcd,#00e000);stroke:none}
+/* The page never scrolls sideways (a skin's spray can may hang past the edge; it is clipped, not scrolled to). */
+body{overflow-x:clip}
+/* MIX (1.25): the mixing drawer lives in header.top .deck and grows it; its own rules ship in MDFM (src/tune.js, MIX_CSS). */
+header.top .deck{position:relative}
 .tunesw input:checked{box-shadow:0 0 0 2px var(--btn-bezel),0 0 0 3px var(--btn-rim),0 0 8px #7fe22a}
-@media (max-width:560px){.tunepop{position:fixed;left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:80vh;overflow:auto}}
+/* Touch targets: the 24 px switches and round buttons keep their look; their hit areas grow to 44 px. */
+label.vizsw{min-width:44px;min-height:44px;justify-content:center}
+.rd-btn>button{position:relative}
+.rd-btn>button::after{content:"";position:absolute;inset:-10px}
+@media (pointer:coarse){.rd-btn>button::after{inset:-12px}}
+.btnrow .btn,.savebtn,.stbtn{min-height:34px}
+@media (pointer:coarse){.savebtn,.stbtn{width:44px;min-width:44px;height:44px}.btnrow .btn{min-height:44px}}
+/* STATION console: VU pair, status, LET IT RIDE, VOLUME. Cosmetics (lights, METER, DISPLAY, skin) are in Looks. */
+.strow .vu{flex:0 1 auto}
+.strow .lcd.status{flex:1 1 200px}
+.strow .fxbtns{align-self:center}
+.strow .mixer{margin-left:auto;align-self:center}
+.stdrawers{display:flex;flex-direction:column;gap:8px}
+.stdrawers>details>summary{min-height:44px;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:var(--label,#cfd2de);text-shadow:var(--engrave);list-style-position:inside}
+.stdrawers>details>summary::-webkit-details-marker{display:none}
+.stdrawers>details>summary{width:max-content;max-width:100%;padding-right:8px}
+/* Skins with art in the bottom of the Station panel (a .sx-layer there: Mouth Jamboree, Clara): keep a floor under the console */
+.station:has(>.sx-layer) .stdrawers{min-height:clamp(96px,(100vw - 1000px) * .36 + 34px,180px)}
+.station:has(>.sx-layer) .stdrawers:has(>details[open]){min-height:0;padding-bottom:clamp(0px,(100vw - 1000px) * .36 + 16px,160px)}
+.stdrawers>details>summary::before{content:"▸";font-size:.8em}
+.stdrawers>details[open]>summary::before{content:"▾"}
+.looksgrid{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;margin:6px 0 4px}
+.looksgrid .fld{display:flex;flex-direction:column;gap:4px;color:var(--label,#cfd2de);font-size:.9rem;max-width:320px}
+.looksgrid .fld select{min-height:44px}
+.looksgrid .hint{font-size:.8rem;color:var(--hint,#b9bdc9)}
+.looksbtns{display:flex;align-items:center;gap:22px;margin:0}
+.looksgrid .rdeck{margin:0}
+/* Settings: one column of sections, General first, then the stations by frequency, then the rest. */
+.setlist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.setsec{border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:0 12px;color:var(--label,#e6e6ee)}
+.setsec[open]{padding-bottom:12px}
+.setsec>summary{min-height:44px;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:var(--label,#cfd2de);text-shadow:var(--engrave)}
+.setsec>summary::-webkit-details-marker{display:none}
+.setsec>summary::before{content:"▸";font-size:.8em}
+.setsec[open]>summary::before{content:"▾"}
+.setsec>summary small{font-weight:400;color:var(--hint,#b9bdc9)}
+.setsec .freq{font:400 1.25rem/1 var(--f-mono,"VT323",monospace);color:var(--lcd,#00e000);min-width:3.2em}
+.setcount{font-weight:400;font-size:.8rem;color:var(--hint,#b9bdc9)}
+.onair{display:none;margin-left:auto;font:700 .55rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.14em;padding:4px 6px;border-radius:3px;background:rgba(0,0,0,.4);color:#ff5f56;box-shadow:0 0 6px rgba(255,95,86,.35)}
+.setsec.live .onair{display:inline-block}
+.setsec:has(>fieldset[hidden]),.setsec[hidden]{display:none}
+.setsec>.slackset{border:0;padding:0;margin:0}
+.setsec legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.setsec .opt{display:flex;gap:8px;align-items:center;color:var(--label,#e6e6ee);min-height:32px}
+.setsec .fld{display:flex;flex-direction:column;gap:4px;color:var(--label,#cfd2de);font-size:.9rem;margin-top:6px}
+.setsec>[data-axmod]{margin-bottom:6px}
+.setsec .apponly.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+@media (pointer:coarse){.setsec .opt{min-height:44px}}
+/* MDFM 99.9: "Songs in 3/4…" is music, so it sits apart, first, under its own heading */
+#typeList .tsub{grid-column:1/-1;font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--caption,#cfd2de);margin:8px 0 2px}
+#typeList .tsub:first-child{margin-top:0}
+#typeList label:has([data-type=meters]){grid-column:1/-1;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.12)}
+/* Phones: the console stacks; volume and LET IT RIDE share a row */
+@media (max-width:560px){.strow{gap:12px}.strow .vu,.strow .lcd.status{flex:1 1 100%}.strow .fxbtns{margin-left:12px}.strow .mixer{transform-origin:right center}}

@@ -37,11 +37,17 @@ Settings → **Accessibility** (or Cmd+Option+A anywhere) slides out the AXMOD d
 
 - **Bouncer, the app's own requests (enforced):** the app may only read weather, location, scoreboards, Slack news (read-only), this repo's releases, and the receiver look and skins (rules v2). Everything else is blocked. Rules are in `src/main/bouncer/policy.cedar`.
 - **Bouncer, the hub page (observe):** claude.ai is watched, and anything unusual is logged. Nothing is blocked, because blocking a site's own calls can break it. Rules are in `view-policy.cedar`. Switch it to enforce once the log has been quiet for a while.
-- Only the hub artifact's own frame gets the radio bridge, and the app re-checks every call.
+- **Radio bridge scope:** only the hub artifact's own frame gets the radio bridge (`window.mdfmApp`: live data, voices, settings), and the app re-checks every call. Rules (`src/main/bridge-scope.js`):
+  - the frame must be the artifact's sandbox frame on `*.claudeusercontent.com` (never the top page), with only claude.ai or claudeusercontent.com frames between it and the top;
+  - the top page must be a claude.ai artifact whose id is allowed: the hub artifact (`V9DKVsKPguVWjCGFacb5iM`), the id in the `hubUrl` setting, and any ids in an optional `"bridgeArtifacts": ["…"]` list in the app's `settings.json`;
+  - another claude.ai artifact (a chat's artifact, someone else's shared or published one) opened inside MD Hub gets no bridge, so its radio uses canned lines;
+  - safety valve: if claude.ai changes its addresses so the top page isn't recognisable as an artifact address at all, the frame is allowed and the app logs a warning once (`npm start` shows it with the hub's frame addresses). Pin it down once that's been checked.
+- **Location and notifications** are only given to the hub artifact's page (claude.ai and claudeusercontent.com, in the hub view). Other sites, frames from elsewhere and login pop-ups don't get them.
+- **Login pop-ups** stay on Google, Apple and Claude sign-in; anything else opens in your browser, and a pop-up can't open more windows.
 
 ## Updates
 
-Futureproofer runs in the foreground. When a newer MD Hub is out, it asks: **Download**, **Later** or **Skip this version**. Updates are never forced.
+Futureproofer runs in the foreground. When a newer MD Hub is out, it asks: **Download**, **Later** or **Skip this version**. Updates are never forced. Only full releases are offered (a GitHub pre-release isn't), and a download that stalls for a minute stops so it can be tried again.
 
 ## For the builder (Rob)
 
