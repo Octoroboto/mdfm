@@ -24,7 +24,7 @@
     "@cedar-policy/cedar-wasm": "4.13.0"
   },
   "devDependencies": {
-    "electron": "44.5.1",
+    "electron": "44.7.0",
     "electron-builder": "26.15.3",
     "@electron/fuses": "2.1.3"
   },
