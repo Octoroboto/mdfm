@@ -124,6 +124,17 @@ The MIX drawer (`mountMix`, alias `mountTune`, in `src/tune.js`) opens under the
 - **Groove & Key:** `setGroove`, `grooveKeyInfo()` for ranges and defaults, including the drum controls: push/pull, ghosts, accent, hat swing, hat density, kick/snare/hat level.
 - **FX:** `setFx`, including `glitch`.
 
+**LITE (1.26, phones and tablets):** the LITE button next to ORIGINAL cycles AUTO / ON / OFF. It's saved in `mdfmMixUI.lite`, and AUTO means touch devices. While MIX is open in LITE:
+- the page gets `html.mx-lite` and `window.MDFM_lite` (the receiver's meters drop to 20 fps);
+- the engine gets `setLite(true)`: notes are scheduled 0.5 s ahead and the matrix saturators skip oversampling;
+- MDFM's talk breaks are held with `setSpots(false)` and given back on close.
+
+**VOID (1.27):** its own button. It's saved in `mdfmMixUI.void` and active while MIX is open. It sets `html.mx-void`, turns off the skin's theme stylesheet (`#meddev-skin-theme`, restored afterwards) and fires `mdfm:void`. The CSS removes background images, shadows, glows, filters, blend modes and animations, hides the decorations and paints flat blocks.
+
+**PERF (1.27):** a fixed readout fed by `radio.perfStats(true)` twice a second and by `requestAnimationFrame` for frame timing.
+
+While any MIX control is being dragged, its engine call, repaint and save are coalesced to one per frame and the saves are written when the drag ends.
+
 `setMixBypass(true)` is ORIGINAL. Every control at its default is the station as written. The sections below describe the engine's sound stage (older notes; the names TUNE and CHAOS are from before 1.25).
 
 ## Sound tuning (TUNE)

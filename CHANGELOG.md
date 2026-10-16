@@ -2,6 +2,34 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.27.0 (2026-10-16, Rob)
+- **VOID** (a button in MIX, next to LITE): while MIX is open, the radio drops its skin and every texture, glass, glow, shadow, filter and decoration, and draws flat dark-grey blocks with crisp lit edges. The layout and controls stay the same. On an iPhone 13, turning knobs went from about 2 fps to 50–60 fps. Tap it again to get the skin back; the choice is remembered.
+- **PERF** (a button in MIX): a small on-screen readout of frame rate, the longest freeze, whether notes arrive on time (skipped or near misses), the time to spare, and the audio state. Touches pass through it. It stays up until you close it.
+- **Lighter audio:**
+  - A reverb turned all the way down (REALISM, ROOM, REVERB, the matrix hall) stops getting signal once its tail has rung out, so the browser can skip it, and it's reconnected the moment it's turned up. A send faded to zero never quite reached zero, so those reverbs kept running.
+  - LITE runs every saturator (the master safety clipper, warmth, drive, the phone line and the matrix's two) without oversampling. A Save always renders at full quality.
+  - LITE leaves out the copy that is 20 dB or more under the other at the edges of a style blend (the louder one takes its power). About 28% fewer oscillators there; the middle of a blend is unchanged, because both copies are audible.
+  Off LITE (the Mac), the sound is unchanged: a seeded render matches 1.26 to the render floor.
+- **Engine:** `perfStats(reset)` (scheduler health: steps, late, tight, minLead, ahead and audio details), and `_cullTest` (tests and the bench only).
+
+## 1.26.0 (2026-10-16, Rob)
+- **MIX on phones and tablets (LITE).** A LITE button sits next to ORIGINAL (AUTO / ON / OFF; AUTO is on for iPhone, iPad, Android and touch-first screens). While MIX is open in LITE:
+  - decorations pause, the scratched glass and text glow are off, and the meters run at 20 fps;
+  - the EQ graph leaves out its live spectrum;
+  - the music is scheduled 0.5 s ahead instead of 0.25 s, so a busy screen doesn't make it skip;
+  - the matrix's two saturators skip oversampling;
+  - MDFM's talk breaks wait until MIX closes.
+  Off LITE (the Mac), the sound is unchanged: a seeded render matches 1.25 to the render floor (about −84 dB).
+- **Dragging is lighter everywhere.** While a finger, pen or mouse drags a MIX control:
+  - the engine update, the repaint and the save run once per frame, not once per move;
+  - settings are written when you let go (they were written to storage on every move);
+  - the STYLE panel is painted once per change instead of twice;
+  - the pad, the EQ graph and the faders measure themselves once per drag, the pad's rings are redrawn only when AMOUNT changes, and the hidden view (faders while on PAD) isn't repainted;
+  - measured on a throttled iPad-sized page, the pad went from 42 to 57 fps and its longest freeze from 125 ms to 51 ms.
+- **The matrix hall** builds its impulse response once per audio context, in small idle slices when MIX opens. Raising SPACE or HALL no longer stalls the page.
+- **Engine:** `setLite(v)` / `isLite()`, `getSpots()` and `prewarmMix()`.
+- **MedDev Receiver 1.13.4:** the 1.25 meter patch is now in the receiver itself, so the Mac apps get it too, plus `window.MDFM_lite`. `vendor/meddev-receiver` and `apps/common/receiver.js` are synced.
+
 ## 1.25.0 (2026-10-15, Rob)
 - **TUNE is now MIX, and it opens in place.** MIX expands under the main panel and pushes the page down; nothing floats over the radio. It has four sections:
   - **Sound:** a six-band parametric EQ (low cut, low shelf, two mids, high shelf, high cut) with a curve you drag, plus the tone knobs, room and presets. The quick LOW/MID/HIGH knobs moved here from the station panel.

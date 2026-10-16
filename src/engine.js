@@ -25,12 +25,26 @@ function nz(t,dur){const s=ctx.createBufferSource();s.buffer=noiseBuf;s.loop=tru
 function pan(p){if(!ctx.createStereoPanner)return G(1);const n=ctx.createStereoPanner();n.pan.value=p;return n;}
 function to(node,s,amt){if(amt>0){ const m=s._to||(s._to=new Map()); let g=m.get(amt); if(!g||g.context!==ctx){ g=G(amt); g.connect(s.rv); m.set(amt,g); } node.connect(g); }}   // 1.25: one send per bus and amount (the sum of the sends is the same)
 function makeIR(c,sec,decay){const len=Math.floor(c.sampleRate*sec),b=c.createBuffer(2,len,c.sampleRate);for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<len;i++){const tt=i/c.sampleRate;d[i]=(R()*2-1)*Math.exp(-tt*decay)*(tt<.01?tt/.01:1)*(1-i/len);}}return b;}
+// 1.27: an effect turned all the way down stops getting signal once its tail has rung out, so the browser can skip the
+// reverb's work (a send faded to zero only approaches zero, so it was never "silent" and the convolver kept running).
+// Turned back up, it's reconnected before the send rises. Live only: a Save renders exactly as before.
+const GATES=new WeakMap();
+function isOff(c){ return typeof OfflineAudioContext!=="undefined"&&c instanceof OfflineAudioContext; }
+// 1.26/1.27 LITE (MIX open on a phone or tablet): every saturator on the live context runs without oversampling; a Save
+// (offline render) always gets the full-quality setting. osv() records each one's full setting so LITE off restores it.
+let LITE=false; const SH_LIVE=new Set();
+const WR=typeof WeakRef==="function"?x=>new WeakRef(x):x=>({deref:()=>x});   // weak, so a caller line's saturator can go when the call ends
+function osv(sh,full){ sh._os=full; sh.oversample=LITE&&!isOff(ctx)?"none":full; if(!isOff(ctx)){ if(SH_LIVE.size>150) for(const r of SH_LIVE){ const x=r.deref(); if(!x||x.context!==ctx) SH_LIVE.delete(r); } SH_LIVE.add(WR(sh)); } return sh; }
+function gate(a,b,on,tail){ if(!a||!b||isOff(ctx)) return;
+  let g=GATES.get(b); if(!g){ g={on:true,t:0}; GATES.set(b,g); } clearTimeout(g.t); g.t=0;
+  if(on){ if(!g.on){ try{ a.connect(b); }catch(e){} g.on=true; } return; }
+  if(g.on){ const c=ctx; g.t=setTimeout(()=>{ g.t=0; if(ctx===c&&g.on){ try{ a.disconnect(b); }catch(e){} g.on=false; } },tail*1000); } }
 // 1.25 (E2): an impulse response with a little silence in front (pre-delay), so the dry note speaks before the room
 function preIR(b,sec){ const n=Math.floor(b.sampleRate*sec), o=ctx.createBuffer(b.numberOfChannels,b.length+n,b.sampleRate); for(let c=0;c<b.numberOfChannels;c++) o.getChannelData(c).set(b.getChannelData(c),n); return o; }
 // the safety after the limiter: straight up to -2 dBFS, then a tanh knee into a -0.3 dBFS ceiling (the curve spans +-2, so overs fold in too)
 const MIX_GAIN=1.22;   // was 1.3: the master now loses about 1.5 dB less to the compressor and the low shelf; levels re-measured per station (within 1 dB of 1.24 on average)
 function softClip(){ const N=8193, c=new Float32Array(N), top=Math.pow(10,-.3/20), k0=.8; for(let i=0;i<N;i++){ const a=(i/(N-1)*2-1)*2, x=Math.abs(a); c[i]=Math.sign(a)*(x<=k0?x:k0+(top-k0)*Math.tanh((x-k0)/(top-k0))); }
-  const pre=G(.5), sh=ctx.createWaveShaper(); sh.curve=c; sh.oversample="4x"; pre.connect(sh); return {in:pre,out:sh}; }
+  const pre=G(.5), sh=ctx.createWaveShaper(); sh.curve=c; osv(sh,"4x"); pre.connect(sh); return {in:pre,out:sh}; }
 /* ---------- TUNE: the sound-tuning stage (realism, soundstage, clarity, warmth, room, trunk rattle, radio grain) ----------
    Sits between the station mix (music, voices, WYBC) and the volume. Every control at its default is a straight wire,
    so MDFM sounds exactly as it always has until someone turns something. Ideas from Collin: rich, enveloping, warm;
@@ -66,7 +80,7 @@ function buildStage(){
   S.warmLo=shelf("lowshelf",160); S.warmHi=shelf("highshelf",8000); S.grainHi=shelf("highshelf",6500); S.grainLo=shelf("lowshelf",150);
   S.in.connect(S.lowCut).connect(S.cabin).connect(S.mud).connect(S.pres).connect(S.air).connect(S.warmLo).connect(S.warmHi).connect(S.grainHi).connect(S.grainLo);
   // warmth: a little parallel saturation (tape/console), level-matched
-  S.satDry=G(1); S.satWet=G(0); const sh=ctx.createWaveShaper(); sh.curve=shaper(2.4); sh.oversample="2x"; S.grainLo.connect(S.satDry); S.grainLo.connect(sh); sh.connect(S.satWet);
+  S.satDry=G(1); S.satWet=G(0); const sh=ctx.createWaveShaper(); sh.curve=shaper(2.4); osv(sh,"2x"); S.grainLo.connect(S.satDry); S.grainLo.connect(sh); sh.connect(S.satWet);
   S.flut=G(1); S.satDry.connect(S.flut); S.satWet.connect(S.flut);
   S.fl=osc("sine",.6); S.flDepth=G(0); S.fl.connect(S.flDepth).connect(S.flut.gain); S.fl.start();   // radio flutter (multipath wobble)
   // soundstage: mid/side width (1 = untouched, 0 = mono, 2 = wide)
@@ -103,6 +117,7 @@ function applySound(now){
   const wet=Math.min(.6,.4*w+.12*r); set(S.satWet.gain,wet*.55); set(S.satDry.gain,1-wet*.3); set(S.flDepth.gain,.035*g);
   set(S.ll.gain,(1+k)/2); set(S.rr.gain,(1+k)/2); set(S.lr.gain,(1-k)/2); set(S.rl.gain,(1-k)/2);
   set(S.realSend.gain,.16*r); const R=ROOMS[sound.roomType]||ROOMS.studio; set(S.roomSend.gain,a*R.send);
+  gate(S.realSend,S.realConv,r>0,1.5); gate(S.roomSend,S.roomConv,a>0,4);   // 1.27
   if(S.roomType!==sound.roomType){ S.roomType=sound.roomType; S.roomConv.buffer=roomIR(ctx,sound.roomType); }
   set(S.rattle.gain,.4*sound.rattle); S.gate.curve=S.gateCurve(.16-.1*sound.rattle);
   set(S.hiss.gain,.0075*g); if(!(typeof OfflineAudioContext!=="undefined"&&ctx instanceof OfflineAudioContext)) crackleOn(g>0);
@@ -137,7 +152,7 @@ function fxBuild(){   // one effects stage per AudioContext
   // the DJ filter: a low-pass and a high-pass, crossfaded in only as far as it's turned
   const fl=ins("filter",0); F.lp=filt("lowpass",20000,1); F.hp=filt("highpass",10,1); fl.in.connect(F.lp).connect(F.hp).connect(fl.wet);
   // drive: tanh into a gentle low-pass, level-matched
-  const dv=ins("drive",0); F.dpre=G(1); const dsh=ctx.createWaveShaper(); dsh.curve=shaper(1.2); dsh.oversample="2x"; F.dpost=G(1); dv.in.connect(F.dpre).connect(dsh).connect(filt("lowpass",7000,.6)).connect(F.dpost).connect(dv.wet);
+  const dv=ins("drive",0); F.dpre=G(1); const dsh=ctx.createWaveShaper(); dsh.curve=shaper(1.2); osv(dsh,"2x"); F.dpost=G(1); dv.in.connect(F.dpre).connect(dsh).connect(filt("lowpass",7000,.6)).connect(F.dpost).connect(dv.wet);
   // bitcrush: a staircase (the number of bits follows the slider)
   const cr=ins("crush",0); F.crsh=ctx.createWaveShaper(); F.bits=0; cr.in.connect(F.crsh).connect(cr.wet);
   // phaser: six all-pass stages swept slowly
@@ -155,7 +170,7 @@ function fxBuild(){   // one effects stage per AudioContext
   // echo: dotted eighths with feedback, filtered so repeats sit back; reverb: a big hall
   const ec=ins("echo",0); F.edl=ctx.createDelay(3); F.edl.delayTime.value=.375; F.efb=G(.3); const ehp=filt("highpass",350,.7), elp=filt("lowpass",3600,.7);
   ec.in.connect(ehp).connect(F.edl).connect(elp); elp.connect(F.efb).connect(F.edl); elp.connect(ec.wet);
-  const rv=ins("reverb",0); const cv=ctx.createConvolver(); cv.buffer=makeIR(ctx,3.4,1.5); rv.in.connect(filt("highpass",180,.7)).connect(cv).connect(filt("lowpass",6500,.7)).connect(rv.wet);
+  const rv=ins("reverb",0); const cv=ctx.createConvolver(); cv.buffer=makeIR(ctx,3.4,1.5); F.rvHp=filt("highpass",180,.7); F.rvCv=cv; rv.in.connect(F.rvHp); F.rvHp.connect(cv); cv.connect(filt("lowpass",6500,.7)).connect(rv.wet);
   // the tape (TAPE STOP, SPIN BACK): a delay line whose delay grows faster or slower than time passes
   F.tDry=G(1); F.tWet=G(0); F.tdl=ctx.createDelay(6); F.tdl.delayTime.value=0;
   // the chain
@@ -178,7 +193,7 @@ function fxLevels(F,now){ const t=ctx.currentTime, T=(p,v)=>now?p.setValueAtTime
   const ww=a.warble>0?1:0; T(F.warble.wet.gain,ww); T(F.warble.dry.gain,1-ww); [.0035,.0018,.00035].forEach((d,i)=>T(F.wbDep[i].gain,d*a.warble));
   T(F.gDep.gain,-Math.min(1,a.gate*1.2)); T(F.pDep.gain,-.85*a.pump);
   T(F.echo.wet.gain,a.echo*.8); T(F.efb.gain,.22+.5*a.echo);
-  T(F.reverb.wet.gain,a.reverb*.85); T(F.reverb.dry.gain,1-a.reverb*.3); }
+  T(F.reverb.wet.gain,a.reverb*.85); T(F.reverb.dry.gain,1-a.reverb*.3); gate(F.rvHp,F.rvCv,a.reverb>0,4.5); }   // 1.27: the hall rests while REVERB is at zero
 // the beat: gate and pump oscillators start on a beat and run at its rate; the echo is a dotted eighth. Re-locked when the tempo or the downbeat moves.
 function fxBeat(t0,beat,force){ const F=ctx&&FXW.get(ctx); if(!F||!(beat>.12&&beat<3)) return;
   const now=ctx.currentTime, gr=fxv.gate>.6?4:2;   // gate: eighths, sixteenths near the top
@@ -1079,11 +1094,11 @@ const CUE_LABEL={laser:"pew pew",gavel:"gavel",whoosh:"whoosh",cheer:"the crowd 
 let nextGap=rr(30,60), lastShow=-1e9;   // first break comes quickly; after that the station leans on music
 function tick(){
   if(!on) return;
-  const ahead=ctx.currentTime+(document.hidden?1.6:.25), late=ctx.currentTime-.3;   // steps more than .3 s in the past (a stall) are skipped, not piled up
+  const ahead=ctx.currentTime+AHEAD(), late=ctx.currentTime-.3;   // steps more than .3 s in the past (a stall) are skipped, not piled up
   let sp0=null;
   for(const s of songs){
     while(!s.done&&s.next<ahead){
-      { const adv=mStep(s,s.next,s.next>late); s.step++; s.next+=adv; }
+      { const adv=mStep(s,s.next,pStep(s.next,late)); s.step++; s.next+=adv; }
       if(!s.handed&&s.step===(s.bars-4)*16){ s.handed=true; const barT=s.sp*16*meterRatio(s),tH=s.next;
         s.bus.gain.setValueAtTime(s.st.lvl||1,tH); s.bus.gain.exponentialRampToValueAtTime(.0001,tH+barT*4); s.rvf.gain.setValueAtTime(1,tH); s.rvf.gain.exponentialRampToValueAtTime(.0001,tH+barT*4); s.endT=tH+barT*4+.5;
         startSong(tH,3);
@@ -1396,7 +1411,7 @@ function speak(text,done,cast,shown){
 let PHONE_SAT=null;   // built once, shared by every caller line
 function phoneLine(){
   const hp=filt("highpass",420,.9), hp2=filt("highpass",380,.7), bump=filt("peaking",1600,1.2), lp=filt("lowpass",3300,.9), lp2=filt("lowpass",3600,.7);
-  bump.gain.value=5; const sh=ctx.createWaveShaper(); sh.curve=PHONE_SAT||(PHONE_SAT=shaper(3.2)); sh.oversample="2x"; const out=G(.25);   // 1.14: was drive 1.6, out .85, which made callers 8-16 dB louder than the host; now 1-5 dB under it
+  bump.gain.value=5; const sh=ctx.createWaveShaper(); sh.curve=PHONE_SAT||(PHONE_SAT=shaper(3.2)); osv(sh,"2x"); const out=G(.25);   // 1.14: was drive 1.6, out .85, which made callers 8-16 dB louder than the host; now 1-5 dB under it
   hp.connect(hp2).connect(bump).connect(G(.7)).connect(sh).connect(lp).connect(lp2).connect(out).connect(voiceIn);
   return hp;
 }
@@ -2515,11 +2530,11 @@ function ptrnOff(fade=1.2){ const p=ptrn; if(!p) return; ptrn=null; clearInterva
   setTimeout(()=>{ for(const s of p.songs) try{ s.bus.disconnect(); s.rvf.disconnect(); }catch(e){} },fade*1000+300); }
 const holdAt=(g,t)=>{ if(g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t); else { g.cancelScheduledValues(t); g.setValueAtTime(g.value,t); } };   // stop where it is, even mid-curve
 const ptrnBlendBars=s=>{ const barT=s.sp*16*meterRatio(s); return Math.max(4,Math.min(8,Math.round(15/barT),Math.floor(s.bars/3))); };
-function ptrnTick(){ const p=ptrn; if(!on||!p||station!=="ptrn"||!ctx) return; const now=ctx.currentTime, ahead=now+(typeof document!=="undefined"&&document.hidden?1.6:.25), late=now-.3;
+function ptrnTick(){ const p=ptrn; if(!on||!p||station!=="ptrn"||!ctx) return; const now=ctx.currentTime, ahead=now+AHEAD(), late=now-.3;
   for(const s of [...p.songs]){
     while(!s.done&&s.next<ahead){
       if(s.step%16===0) ptrnBar(p,s,s.next);
-      const adv=mStep(s,s.next,s.next>late); s.step++; s.next+=adv;
+      const adv=mStep(s,s.next,pStep(s.next,late)); s.step++; s.next+=adv;
       if(!s.handed&&s.step===(s.bars-(s.blendBars||(s.blendBars=ptrnBlendBars(s))))*16) ptrnHand(p,s,s.blendBars);
       if(s.step>=s.bars*16) s.done=true; } }
   p.songs=p.songs.filter(s=>{ if(!s.done||now<(s.endT||0)) return true; try{ s.bus.disconnect(); s.rvf.disconnect(); }catch(e){} return false; }); }
@@ -2824,8 +2839,8 @@ function clukOn(){ clukOff(.01); if(!CLUKW) return; cluk={n:0,next:clukMake(),so
   st.t=setTimeout(()=>clukRun(st,L),500); }
 function clukOff(fade=1.2){ const st=cluk; if(!st) return; st.dead=true; cluk=null; clearTimeout(st.t); clearInterval(st.timer); cBedOff(st,.8); clukSongEnd(st,fade); clukRaveEnd(st,fade); }
 // the song on air: ticked like MDFM's (40 ms, a quarter second ahead)
-function clukTick(st){ if(st.dead||!on||station!=="cluk"||!ctx) return; const now=ctx.currentTime, ahead=now+(typeof document!=="undefined"&&document.hidden?1.6:.25), late=now-.3;
-  for(const s of [st.song,st.rave&&st.rave.s]){ if(!s||s.done) continue; while(!s.done&&s.next<ahead){ const adv=mStep(s,s.next,s.next>late); s.step++; s.next+=adv; if(s.step>=s.endStep) s.done=true; } }
+function clukTick(st){ if(st.dead||!on||station!=="cluk"||!ctx) return; const now=ctx.currentTime, ahead=now+AHEAD(), late=now-.3;
+  for(const s of [st.song,st.rave&&st.rave.s]){ if(!s||s.done) continue; while(!s.done&&s.next<ahead){ const adv=mStep(s,s.next,pStep(s.next,late)); s.step++; s.next+=adv; if(s.step>=s.endStep) s.done=true; } }
   const s=st.song; if(s&&s.done&&now>s.next+1.2&&!s.over){ s.over=true; clukSongEnd(st,.4); clukAfterSong(st); }
   const rv=st.rave; if(rv&&!rv.over&&now>=rv.until){ rv.over=true; clukRaveEnd(st,2.2); setTimeout(()=>{ if(!st.dead) clukStep(st,rv.n); },2300); } }
 function clukSongStart(st){ const made=st.next||clukMake(); st.next=null; const recipe={...made}, t0=ctx.currentTime+.12, s=setupSong(made,t0,0,cDest(),clukRv,"cluk");
@@ -2966,7 +2981,7 @@ const MX_DRUM=["kick","snare","clap","hat","perc","shaker","tom","crash"], MX_RO
 const MX_STAGE_OF=r=>MX_DRUM.includes(r)?"drums":r==="bass"?"bass":r==="lead"?"lead":"keys";
 // a swapped bass plays through a little saturation (glue): a stand-in with a sharper attack than the part it replaces
 // would otherwise peak into the limiter and come out quieter. One per song (bus) and context.
-function mxBB(s){ const c=s.mxBB; if(c&&c.ctx===ctx) return c.b; const pre=G(.5), sh=ctx.createWaveShaper(); sh.curve=shaper(2.5); sh.oversample="2x"; const post=G(.85); pre.connect(sh).connect(post).connect(s.bsd||s.dr);
+function mxBB(s){ const c=s.mxBB; if(c&&c.ctx===ctx) return c.b; const pre=G(.5), sh=ctx.createWaveShaper(); sh.curve=shaper(2.5); osv(sh,"2x"); const post=G(.85); pre.connect(sh).connect(post).connect(s.bsd||s.dr);
   const b=Object.create(s); b.bsd=pre; b.dr=pre; b.mu=pre; b._to=null; s.mxBB={ctx,b}; return b; }
 const mxLeg=(d,k)=>d<.6?Math.min(d*k,.75):d;   // basses: short notes held a little longer (legato), long ones as they are
 const MX_PUSHK={kick:.3,snare:1,clap:1,hat:.7,shaker:.7,perc:.8,tom:.5,crash:.3};
@@ -3128,6 +3143,30 @@ let inMorph=false, mxBarT0=0, mxBarSt=0, mxBarSteps=16;   // where the bar being
 const mxPos=(s,t)=>{ const g=s&&s.mxG, t0=g?g.t0:mxBarT0, st=g?g.st:mxBarSt, n=g?g.n:mxBarSteps; if(!(st>0)) return -1; const p=Math.round((t-t0)/st*16/n); return p>=0&&p<16?p:-1; };
 // the station sound stage: lo-fi (series low-pass and tape wow), brightness, low end, a phaser and a synced echo (space),
 // a concert hall (high-passed, with pre-delay), slapback (country) and a little glue (rock). Built the first time it's needed.
+// 1.26 (mobile mix): the matrix hall's impulse response is made once per audio context and reused by later stages. On a
+// live context MIX's opening builds it in small slices when the page is idle (prewarmMix), so raising SPACE or HALL
+// doesn't stall the page (a 3 s stereo buffer filled in one go was a 30-120 ms task on a phone). Offline renders build
+// it in place, as before, so a seeded render is unchanged.
+const HALL_IR=new WeakMap(); let hallWarm=null;
+function mxHallIR(){ let b=HALL_IR.get(ctx); if(!b){ b=preIR(makeIR(ctx,3.2,1.7),.025); HALL_IR.set(ctx,b); } return b; }
+function prewarmMix(){ const c=ctx; if(!c||HALL_IR.has(c)||hallWarm===c||isOff(c)) return; hallWarm=c;
+  const sr=c.sampleRate, len=Math.floor(sr*3.2), pd=Math.floor(sr*.025), b=c.createBuffer(2,len+pd,sr), D=[b.getChannelData(0),b.getChannelData(1)]; let i=0;
+  const idle=typeof requestIdleCallback==="function"?f=>requestIdleCallback(f,{timeout:400}):f=>setTimeout(()=>f({timeRemaining:()=>8}),30);
+  const slice=dl=>{ if(ctx!==c||HALL_IR.has(c)){ if(hallWarm===c) hallWarm=null; return; } const t0=performance.now();
+    while(i<len&&performance.now()-t0<Math.min(8,Math.max(2,dl.timeRemaining()))){ const e=Math.min(len,i+4096); for(;i<e;i++){ const tt=i/sr, k=Math.exp(-tt*1.7)*(tt<.01?tt/.01:1)*(1-i/len); D[0][pd+i]=(Math.random()*2-1)*k; D[1][pd+i]=(Math.random()*2-1)*k; } }
+    if(i<len) idle(slice); else { HALL_IR.set(c,b); hallWarm=null; } };
+  idle(slice); }
+// 1.26 (mobile mix): LITE is set by MIX while it's open on a phone or tablet. It schedules notes further ahead (.5 s, so a
+// busy page doesn't make the music skip), runs every saturator without oversampling (osv) and leaves out the near-silent
+// copy at the edges of a style blend (mxCull). Off, nothing changes.
+// 1.27: the performance readout's numbers. Every live step the schedulers write counts: "late" ones were already more than
+// .3 s in the past (skipped: the page stalled that long) and "tight" ones had under 30 ms to spare (a near miss).
+const PERF={steps:0,late:0,tight:0,minLead:9};
+function pStep(t,late){ if(t<=late){ PERF.late++; return false; } const lead=t-ctx.currentTime; PERF.steps++; if(lead<.03) PERF.tight++; if(lead<PERF.minLead) PERF.minLead=lead; return true; }
+const MX_CULL=.1; let CULL_TEST=false;
+const mxCull=()=>LITE&&(!isOff(ctx)||CULL_TEST);   // live only (a Save keeps both copies); CULL_TEST lets the bench measure it offline
+const AHEAD=()=>(typeof document!=="undefined"&&document.hidden)?1.6:(LITE?.5:.25);
+function setLite(v){ LITE=!!v; for(const r of SH_LIVE){ const sh=r.deref(), c=sh&&sh.context; if(!c||c.state==="closed"){ SH_LIVE.delete(r); continue; } try{ sh.oversample=LITE?"none":sh._os; }catch(e){} } }
 function mxStage(){ return mxPriv(()=>{ const S={in:G(1),out:G(1),wow:ctx.createDelay(.05),lp:filt("lowpass",20000,.7),bright:filt("highshelf",6000),low:filt("lowshelf",80),pre:G(1),ph:G(0),echo:G(0),hall:G(0),slap:G(0),glue:G(0),lfoG:[]};
   S.bright.gain.value=0; S.low.gain.value=0; S.wow.delayTime.value=0;
   S.in.connect(S.wow); S.wow.connect(S.lp); S.lp.connect(S.bright); S.bright.connect(S.low); S.low.connect(S.pre); S.pre.connect(S.out);
@@ -3135,8 +3174,8 @@ function mxStage(){ return mxPriv(()=>{ const S={in:G(1),out:G(1),wow:ctx.create
   let n=S.pre; S.lfo=osc("sine",.07); for(const f of [350,800,1600,3100]){ const a=filt("allpass",f,.8), d=G(0); n.connect(a); n=a; S.lfo.connect(d); d.connect(a.frequency); S.lfoG.push([d,f]); }
   n.connect(S.ph); S.ph.connect(S.out); S.lfo.start();
   S.dl=ctx.createDelay(1.5); const fb=G(.4), lp=filt("lowpass",3800), hp=filt("highpass",300); S.dl.delayTime.value=.42; S.pre.connect(S.echo); S.echo.connect(hp); hp.connect(S.dl); S.dl.connect(lp); lp.connect(fb); fb.connect(S.dl); lp.connect(S.out); S.fb=fb;
-  S.mkHall=()=>{ if(S.hasHall) return; S.hasHall=1; mxPriv(()=>{ const cv=ctx.createConvolver(); cv.buffer=preIR(makeIR(ctx,3.2,1.7),.025); const hh=filt("highpass",250), cl=filt("lowpass",5000); S.pre.connect(hh); hh.connect(cv); cv.connect(cl); cl.connect(S.hall); S.hall.connect(S.out); }); };
-  S.mkGlue=()=>{ if(S.hasGlue) return; S.hasGlue=1; const sh=ctx.createWaveShaper(); sh.curve=shaper(1.5); sh.oversample="2x"; const gh=filt("highpass",150); S.pre.connect(gh); gh.connect(sh); sh.connect(S.glue); S.glue.connect(S.out); };
+  S.mkHall=()=>{ if(S.hasHall) return; S.hasHall=1; mxPriv(()=>{ const cv=ctx.createConvolver(); cv.buffer=mxHallIR(); const hh=filt("highpass",250), cl=filt("lowpass",5000); S.hallHp=hh; S.hallCv=cv; S.pre.connect(hh); hh.connect(cv); cv.connect(cl); cl.connect(S.hall); S.hall.connect(S.out); }); };
+  S.mkGlue=()=>{ if(S.hasGlue) return; S.hasGlue=1; const sh=ctx.createWaveShaper(); sh.curve=shaper(1.5); osv(sh,"2x"); const gh=filt("highpass",150); S.pre.connect(gh); gh.connect(sh); sh.connect(S.glue); S.glue.connect(S.out); };
   const sd=ctx.createDelay(.5); sd.delayTime.value=.11; const sl=filt("lowpass",3000); S.pre.connect(sd); sd.connect(sl); sl.connect(S.slap); S.slap.connect(S.out);
   return S; }); }
 function mxFx(){ if(!ctx||!ST) return []; let F=MXF.get(ctx); if(!F){ F=[]; MXF.set(ctx,F); }
@@ -3156,7 +3195,7 @@ function mxFxLevels(id,now,inst){ const F=MXF.get(ctx); if(!F) return; const P=M
   const br=Math.max(-2,Math.min(2.5,f("bright"))), lo=Math.min(1,f("lofi")), sp=Math.min(1,f("space")), ha=Math.min(1,f("hall")), sl=Math.min(1,f("slap")), lw=f("low"), gl=f("glue")||(f("_rock")*.06);
   for(const S of F){ const T=(p,v)=>inst?p.setValueAtTime(v,now):p.setTargetAtTime(v,now,.4); if(ha>0||sp>0) S.mkHall(); if(gl>0) S.mkGlue();
     T(S.bright.gain,br); T(S.low.gain,Math.min(2,lw*1.5)); T(S.lp.frequency,20000*Math.pow(6500/20000,lo)); T(S.wow.delayTime,.004*lo); T(S.wg[0].gain,.0025*lo); T(S.wg[1].gain,.0003*lo);
-    T(S.ph.gain,.5*sp); for(const [d,fq] of S.lfoG) T(d.gain,fq*.65*sp); T(S.echo.gain,.3*sp); T(S.hall.gain,.35*ha+.2*sp); T(S.slap.gain,.12*sl); T(S.glue.gain,gl); T(S.pre.gain,1); } }
+    T(S.ph.gain,.5*sp); for(const [d,fq] of S.lfoG) T(d.gain,fq*.65*sp); T(S.echo.gain,.3*sp); T(S.hall.gain,.35*ha+.2*sp); if(S.hasHall) gate(S.hallHp,S.hallCv,ha>0||sp>0,4.5); T(S.slap.gain,.12*sl); T(S.glue.gain,gl); T(S.pre.gain,1); } }
 // what each instrument is, and where its loudness is: [role, index of velocity in the arguments after the bus]
 const MX_ROLE={D:{kick:["kick",1],snare:["snare",1],clap:["clap",1],snap:["snare",1],rim:["perc",1],hat:["hat",1],conga:["perc",1],tom:["tom",1],crash:["crash",1],shaker:["shaker",1],cowbell:["perc",3],b808:["bass",3],logdrum:["bass",2],ride:["hat",1],brush:["snare",1],clave:["perc",1],timbale:["perc",1],chipk:["kick",1],chipn:["hat",1]},
   M:{piano:["chord",3],rhodes:["chord",3],organ:["chord",3],pad:["pad",3],choir:["pad",3],saw:["chord",3],accordion:["chord",3],brass:["chord",3],guitar:["gchord",3],bell:["lead",3],pluck:["lead",3],whistle:["lead",3],bass:["bass",3],vox:["lead",3],chop:["lead",3],sax:["lead",3],clav:["chord",3],nylon:["chord",3],wurli:["chord",3],warmpad:["pad",3],fmlead:["lead",3],sqlead:["lead",3],vibes:["lead",3],reese:["bass",3],wobble:["bass",3],slap:["bass",3],upright:["bass",3],harm:["lead",3],gtrlead:["lead",3]},
@@ -3198,8 +3237,11 @@ function morphCall(id,role,vi,f,self,s,a){
       if(F.hum&&!gUser(id,"humanize",0)){ const k=MX_PUSHK[role]??.6, b=s.mxG?s.mxG.bar:0; t+=(mxHash(b,pos,role.length*31+7)-.5)*2*F.hum*.02*k; vel*=1+(mxHash(b,pos,role.length*17+3)-.5)*F.hum*.6*k; }
       if(F.accent&&pos>=0&&!gUser(id,"accent",.5)){ const e=Math.pow(2,F.accent*1.3), vn=Math.min(1,vel); vel*=(vn>0?Math.pow(vn,e)/vn:1)*(pos%4===0?1+.15*Math.max(0,F.accent):1); }
       if(t!==info.t) t=Math.max(ctx.currentTime,t); }
+    const sm=D0.inst&&D0.inst[role]===mxNm?1/((MX_TRIM[dir]&&MX_TRIM[dir][role])||1):MX_OLV[mxNm]||1;   // level-matched to the instrument it stands in for (an 808 is louder than a picked bass); the same instrument stays as loud
+    if(mxCull()&&og>.001&&sg>.001){ const es=sg*sm, r=es/og, p=Math.sqrt(og*og+es*es);   // 1.27 LITE: at the edges of a blend, the copy 20 dB or more under the other is left out (the other takes its power)
+      if(r<MX_CULL){ og=p; sg=0; } else if(r>1/MX_CULL){ sg=p/sm; og=0; } }
     if(og>.001){ const b=[...a]; b[vi]=vel*og; b[0]=t; f.call(self,s,...b); }
-    sg*=D0.inst&&D0.inst[role]===mxNm?1/((MX_TRIM[dir]&&MX_TRIM[dir][role])||1):MX_OLV[mxNm]||1;   // level-matched to the instrument it stands in for (an 808 is louder than a picked bass); the same instrument stays as loud
+    sg*=sm;
     if(sg>.001){ const fn=mxFn(dir,role); if(fn){ const I={...info,t,pos,w:R0.x,bar:s.mxG?s.mxG.bar:0};
         if(I.notes&&role!=="lead"&&role!=="bass") I.notes=mxFoldCh(s,dir,role,I.notes);
         if(I.m!=null&&(role==="lead"||role==="bass")){ I.m=mxFold(s,dir,role,I.m); I.notes=[I.m]; const pv=s.mxPv||(s.mxPv={}); I.prev=pv[dir]; pv[dir]=I.m; }
@@ -3796,6 +3838,15 @@ return {
   stingNow(){ voiceSting(); },
   voices(){ return HAS_TTS?speechSynthesis.getVoices().map(v=>v.name+" ("+v.lang+")"):[]; },
   setSpots(v){ spotsOn=!!v; },
+  getSpots(){ return spotsOn; },
+  /* 1.26 mobile mix: see setLite in the engine; MIX calls it while it's open on a phone or tablet */
+  setLite(v){ setLite(v); },
+  isLite(){ return LITE; },
+  prewarmMix(){ prewarmMix(); },
+  _cullTest(v){ CULL_TEST=!!v; },
+  /* 1.27: scheduler health for the performance readout (counts since the last call when reset is true) */
+  perfStats(reset){ const o={...PERF,ahead:AHEAD(),lite:LITE,state:ctx?ctx.state:"none",sampleRate:ctx?ctx.sampleRate:0,baseLatency:ctx&&ctx.baseLatency||0,outputLatency:ctx&&ctx.outputLatency||0};
+    if(reset){ PERF.steps=0; PERF.late=0; PERF.tight=0; PERF.minLead=9; } return o; },   // tests and the bench only: apply LITE's blend culling to offline renders too
   setTone(t){ for(const k of ["low","mid","high"]) if(t&&k in t) eq[TONE_BAND[k]].gain=Math.max(-12,Math.min(12,+t[k]||0)); applyTone(); const o=getTone(); emit("tone",o); emit("eq",getEq()); return o; },   // dB, -12..+12: the EQ's LOW, MID 1 and HIGH gains (1.25)
   getTone(){ return getTone(); },
   getVolume(){ return opts.volume??1; },

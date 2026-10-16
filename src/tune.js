@@ -17,7 +17,7 @@ function mountMix(radio, opts = {}) {
     const before = doc.getElementById("mdfm-radio"); before ? before.parentNode.insertBefore(s, before) : doc.head.appendChild(s); }
   const has = k => typeof radio[k] === "function";
   const obj = x => x && typeof x === "object" && !Array.isArray(x) ? x : null;
-  const ls = key => ({ get() { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } },
+  const ls0 = key => ({ get() { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } },
     set(v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} } });
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const uid = "mx" + Math.random().toString(36).slice(2, 6); let nid = 0; const mkid = s => `${uid}-${s}`;
@@ -27,8 +27,23 @@ function mountMix(radio, opts = {}) {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const vib = () => { try { navigator.vibrate && navigator.vibrate(5); } catch (e) {} };
 
+  // ---------- 1.26: while a finger, pen or mouse drags a control, the engine update, the repaint and the save run once per
+  // frame (the newest value wins) instead of once per pointer event; settings are written when the drag ends. A tap,
+  // the keyboard and the API still apply at once. ----------
+  let dragN = 0, jobRaf = 0; const jobs = new Map(), held = new Map();
+  const raf = f => (win.requestAnimationFrame ? win.requestAnimationFrame(f) : setTimeout(f, 16));
+  const runJobs = () => { jobRaf = 0; if (!jobs.size) return; const L = [...jobs.values()]; jobs.clear(); for (const f of L) { try { f(); } catch (e) {} } };
+  const live = (key, fn) => { if (!dragN) { jobs.delete(key); fn(); return; } jobs.delete(key); jobs.set(key, fn); if (!jobRaf) jobRaf = raf(runJobs); };
+  const flushSaves = () => { if (!held.size) return; const L = [...held]; held.clear(); for (const [st, v] of L) { try { st.set(v); } catch (e) {} } };
+  const dragOn = () => { dragN++; };
+  const dragOff = () => { if (!dragN) return; dragN--; if (!dragN) { runJobs(); flushSaves(); } };
+  const lazy = st => st && typeof st.set === "function" ? { get: (...a) => st.get(...a), set: v => { if (dragN) held.set(st, v); else { held.delete(st); st.set(v); } } } : st;
+  const ls = key => lazy(ls0(key));
+  win.addEventListener("pagehide", () => { runJobs(); flushSaves(); });
+  doc.addEventListener("visibilitychange", () => { if (doc.hidden) { runJobs(); flushSaves(); } });
+
   // ---------- the drawer's own state (per device) ----------
-  const us = uiStore || ls("mdfmMixUI"), ui0 = obj(us.get()) || {};
+  const us = uiStore || ls0("mdfmMixUI"), ui0 = obj(us.get()) || {};
   const ui = { v: 1, open: false, section: "sound", acc: { sound: true, style: true, groove: false, fx: false }, styleView: "pad", eqBand: "p1", grooveCard: "tempo",
     ...ui0, acc: { sound: true, style: true, groove: false, fx: false, ...(obj(ui0.acc) || {}) } };
   const saveUI = () => us.set(ui);
@@ -38,7 +53,7 @@ function mountMix(radio, opts = {}) {
     let pid = null, x0 = 0, y0 = 0, lx = 0, ly = 0, moved = false, longed = false, longT = 0, type = "mouse", last = { t: 0, x: 0, y: 0 };
     el.addEventListener("pointerdown", e => {
       if (pid !== null || (e.pointerType === "mouse" && e.button !== 0) || (h.skip && h.skip(e))) return;
-      pid = e.pointerId; type = e.pointerType || "mouse"; x0 = lx = e.clientX; y0 = ly = e.clientY; moved = false; longed = false;
+      pid = e.pointerId; type = e.pointerType || "mouse"; x0 = lx = e.clientX; y0 = ly = e.clientY; moved = false; longed = false; dragOn();
       try { el.setPointerCapture(pid); } catch (err) {}
       e.preventDefault(); h.down && h.down(e);
       clearTimeout(longT); if (h.long) longT = setTimeout(() => { if (pid !== null && !moved) { longed = true; h.long(e); } }, 500); });
@@ -47,7 +62,7 @@ function mountMix(radio, opts = {}) {
       if (!moved) { if (Math.hypot(dx, dy) < (h.dead == null ? 3 : h.dead)) return; moved = true; clearTimeout(longT); lx = e.clientX; ly = e.clientY; h.start && h.start(e); return; }
       const ddx = e.clientX - lx, ddy = e.clientY - ly; lx = e.clientX; ly = e.clientY; h.move && h.move(ddx, ddy, e, { dx, dy, type }); });
     const up = e => {
-      if (e.pointerId !== pid) return; pid = null; clearTimeout(longT);
+      if (e.pointerId !== pid) return; pid = null; clearTimeout(longT); dragOff();
       if (e.type === "pointerup" && !moved && !longed) { const t = performance.now(), near = Math.hypot(e.clientX - last.x, e.clientY - last.y) < 12;
         if (h.double && t - last.t < 300 && near) { last.t = 0; h.double(e); } else { last = { t, x: e.clientX, y: e.clientY }; h.tap && h.tap(e); } }
       else last.t = 0;
@@ -83,7 +98,7 @@ function mountMix(radio, opts = {}) {
       const t = o.fmt(v); out.textContent = t; kn.setAttribute("aria-valuenow", String(v)); kn.setAttribute("aria-valuetext", o.text ? o.text(v) : t); };
     const put = (x, detent) => { if (dis) return; let nv = snap(x);
       if (detent && o.center != null && Math.abs(x - o.center) < range * .03) { nv = o.center; if (v !== o.center) { vib(); out.classList.add("det"); setTimeout(() => out.classList.remove("det"), 400); } }
-      if (nv === v) return; v = nv; paint(); o.onInput(v); };
+      if (nv === v) return; v = nv; paint(); live(cell, () => o.onInput(v)); };
     const reset = () => { if (dis) return; raw = home; if (o.onReset) o.onReset(); else { v = NaN; put(home); } };
     const fine = on => { if (on) out.dataset.fine = "1"; else delete out.dataset.fine; };
     const hideBub = () => { if (bub) { bub.remove(); bub = null; } clearTimeout(bubT); };
@@ -117,14 +132,15 @@ function mountMix(radio, opts = {}) {
     const inp = cell.querySelector("input"), out = cell.querySelector(".mx-v"), ft = cell.querySelector(".mx-ft"); let v = 0, raw = 0, dragging = false;
     if (o.tip) { cell.title = o.tip; inp.setAttribute("aria-description", o.tip); }
     const paint = () => { inp.value = String(v); cell.style.setProperty("--p", String(v / 100)); out.textContent = o.fmt(v); inp.setAttribute("aria-valuetext", o.text(v)); };
-    const put = x => { x = Math.round(clamp(x, 0, 100)); if (x === v) return; v = x; paint(); o.onInput(v); };
+    const put = x => { x = Math.round(clamp(x, 0, 100)); if (x === v) return; v = x; paint(); live(cell, () => o.onInput(v)); };
     inp.addEventListener("input", () => { v = +inp.value; paint(); o.onInput(v); });
-    gesture(ft, { down: () => { inp.focus({ preventScroll: true }); raw = v; }, start: () => { dragging = true; },
-      move: (ddx, ddy, e, g) => { const f = fineOf(e, g), h = Math.max(60, ft.clientHeight - 40); cell.classList.toggle("fine", f < 1); raw = clamp(raw - ddy / h * 100 * f, 0, 100); put(raw); },
+    let fth = 0;
+    gesture(ft, { down: () => { inp.focus({ preventScroll: true }); raw = v; fth = ft.clientHeight; }, start: () => { dragging = true; },
+      move: (ddx, ddy, e, g) => { const f = fineOf(e, g), h = Math.max(60, (fth || ft.clientHeight) - 40); cell.classList.toggle("fine", f < 1); raw = clamp(raw - ddy / h * 100 * f, 0, 100); put(raw); },
       end: () => { dragging = false; cell.classList.remove("fine"); }, double: () => { raw = 0; v = -1; put(o.def || 0); } });
     cell.addEventListener("wheel", e => { if (!cell.matches(":hover")) return; e.preventDefault(); put(v - Math.sign(e.deltaY) * 5); }, { passive: false });
     paint();
-    return { el: cell, get: () => v, set(x) { v = Math.round(x); if (!dragging) raw = v; paint(); } };
+    return { el: cell, get: () => v, set(x) { const nv = Math.round(x); if (nv === v && inp.value === String(v)) { if (!dragging) raw = v; return; } v = nv; if (!dragging) raw = v; paint(); } };
   }
 
   // ---------- Seg: a row of radio buttons (>= 44 px), arrow keys move the choice; wraps instead of shrinking ----------
@@ -153,6 +169,9 @@ function mountMix(radio, opts = {}) {
   const BYP = has("setMixBypass") ? "setMixBypass" : has("setBypass") ? "setBypass" : null;
   let html = `<div class="mx-in"><div class="wtitle mx-wt"><span id="${mkid("title")}"></span></div><div class="mx-head"><span class="mx-scope" data-scope></span><div class="mx-tabs" aria-label="Mix sections">${Object.keys(SEC).filter(k => SEC[k]).map(k => `<button type="button" class="btn" data-tab="${k}" id="${mkid("tab-" + k)}" aria-controls="${mkid("sec-" + k)}">${NAMES[k]}<i class="mx-dot" aria-hidden="true"></i></button>`).join("")}</div>` +
     (BYP ? `<button type="button" class="btn mx-orig" data-t="orig" aria-pressed="false" title="Hold to hear the station as it is, with no style, groove, effects or EQ. On a touch screen a quick tap keeps it on until you tap again">ORIGINAL</button>` : "") +
+    (has("setLite") ? `<button type="button" class="btn mx-lite" data-t="lite" aria-pressed="false" title="LITE mixing for phones and tablets: while MIX is open it pauses the decorations, drops the glass and glow, slows the meters, schedules the music further ahead and holds MDFM's talk breaks until you close MIX. AUTO turns it on for touch screens. Tap to switch AUTO / ON / OFF">LITE <span data-lite-v>AUTO</span></button>` : "") +
+    `<button type="button" class="btn mx-void" data-t="void" aria-pressed="false" title="VOID: while MIX is open, the radio drops its skin and every texture, glass, glow and decoration for flat dark blocks (the fastest thing a phone can draw). Same layout and controls. Tap again to bring the look back">VOID</button>` +
+    (has("perfStats") ? `<button type="button" class="btn mx-perfbtn" data-t="perf" aria-pressed="false" title="A small readout of how the page and the music are keeping up: frame rate, the longest freeze, and whether notes arrive on time. Try it with LITE and VOID on and off">PERF</button>` : "") +
     `<div class="rd-btn mx-resetall"><button type="button" data-t="reset" aria-label="Reset everything in MIX for this station" title="Everything back: sound and EQ, this station's style and groove, and the effects"></button><small>RESET ALL</small></div></div><p class="mx-bypnote" role="status" hidden>ORIGINAL: you're hearing the station as it is. Your mix comes back when you let go.</p>`;
   // SOUND
   const DEF = radio.soundDefaults(), presets = has("soundPresets") ? radio.soundPresets() : [], rooms = has("rooms") ? radio.rooms() : [];
@@ -240,14 +259,16 @@ function mountMix(radio, opts = {}) {
   panel.classList.remove("pop", "tunepop"); panel.classList.add("mixdrawer"); panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", mkid("title"));
   panel.hidden = true; panel.innerHTML = html; panel.querySelector(`#${mkid("title")}`).textContent = title;
   const $p = s => panel.querySelector(s), $$p = s => [...panel.querySelectorAll(s)];
+  const qc = new Map(), $c = s => { let e = qc.get(s); if (!e || !e.isConnected) { e = panel.querySelector(s); if (e) qc.set(s, e); } return e; };   // 1.26: cached lookups for per-frame paints
   const S = {};   // per section: { paint(), reset(), moved() }
+  const painted = {};   // 1.26: when MIX last painted a section itself (so the engine's echo of the same change doesn't paint it twice)
   const visible = el => !!el && !panel.hidden && el.getClientRects().length > 0;
   const hz = f => f >= 1000 ? (f / 1000).toFixed(f < 10000 ? (f % 1000 ? 1 : 0) : 0).replace(/\.0$/, "") + "k" : String(Math.round(f));
 
   // ---------- SOUND: tone, room, presets, and the EQ (curve + six bands + the quick LOW / MID / HIGH) ----------
   if (SEC.sound) {
-    const st = store || ls("mdfmSound"); let cur = radio.getSound(); const saved = obj(st.get()); if (saved) cur = radio.setSound(saved);
-    const ts = toneStore || ls("mdfmTone"), es = eqStore || ls("mdfmEq"), num = (v, d) => typeof v === "number" && Number.isFinite(v) ? clamp(v, -12, 12) : d;
+    const st = lazy(store) || ls("mdfmSound"); let cur = radio.getSound(); const saved = obj(st.get()); if (saved) cur = radio.setSound(saved);
+    const ts = lazy(toneStore) || ls("mdfmTone"), es = lazy(eqStore) || ls("mdfmEq"), num = (v, d) => typeof v === "number" && Number.isFinite(v) ? clamp(v, -12, 12) : d;
     let tone = { low: 0, mid: 0, high: 0 };
     const EQON = EQB.length > 0, EQD = EQON && has("eqDefaults") ? radio.eqDefaults() : null;
     const toneOf = e => { const b = id => (EQB.find(x => x.tone === id) || {}).id, g = id => num(e[b(id)] && e[b(id)].gain, 0); return { low: g("low"), mid: g("mid"), high: g("high") }; };
@@ -298,7 +319,8 @@ function mountMix(radio, opts = {}) {
       let W = 0, H = 0, dpr = 1, drawT = 0, specT = 0, eq = radio.getEq();
       const xOf = f => Math.log(f / FMIN) / Math.log(FMAX / FMIN) * W, fOf = x => FMIN * Math.pow(FMAX / FMIN, clamp(x / W, 0, 1));
       const yOf = d => H / 2 - d / DB * (H / 2 - 8), dOf = y => (H / 2 - y) / (H / 2 - 8) * DB;
-      const put = p => { eq = radio.setEq(p); changed(); };
+      let eqPend = null; const mergeP = (a, b) => { const o = { ...a }; for (const k in b) o[k] = b[k] && typeof b[k] === "object" ? { ...(o[k] || {}), ...b[k] } : b[k]; return o; };
+      const put = p => { eqPend = eqPend ? mergeP(eqPend, p) : p; live(g, () => { const q = eqPend; eqPend = null; if (q) { eq = radio.setEq(q); changed(); } }); };
       const resp = b => { try { return radio.eqResponse(FQ, b); } catch (e) { return new Float32Array(NPT); } };
       const nodeY = b => { const o = eq[b]; if (hasGain(b)) return yOf(eq.on === false ? 0 : o.gain); const r = radio.eqResponse([o.freq], b); return yOf(o.on && eq.on !== false ? clamp(r[0] || 0, -DB, DB) : 0); };
       function draw() { drawT = 0; if (!cx || !W) return; const css = win.getComputedStyle(panel), lcd = (css.getPropertyValue("--lcd") || "").trim() || "#00e000";
@@ -323,11 +345,11 @@ function mountMix(radio, opts = {}) {
           n.classList.toggle("off", (isCut(b.id) && !o.on) || !on); n.classList.toggle("sel", b.id === ui.eqBand);
           n.setAttribute("aria-label", `${b.label}: ${hz(o.freq)}Hz${hasGain(b.id) ? `, ${o.gain > 0 ? "+" : ""}${o.gain.toFixed(1)} dB` : isCut(b.id) ? (o.on ? `, ${o.slope} dB per octave` : ", off") : ""}`); } }
       const redraw = () => { if (!drawT) drawT = (win.requestAnimationFrame || (f => setTimeout(f, 16)))(draw); };
-      const size = () => { const r = g.getBoundingClientRect(); if (!r.width) return; dpr = Math.min(3, win.devicePixelRatio || 1); W = r.width; H = r.height;
+      const size = () => { const r = g.getBoundingClientRect(); if (!r.width) return; dpr = Math.min(win.MDFM_lite ? 2 : 3, win.devicePixelRatio || 1); W = r.width; H = r.height;
         const bw = Math.round(W * dpr), bh = Math.round(H * dpr); if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; } draw(); };
       if (typeof ResizeObserver === "function") new ResizeObserver(size).observe(g);
       // 15 fps spectrum, only while the drawer is open, the graph on screen and the radio on
-      const spec = () => { specT = 0; if (!panel.hidden && !doc.hidden && visible(g) && radio.isOn && radio.isOn()) { draw(); specT = setTimeout(spec, 66); } };
+      const spec = () => { specT = 0; if (!panel.hidden && !doc.hidden && visible(g) && radio.isOn && radio.isOn()) { if (win.MDFM_lite) { specT = setTimeout(spec, 500); return; } draw(); specT = setTimeout(spec, 66); } };   // 1.26: LITE leaves the live spectrum out
       const specOn = () => { if (!specT) specT = setTimeout(spec, 66); };
       // band strip: picker, FREQ / GAIN / Q knobs (or SLOPE 12 / 24 and ON for the cuts), RESET BAND
       const pick = Seg($p("[data-eq-band]"), EQB.map(b => [b.id, EQS[b.id] || b.id, b.label]), v => { ui.eqBand = v; saveUI(); paint(); }, "EQ band");
@@ -358,12 +380,12 @@ function mountMix(radio, opts = {}) {
         redraw(); if (!panel.hidden) specOn(); }
       // the dots: x = frequency, y = gain (shelves and peaks; the cuts move sideways only); Q by pinch, wheel, Alt-drag or the Q knob
       const pts = new Map(); let drag = null, pinch = null, lastTap = { t: 0, b: "", x: 0, y: 0 };
-      const local = e => { const r = g.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      let gRect = null; const local = e => { const r = gRect || g.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
       const hit = (x, y) => { let best = null, bd = 23; for (const b of EQB) { const n = nodes[b.id]; if (!n) continue; const d = Math.hypot(x - parseFloat(n.style.left), y - parseFloat(n.style.top)) - (b.id === ui.eqBand ? 4 : 0);
         if (d < bd) { bd = d; best = b.id; } } return best; };
       const select = b => { if (b !== ui.eqBand) { ui.eqBand = b; saveUI(); paint(); } };
       g.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && e.button !== 0) return; const [x, y] = local(e);
-        pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { g.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault();
+        if (!pts.size) gRect = g.getBoundingClientRect(); if (!pts.has(e.pointerId)) dragOn(); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { g.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault();
         if (pts.size === 2) { const pb = drag && !drag.moved && drag.before ? drag.before : ui.eqBand;   // a second finger: pinch the band (fingers apart = a wider band, lower Q) that was selected (the first finger only just landed)
           if (drag) nodes[drag.b].classList.remove("drag"); drag = null; if (!hasQ(pb)) return; select(pb); const [a, c] = [...pts.values()]; pinch = { d0: Math.max(24, Math.abs(a.x - c.x)), q0: eq[pb].q }; return; }
         if (pts.size > 1) return; const before = ui.eqBand, b = hit(x, y); if (!b) { drag = null; return; } select(b);
@@ -376,7 +398,7 @@ function mountMix(radio, opts = {}) {
         const [x, y] = local(e), p = { freq: +clamp(fOf(x - drag.ox), ...BI[b].freq).toFixed(1) };
         if (hasGain(b)) { let d = clamp(dOf(y - drag.oy), -12, 12); if (Math.abs(d) < .35) d = 0; p.gain = Math.round(d * 10) / 10; }
         if (isCut(b) && !eq[b].on) p.on = true; put({ [b]: p }); });
-      const up = e => { if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId); if (pinch) { if (pts.size < 2) pinch = null; return; }
+      const up = e => { if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId); if (!pts.size) gRect = null; dragOff(); if (pinch) { if (pts.size < 2) pinch = null; return; }
         if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null; nodes[d.b].classList.remove("drag");
         if (e.type !== "pointerup" || d.moved) { lastTap.t = 0; return; }
         const t = performance.now(); if (t - lastTap.t < 300 && lastTap.b === d.b && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 12) { lastTap.t = 0; resetBand(d.b); return; }
@@ -397,7 +419,7 @@ function mountMix(radio, opts = {}) {
 
   // ---------- STYLE: PAD (a puck among ten directions, an AMOUNT ring, FEEL / DRUMS / BAND / FULL rings) and FADERS (one channel each) ----------
   if (SEC.style) {
-    const ms = mixStore || ls("mdfmStyleMix"), all = obj(ms.get()) || {}, rings = {};
+    const ms = lazy(mixStore) || ls("mdfmStyleMix"), all = obj(ms.get()) || {}, rings = {};
     let glitchFromV1 = null;
     // each station's saved record: v2 {v, w, lanes, ring} (or an old flat v1 {pop:.., classical:.., chaos:..}, which the engine migrates;
     // an old CHAOS becomes GLITCH, an effect, and is written into mdfmFx below if that has no GLITCH yet)
@@ -407,7 +429,7 @@ function mountMix(radio, opts = {}) {
       const r = rec.v === 2 && obj(rec.w) ? { w: rec.w, lanes: obj(rec.lanes) || undefined } : rec; radio.setStyleMix(r, id); }
     const ringOf = id => (id in rings ? rings[id] : 1);
     const save = () => { const id = sid(); all[id] = { v: 2, w: radio.getStyleMix(id), ...(LANES.length ? { lanes: radio.getStyleLanes(id) } : {}), ring: ringOf(id) }; ms.set(all); };
-    const after = () => { save(); S.style.paint(); led(); };
+    const after = () => { save(); S.style.paint(); painted.style = performance.now(); led(); };
     const setK = (k, v) => { v = clamp(v, 0, 1); if (v < .04 && v < (radio.getStyleMix()[k] || 0)) v = 0; radio.setStyleMix({ [k]: v }); after(); };   // pulled back to a hair from zero is zero
     const F = {}; for (const [k, l, tip] of DIRS) { F[k] = Fader($p(`.mx-f[data-key="${k}"]`), { def: 0, tip, fmt: v => v + "%", text: v => v ? `${l} ${v} percent` : `${l} off`, onInput: v => setK(k, v / 100) });
       F[k].el.style.setProperty("--dc", DCOL[k]);
@@ -421,7 +443,7 @@ function mountMix(radio, opts = {}) {
     const vbox = $p('[data-hook="style-view"]'), view = PAD ? Seg(vbox, [["pad", "PAD"], ["faders", "FADERS"]], v => { ui.styleView = v; saveUI(); showView(); resized(); }, "Style view") : null;
     const card = $p(".mx-stylecard");
     function showView() { const v = PAD && ui.styleView !== "faders" ? "pad" : "faders"; card.dataset.view = v; if (view) view.set(v);
-      for (const el of card.querySelectorAll("[data-view]")) el.hidden = el.dataset.view !== v; if (v === "pad" && P) P.size(); }
+      for (const el of card.querySelectorAll("[data-view]")) el.hidden = el.dataset.view !== v; if (v === "pad" && P) P.size(); if (S.style) S.style.paint(); }
     // ----- the pad -----
     const P = PAD ? (() => {
       const box = $p("[data-padbox]"), svg = box.querySelector("svg"), puck = $p("[data-puck]"), ghost = $p(".mx-puck.mx-ghost"), txt = $p(".mx-padtxt"), note = $p(".mx-custom"), RP = 56, RR = 64;
@@ -439,22 +461,27 @@ function mountMix(radio, opts = {}) {
       const AK = Knob($p('.mx-k[data-key="ring"]'), { min: 0, max: 100, step: 1, def: 100, tip: "AMOUNT: scales the whole blend, so you can keep the mix of styles and ride how much of it plays",
         fmt: v => v + "%", text: v => `amount ${v} percent`, onInput: v => setRing(v / 100) });
       let pos = { x: 0, y: 0 };   // where the puck sits (pad radius 1), kept even while the AMOUNT is 0
-      const setPad = (x, y) => { const r = Math.hypot(x, y); if (r > 1) { x /= r; y /= r; } pos = { x, y }; radio.setStylePad({ x, y, ring: ringOf(sid()) }); after(); };
-      function setRing(v) { const id = sid(), old = ringOf(id); rings[id] = clamp(v, 0, 1); const mp = radio.mixToPad(radio.getStyleMix(), old || 1);
+      const setPad = (x, y) => { const r = Math.hypot(x, y); if (r > 1) { x /= r; y /= r; } pos = { x, y }; const px = x, py = y;
+        live(box, () => { radio.setStylePad({ x: px, y: py, ring: ringOf(sid()) }); after(); }); };
+      let ringPend = null;   // the AMOUNT before this frame's ring moves (a custom blend scales by new / old once per frame)
+      function setRing(v) { const id = sid(); if (!ringPend || ringPend.id !== id) ringPend = { id, old: ringOf(id) }; rings[id] = clamp(v, 0, 1);
+        live(box, () => { const rp = ringPend; ringPend = null; if (rp) ringApply(rp.id, rp.old); }); }
+      function ringApply(id, old) { const mp = radio.mixToPad(radio.getStyleMix(), old || 1);
         if (mp.custom) { if (old > 0) { const w = radio.getStyleMix(), f = rings[id] / old; for (const k in w) w[k] = clamp(w[k] * f, 0, 1); radio.setStyleMix(w); } }
         else radio.setStylePad({ x: pos.x, y: pos.y, ring: rings[id] }); after(); }
-      const toPad = e => { const r = box.getBoundingClientRect(); return [((e.clientX - r.left) / r.width * 200 - 100) / RP, ((e.clientY - r.top) / r.height * 200 - 100) / RP]; };
+      let padRect = null;   // measured once per drag (a read per move forced a layout after every repaint)
+      const toPad = e => { const r = padRect || box.getBoundingClientRect(); return [((e.clientX - r.left) / r.width * 200 - 100) / RP, ((e.clientY - r.top) / r.height * 200 - 100) / RP]; };
       let mode = null, a0 = 0, ring0 = 1, lastT = { t: 0, x: 0, y: 0 }, pid = null, moved = false, start = [0, 0];
       const angOf = (x, y) => Math.atan2(x, -y) * 180 / Math.PI;
-      box.addEventListener("pointerdown", e => { if (pid !== null || (e.pointerType === "mouse" && e.button !== 0) || e.target.closest(".mx-pl")) return;
+      box.addEventListener("pointerdown", e => { if (pid !== null || (e.pointerType === "mouse" && e.button !== 0) || e.target.closest(".mx-pl")) return; padRect = null;
         const [x, y] = toPad(e), r = Math.hypot(x, y); if (r > (RR + 9) / RP) return;
-        pid = e.pointerId; try { box.setPointerCapture(pid); } catch (err) {} e.preventDefault(); puck.focus({ preventScroll: true }); moved = false; start = [e.clientX, e.clientY];
-        if (r > (RP + 3) / RP) { mode = "ring"; a0 = angOf(x, y); ring0 = ringOf(sid()); return; }
+        pid = e.pointerId; padRect = box.getBoundingClientRect(); try { box.setPointerCapture(pid); } catch (err) {} e.preventDefault(); puck.focus({ preventScroll: true }); moved = false; start = [e.clientX, e.clientY];
+        dragOn(); if (r > (RP + 3) / RP) { mode = "ring"; a0 = angOf(x, y); ring0 = ringOf(sid()); return; }
         mode = "pad"; box.classList.add("drag"); setPad(x, y); });
       box.addEventListener("pointermove", e => { if (e.pointerId !== pid) return; if (!moved && Math.hypot(e.clientX - start[0], e.clientY - start[1]) > 3) moved = true; const [x, y] = toPad(e);
         if (mode === "ring") { let d = angOf(x, y) - a0; d = ((d + 540) % 360) - 180; a0 += d; ring0 = clamp(ring0 + d / 300, 0, 1); setRing(Math.round(ring0 * 100) / 100); return; }
         if (mode === "pad") setPad(x, y); });
-      const up = e => { if (e.pointerId !== pid) return; pid = null; box.classList.remove("drag"); const m = mode; mode = null;
+      const up = e => { if (e.pointerId !== pid) return; pid = null; box.classList.remove("drag"); const m = mode; mode = null; padRect = null; dragOff();
         if (e.type === "pointerup" && m === "pad" && !moved) { const t = performance.now(); if (t - lastT.t < 300 && Math.hypot(e.clientX - lastT.x, e.clientY - lastT.y) < 12) { lastT.t = 0; setPad(0, 0); return; } lastT = { t, x: e.clientX, y: e.clientY }; }
         else lastT.t = 0; };
       box.addEventListener("pointerup", up); box.addEventListener("pointercancel", up); box.addEventListener("lostpointercapture", up);
@@ -469,6 +496,7 @@ function mountMix(radio, opts = {}) {
           const rr = Math.max(r, .3); [x, y] = pt(rr, ANG[order[i]]); }
         else return; e.preventDefault(); setPad(x, y); });
       function size() { /* labels are % placed; nothing to measure */ }
+      let ringsDrawn = NaN; const padEls = {};
       function paint(m, plan) { const id = sid(), ring = ringOf(id), mp = radio.mixToPad(m, ring || 1), anyW = order.some(k => (m[k] || 0) > .001);
         if (!mp.custom && anyW) pos = { x: mp.x, y: mp.y }; else if (!anyW && ring > 0 && Math.hypot(pos.x, pos.y) > .051) pos = { x: 0, y: 0 };   // inside the dead zone (or AMOUNT 0) the puck stays where it was put
         const show = mp.custom ? null : pos;
@@ -476,14 +504,14 @@ function mountMix(radio, opts = {}) {
         const place = (el, x, y) => { el.style.left = (50 + x * RP / 2) + "%"; el.style.top = (50 + y * RP / 2) + "%"; };
         if (show) place(puck, show.x, show.y); if (mp.custom) { place(ghost, mp.x, mp.y); puck.hidden = false; place(puck, 0, 0); puck.classList.add("idle"); } else puck.classList.remove("idle");
         // rings at the amounts where stages start: drawn where they fall for this AMOUNT (a stage the AMOUNT can't reach is left out)
-        ringsG.innerHTML = RINGS.map(([a, l]) => { if (a > ring + .001) return ""; const r = RP * (.05 + .95 * Math.min(1, a / (ring || 1))), [tx, ty] = pt(r, 18);
-          return `<circle r="${f2(r)}" fill="none" stroke="rgba(255,255,255,${a >= 1 ? .28 : .16})" stroke-width="${a >= 1 ? .9 : .6}" stroke-dasharray="${a >= 1 ? "" : "2 2"}"/><text class="mx-svgt" x="${f2(tx + 1.5)}" y="${f2(ty + 2)}">${l}</text>`; }).join("");
+        if (ring !== ringsDrawn) { ringsDrawn = ring; ringsG.innerHTML = RINGS.map(([a, l]) => { if (a > ring + .001) return ""; const r = RP * (.05 + .95 * Math.min(1, a / (ring || 1))), [tx, ty] = pt(r, 18);
+          return `<circle r="${f2(r)}" fill="none" stroke="rgba(255,255,255,${a >= 1 ? .28 : .16})" stroke-width="${a >= 1 ? .9 : .6}" stroke-dasharray="${a >= 1 ? "" : "2 2"}"/><text class="mx-svgt" x="${f2(tx + 1.5)}" y="${f2(ty + 2)}">${l}</text>`; }).join(""); }   // 1.26: rebuilt only when AMOUNT changes
         const [ax, ay] = pt(RR, Math.min(359.9, ring * 360)); amt.setAttribute("d", ring <= 0 ? "" : ring >= .999 ? `M0 ${-RR}A${RR} ${RR} 0 1 1 -0.01 ${-RR}` : `M0 ${-RR}A${RR} ${RR} 0 ${ring > .5 ? 1 : 0} 1 ${f2(ax)} ${f2(ay)}`);
         AK.set(Math.round(ring * 100)); AK.state({ moved: ring < .995 });
         const on = order.filter(k => (m[k] || 0) > .001).sort((a, b) => m[b] - m[a]), eff = plan && plan.w ? plan.w : m;
-        for (const b of box.querySelectorAll(".mx-pl")) { const k = b.dataset.dir, v = m[k] || 0; b.classList.toggle("on", v > .001); b.style.setProperty("--w", String(v)); }
-        for (const l of svg.querySelectorAll(".mx-spoke")) { const v = m[l.dataset.dir] || 0; l.setAttribute("opacity", v > .001 ? String(.5 + .5 * Math.min(1, v * 1.5)) : ".35"); l.setAttribute("stroke-width", v > .001 ? "1.8" : ".8"); }
-        for (const p of svg.querySelectorAll(".mx-sector")) { const a = m[p.dataset.a] || 0, b = m[p.dataset.b] || 0; p.setAttribute("opacity", a > .001 && b > .001 ? ".42" : ".16"); }
+        for (const b of (padEls.pl || (padEls.pl = [...box.querySelectorAll(".mx-pl")]))) { const k = b.dataset.dir, v = m[k] || 0; b.classList.toggle("on", v > .001); b.style.setProperty("--w", String(v)); }
+        for (const l of (padEls.sp || (padEls.sp = [...svg.querySelectorAll(".mx-spoke")]))) { const v = m[l.dataset.dir] || 0; l.setAttribute("opacity", v > .001 ? String(.5 + .5 * Math.min(1, v * 1.5)) : ".35"); l.setAttribute("stroke-width", v > .001 ? "1.8" : ".8"); }
+        for (const p of (padEls.se || (padEls.se = [...svg.querySelectorAll(".mx-sector")]))) { const a = m[p.dataset.a] || 0, b = m[p.dataset.b] || 0; p.setAttribute("opacity", a > .001 && b > .001 ? ".42" : ".16"); }
         const lab = k => (DIRS.find(d => d[0] === k) || [k, k])[1], parts = on.map(k => `${lab(k)} ${Math.round((eff[k] || 0) * 100)}%`);
         txt.textContent = parts.length ? parts.slice(0, 3).join(" · ") + (parts.length > 3 ? ` · +${parts.length - 3}` : "") : "THE SONG AS IT IS";
         const amount = Math.round(on.reduce((a, k) => a + (eff[k] || 0), 0) * 100);
@@ -494,14 +522,15 @@ function mountMix(radio, opts = {}) {
     const scaled = $p(".mx-scaled");
     S.style = {
       paint() { const m = radio.getStyleMix(), plan = has("getStylePlan") ? radio.getStylePlan() : null, sc = !!(plan && plan.scaled);
-        for (const [k] of DIRS) { const v = m[k] || 0, f = F[k]; f.set(Math.round(v * 100)); f.el.classList.toggle("moved", v > .001);
-          const eff = f.el.querySelector(".mx-eff"); eff.hidden = !(sc && v > .001); if (sc) eff.textContent = "▸" + Math.round(((plan.w || {})[k] || 0) * 100);
-          const st = plan && plan.stages ? plan.stages[k] : null, lit = f.el.querySelector(".mx-lit4");
+        const fadersShown = !(P && card.dataset.view === "pad");   // 1.26: the hidden view isn't repainted on every move (showView paints it when it opens)
+        if (fadersShown) for (const [k] of DIRS) { const v = m[k] || 0, f = F[k]; f.set(Math.round(v * 100)); f.el.classList.toggle("moved", v > .001);
+          const eff = f.eff || (f.eff = f.el.querySelector(".mx-eff")); eff.hidden = !(sc && v > .001); if (sc) eff.textContent = "▸" + Math.round(((plan.w || {})[k] || 0) * 100);
+          const st = plan && plan.stages ? plan.stages[k] : null, lit = f.lit !== undefined ? f.lit : (f.lit = f.el.querySelector(".mx-lit4"));
           if (lit) { const L = { feel: st ? st.feel || 0 : 0, drums: st ? st.drums || 0 : 0, band: st ? (st.bass ? 1 : Math.max(0, ((st.keys || 0) - .5) * 2)) : 0, full: st && st.lead ? 1 : 0 };
             for (const i of lit.children) { const x = clamp(L[i.dataset.s], 0, 1); i.style.setProperty("--x", String(x)); i.classList.toggle("on", x > .02); }
             const roles = plan && plan.roles ? Object.keys(plan.roles).filter(r => plan.roles[r] === k) : []; f.el.title = roles.length ? `Plays: ${roles.join(", ")}` : (f.el.title.startsWith("Plays:") ? "" : f.el.title); } }
         if (scaled) scaled.hidden = !sc;
-        if (LANES.length) { const L = radio.getStyleLanes(), stg = plan && plan.stages ? Object.values(plan.stages) : [];
+        if (LANES.length && fadersShown) { const L = radio.getStyleLanes(), stg = plan && plan.stages ? Object.values(plan.stages) : [];
           const act = { drums: s => s.drums > .02, keys: s => s.keys > .02, bass: s => !!s.bass, lead: s => !!s.lead, groove: s => s.groove > .02, tempo: s => s.tempo > .02, fx: s => s.fx > .02 };
           for (const [k] of LANES) { LK[k].set(Math.round((L[k] == null ? 1 : L[k]) * 100)); LK[k].state({ moved: (L[k] == null ? 1 : L[k]) < .995 });
             LK[k].el.classList.toggle("live", (L[k] == null ? 1 : L[k]) > .005 && stg.some(s => act[k] ? act[k](s) : false)); } }
@@ -514,7 +543,7 @@ function mountMix(radio, opts = {}) {
 
   // ---------- GROOVE & KEY ----------
   if (SEC.groove) {
-    const gs = grooveStore || ls("mdfmGroove"), gall = obj(gs.get()) || {};
+    const gs = lazy(grooveStore) || ls("mdfmGroove"), gall = obj(gs.get()) || {};
     for (const id in gall) if (obj(gall[id])) radio.setGroove(gall[id], id);
     const gsave = v => { gall[sid()] = v; gs.set(gall); };
     const setG = o => { gsave(radio.setGroove({ ...o, gv: GD.gv || 2 })); S.groove.paint(); led(); };
@@ -598,7 +627,7 @@ function mountMix(radio, opts = {}) {
 
   // ---------- FX ----------
   if (SEC.fx) {
-    const fs = fxStore || ls("mdfmFx"), fsaved = obj(fs.get()); if (fsaved) radio.setFx(fsaved);
+    const fs = lazy(fxStore) || ls("mdfmFx"), fsaved = obj(fs.get()); if (fsaved) radio.setFx(fsaved);
     // an old (1.24) CHAOS saved with the style matrix is GLITCH now: kept unless mdfmFx already has its own GLITCH
     if (S.style && typeof S.style.glitchFromV1 === "number" && FKS.has("glitch") && !(fsaved && typeof fsaved.glitch === "number")) fs.set(radio.setFx({ glitch: Math.max(radio.getFx().glitch || 0, S.style.glitchFromV1) }));
     const ftxt = (k, v) => k === "filter" ? (Math.abs(v - 50) < 1 ? "OFF" : v < 50 ? "LP " + hz(20000 * Math.pow(180 / 20000, Math.min(1, (50 - v) / 50))) : "HP " + hz(10 * Math.pow(300, Math.min(1, (v - 50) / 50)))) : v === 0 ? "OFF" : v + "%";
@@ -630,7 +659,7 @@ function mountMix(radio, opts = {}) {
   // ---------- moved dots, the MIX LED, scope badges ----------
   const tl = toggle ? toggle.closest("label,.rd-btn") : null;
   function led() { let anyM = false;
-    for (const k of Object.keys(S)) { const m = S[k].moved(); anyM = anyM || m; const sec = $p(`.mx-sec[data-sec="${k}"]`), tab = $p(`[data-tab="${k}"]`);
+    for (const k of Object.keys(S)) { const m = S[k].moved(); anyM = anyM || m; const sec = $c(`.mx-sec[data-sec="${k}"]`), tab = $c(`[data-tab="${k}"]`);
       sec && sec.classList.toggle("moved", m); tab && tab.classList.toggle("moved", m); }
     if (tl) tl.classList.toggle("tuned", anyM); }
   function scope() { const st = station(), nm = st ? st.name : "";
@@ -663,11 +692,12 @@ function mountMix(radio, opts = {}) {
     win.addEventListener("blur", letGo); doc.addEventListener("visibilitychange", () => { if (doc.hidden) letGo(); }); }
 
   // ---------- repaint on the engine's events: the hub, the page and the API stay in step (coalesced to one paint per frame) ----------
-  const dirty = new Set(); let rafT = 0;
-  const later = (...ks) => { for (const k of ks) dirty.add(k); if (rafT) return;
+  const dirty = new Map(); let rafT = 0;
+  const later = (...ks) => { const t = performance.now(); for (const k of ks) if (!dirty.has(k)) dirty.set(k, t); if (rafT) return;
     rafT = setTimeout(() => {   // a timer, not requestAnimationFrame: a page in the background still keeps up
       rafT = 0; const ks = [...dirty]; dirty.clear();
-      for (const k of ks) if (S[k]) S[k].paint(); if (ks.includes("scope")) scope(); led(); }); };
+      // 1.26: a section MIX itself already painted after the change isn't painted again
+      for (const [k, t] of ks) if (S[k] && !(painted[k] >= t)) S[k].paint(); if (ks.some(([k]) => k === "scope")) scope(); led(); }); };
   if (radio.on) { radio.on("station", () => { scope(); later("style", "groove"); });   // the scope line at once; the controls on the next frame
     radio.on("nowplaying", () => later("groove"));
     radio.on("fx", () => later("fx")); radio.on("groove", () => later("groove")); radio.on("mix", () => later("style"));
@@ -707,9 +737,51 @@ function mountMix(radio, opts = {}) {
   let resizeT = 0;
   function resized() { clearTimeout(resizeT); resizeT = setTimeout(() => { try { win.dispatchEvent(new CustomEvent("mdfm:mixresize", { detail: { open: !panel.hidden, layout: L } })); } catch (e) {} }, 30); }
   let animT = 0, isOpen = false;
+  // ---------- 1.26 LITE (mobile mix): AUTO = phones and tablets (touch-first, or an iPad that says it's a Mac) ----------
+  const liteAuto = () => { const n = win.navigator || {}, ua = n.userAgent || "";
+    return /iPhone|iPad|iPod|Android/i.test(ua) || (n.platform === "MacIntel" && (n.maxTouchPoints || 0) > 1) || coarse(); };
+  if (!["auto", "on", "off"].includes(ui.lite)) ui.lite = "auto";
+  const liteWanted = () => ui.lite === "on" || (ui.lite === "auto" && liteAuto());
+  let spotsHeld = null;
+  function applyLite() { const act = isOpen && liteWanted(), root = doc.documentElement;
+    root.classList.toggle("mx-lite", act); try { win.MDFM_lite = act; } catch (e) {}
+    if (has("setLite")) radio.setLite(act);
+    if (act && has("prewarmMix")) radio.prewarmMix();
+    if (act && spotsHeld === null && has("getSpots") && has("setSpots")) { spotsHeld = radio.getSpots(); radio.setSpots(false); }   // MDFM's talk breaks wait while you mix
+    else if (!act && spotsHeld !== null) { radio.setSpots(spotsHeld); spotsHeld = null; }
+    const lb = $p('[data-t="lite"]'); if (lb) { lb.setAttribute("aria-pressed", String(act)); lb.classList.toggle("on", act); lb.querySelector("[data-lite-v]").textContent = ui.lite.toUpperCase(); } }
+  { const lb = $p('[data-t="lite"]'); if (lb) lb.addEventListener("click", () => { ui.lite = { auto: "on", on: "off", off: "auto" }[ui.lite]; saveUI(); applyLite(); }); }
+  // ---------- 1.27 VOID: flat dark blocks while MIX is open (its own switch, remembered in mdfmMixUI.void) ----------
+  function applyVoid() { const act = isOpen && !!ui.void, root = doc.documentElement; root.classList.toggle("mx-void", act);
+    const th = doc.getElementById("meddev-skin-theme"); if (th) { if (act && !th.disabled) { th.disabled = true; th.dataset.voided = "1"; } else if (!act && th.dataset.voided) { th.disabled = false; delete th.dataset.voided; } }
+    try { win.dispatchEvent(new CustomEvent("mdfm:void", { detail: { on: act } })); } catch (e) {}
+    const vb = $p('[data-t="void"]'); if (vb) { vb.setAttribute("aria-pressed", String(act)); vb.classList.toggle("on", act); } }
+  { const vb = $p('[data-t="void"]'); if (vb) vb.addEventListener("click", () => { ui.void = !ui.void; saveUI(); applyVoid(); }); }
+  // ---------- 1.27 PERF: an on-screen readout (frame rate, longest freeze, notes on time); stays up until turned off ----------
+  let perfBox = null, perfT = 0, perfRaf = 0;
+  function perfOn(on) { const pb = $p('[data-t="perf"]'); if (pb) { pb.setAttribute("aria-pressed", String(on)); pb.classList.toggle("on", on); }
+    if (!on) { if (perfBox) perfBox.remove(); perfBox = null; clearTimeout(perfT); if (perfRaf) win.cancelAnimationFrame(perfRaf); perfRaf = 0; return; }
+    if (perfBox || !has("perfStats")) return;
+    perfBox = doc.createElement("div"); perfBox.className = "mx-perf"; perfBox.setAttribute("role", "status"); perfBox.setAttribute("aria-label", "Performance readout");
+    perfBox.innerHTML = `<b>PERF</b><button type="button" aria-label="Close the performance readout">×</button><pre></pre>`; doc.body.appendChild(perfBox);
+    perfBox.querySelector("button").addEventListener("click", () => { ui.perf = false; saveUI(); perfOn(false); });
+    const pre = perfBox.querySelector("pre"), gaps = [], hist = [];   // frame gaps (5 s) and the scheduler's counts per half second (5 s)
+    let last = 0, frames = 0, t0 = performance.now(); radio.perfStats(true);
+    const fr = now => { if (last) gaps.push([now, now - last]); last = now; frames++; perfRaf = win.requestAnimationFrame(fr); }; perfRaf = win.requestAnimationFrame(fr);
+    const tick = () => { if (!perfBox) return; const now = performance.now(), st = radio.perfStats(true); hist.push([now, st]);
+      while (gaps.length && gaps[0][0] < now - 5000) gaps.shift(); while (hist.length && hist[0][0] < now - 5000) hist.shift();
+      const fps = frames / ((now - t0) / 1000); frames = 0; t0 = now;
+      const freeze = gaps.reduce((m, g) => Math.max(m, g[1]), 0), sum = k => hist.reduce((a, h) => a + h[1][k], 0), minLead = hist.reduce((m, h) => Math.min(m, h[1].minLead), 9);
+      const late = sum("late"), tight = sum("tight"), steps = sum("steps"), modes = [st.lite ? "LITE" : "", doc.documentElement.classList.contains("mx-void") ? "VOID" : ""].filter(Boolean).join(" · ") || "normal";
+      const ok = !late && !tight, ms = x => Math.round(x * 1000);
+      pre.textContent = `FPS     ${Math.round(fps)}\nFREEZE  ${Math.round(freeze)} ms  (longest, 5 s)\nNOTES   ${steps ? (ok ? "on time" : `${late} skipped · ${tight} near misses`) : "—"}\nSPARE   ${steps && minLead < 9 ? ms(minLead) + " ms" : "—"}  (of ${ms(st.ahead)} ms ahead)\nAUDIO   ${st.sampleRate ? Math.round(st.sampleRate / 100) / 10 + " kHz" : "—"} · ${st.state}${st.outputLatency ? " · out " + ms(st.outputLatency) + " ms" : ""}\nMODE    ${modes}`;
+      perfBox.classList.toggle("bad", late > 0 || freeze > 250); perfBox.classList.toggle("warn", !(late > 0 || freeze > 250) && (tight > 0 || freeze > 100));
+      perfT = setTimeout(tick, 500); };
+    perfT = setTimeout(tick, 500); }
+  { const pb = $p('[data-t="perf"]'); if (pb) pb.addEventListener("click", () => { ui.perf = !ui.perf; saveUI(); perfOn(!!ui.perf); }); if (ui.perf) perfOn(true); }
   function open(v, { restore = false } = {}) {
     v = !!v; if (toggle) { if (toggle.type === "checkbox") toggle.checked = v; else toggle.setAttribute("aria-pressed", String(v)); toggle.setAttribute("aria-expanded", String(v)); }
-    if (v === isOpen) return; isOpen = v; ui.open = v; saveUI(); clearTimeout(animT);
+    if (v === isOpen) return; isOpen = v; ui.open = v; saveUI(); clearTimeout(animT); applyLite(); applyVoid();
     const done = () => { panel.removeAttribute("inert"); if (isOpen) { panel.classList.add("mx-settled"); eqWake(); } else panel.hidden = true; resized(); };
     if (v) { panel.hidden = false; applyLayout(); paintAll(); eqWake();
       if (reduced() || restore) { panel.classList.remove("mx-shut"); done(); }
@@ -734,6 +806,46 @@ function mountMix(radio, opts = {}) {
 const mountTune = mountMix;   // older pages (the hub up to v102, kit apps) call mountTune
 
 const MIX_CSS = `
+.mixdrawer .btn.mx-lite{min-height:44px;padding:0 12px;font:700 .66rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.12em;touch-action:manipulation}
+.mixdrawer .btn.mx-lite.on{color:#7fe0e6;box-shadow:inset 0 0 0 2px #7fe0e6}
+.mixdrawer[data-layout=tabs] .mx-lite{order:5}
+html.mx-lite *,html.mx-lite *::before,html.mx-lite *::after{text-shadow:none!important;animation-play-state:paused!important}
+html.mx-lite .mixdrawer *,html.mx-lite .mixdrawer *::before,html.mx-lite .mixdrawer *::after{animation-play-state:running!important;transition-duration:0s!important}
+html.mx-lite .lcd::after,html.mx-lite .list::after,html.mx-lite .tabs::after,html.mx-lite .hits::after,html.mx-lite .msgs::after,html.mx-lite .vu-glass::after,html.mx-lite .glass::after{display:none!important}
+html.mx-lite .mixdrawer canvas{filter:none!important}
+.mixdrawer .btn.mx-void{min-height:44px;padding:0 12px;font:700 .66rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;touch-action:manipulation}
+.mixdrawer[data-layout=tabs] .mx-void{order:5}
+/* 1.27 PERF readout */
+.mixdrawer .btn.mx-perfbtn{min-height:44px;padding:0 12px;font:700 .66rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;touch-action:manipulation}
+.mixdrawer[data-layout=tabs] .mx-perfbtn{order:5}
+.mx-perf{position:fixed;right:max(10px,env(safe-area-inset-right,0px));bottom:max(10px,env(safe-area-inset-bottom,0px));z-index:2147483000;background:rgba(10,11,13,.92);color:#cfe9d4;border:1px solid #2f8f4a;border-radius:8px;padding:8px 10px 9px;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;pointer-events:auto;max-width:calc(100vw - 20px);contain:layout paint}
+.mx-perf.warn{border-color:#d9b23a;color:#f3e3b0}.mx-perf.bad{border-color:#e0574d;color:#ffd0cb}
+.mx-perf b{font:700 10px/1 Tahoma,Verdana,sans-serif;letter-spacing:.2em;opacity:.7}
+.mx-perf button{position:absolute;top:2px;right:4px;width:28px;height:28px;border:0;background:none;color:inherit;font-size:18px;line-height:1;cursor:pointer}
+.mx-perf pre{margin:6px 0 0;font:inherit;white-space:pre}
+.mx-perf{pointer-events:none}.mx-perf button{pointer-events:auto}   /* touches pass through to the controls underneath */
+@media (max-width:600px){.mx-perf{font-size:10px;padding:5px 8px 6px;background:rgba(10,11,13,.82)}.mx-perf pre{margin-top:3px}}
+/* ===== 1.27 VOID: no skin, no textures, glass, glow, shadows, filters or decorations; flat dark blocks, crisp lit edges ===== */
+html.mx-void{--v-bg:#111215;--v-blk:#1b1c21;--v-blk2:#24252b;--v-blk3:#2e3038;--v-line:#33353e;--v-txt:#d8dae1;--v-mute:#8b8e9a;--v-glow:var(--lcd,#00e000);--v-scr:#0a0b0d;color-scheme:dark}
+html.mx-void body{background:var(--v-bg)!important}
+html.mx-void *,html.mx-void *::before,html.mx-void *::after{background-image:none!important;box-shadow:none!important;text-shadow:none!important;filter:none!important;mix-blend-mode:normal!important;animation:none!important;transition:none!important;border-image:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.mx-void .skin-decor,html.mx-void [class^="sx-"],html.mx-void [class*=" sx-"],html.mx-void .spraycan,html.mx-void .ffly,html.mx-void .canlayer,html.mx-void .mistfx,html.mx-void .wtitle::before,html.mx-void .wtitle::after,html.mx-void .lcd::after,html.mx-void .list::after,html.mx-void .tabs::after,html.mx-void .hits::after,html.mx-void .msgs::after,html.mx-void .vu-glass::after,html.mx-void .glass::after{display:none!important}
+html.mx-void .deck,html.mx-void .panel,html.mx-void .wing,html.mx-void .mx-card,html.mx-void .mx-sec,html.mx-void .setsec{background-color:var(--v-blk)!important;border:1px solid var(--v-line)!important;border-radius:8px!important}
+html.mx-void .mixdrawer{background-color:transparent!important;border-top:1px solid var(--v-line)!important}
+html.mx-void .wtitle{background-color:transparent!important;border:0!important;color:var(--v-mute)!important;letter-spacing:.3em!important;justify-content:flex-start!important}
+html.mx-void .lcd,html.mx-void .vu-glass,html.mx-void input,html.mx-void select,html.mx-void textarea,html.mx-void .mx-eqg{background-color:var(--v-scr)!important;border:1px solid var(--v-line)!important;border-radius:6px!important}
+html.mx-void .btn,html.mx-void .wbtn button,html.mx-void .stbtn,html.mx-void .seg button,html.mx-void .tabs button,html.mx-void .mixdrawer button:where(:not(.rd-knob,.mx-eqn,.mx-puck,.mx-acc)){background-color:var(--v-blk2)!important;border:1px solid var(--v-line)!important;border-radius:6px!important;color:var(--v-txt)!important}
+html.mx-void .btn:hover,html.mx-void .mixdrawer button:where(:not(.rd-knob,.mx-eqn,.mx-puck,.mx-acc)):hover{background-color:var(--v-blk3)!important}
+html.mx-void [aria-pressed=true],html.mx-void [aria-checked=true],html.mx-void [aria-selected=true],html.mx-void .btn.on,html.mx-void .mixdrawer button.on{border-color:var(--v-glow)!important;color:var(--v-glow)!important;outline:1px solid var(--v-glow)!important;outline-offset:-3px!important}
+html.mx-void .mixdrawer button.mx-acc{background-color:transparent!important;border:0!important;outline:0!important;color:var(--v-txt)!important;padding:0!important}
+html.mx-void .rd-btn button,html.mx-void .mixdrawer .rd-btn button,html.mx-void .vizsw input,html.mx-void .rd-knob,html.mx-void .vol-knob{background-color:var(--v-blk3)!important;border:1px solid #474a55!important;border-radius:50%!important}
+html.mx-void .rd-btn button[aria-pressed=true],html.mx-void .rd-btn button:active,html.mx-void .mixdrawer .rd-btn button.armed{border-color:var(--v-glow)!important;background-color:var(--v-blk2)!important}
+html.mx-void .rd-knob::after,html.mx-void .vol-knob::after{background-color:var(--v-glow)!important}
+html.mx-void .mx-track{background-color:var(--v-scr)!important}
+html.mx-void .mx-fill{background-color:var(--v-glow)!important;opacity:.55}
+html.mx-void .mx-cap{background-color:#3d404a!important;border:1px solid #5a5e6b!important;border-radius:3px!important}
+html.mx-void small,html.mx-void .mx-hint,html.mx-void .hint,html.mx-void h3,html.mx-void h4{color:var(--v-mute)!important}
+html.mx-lite .mx-padbox,html.mx-lite .mx-padtxt,html.mx-lite .mx-eqg,html.mx-lite .mx-f .mx-ft{will-change:transform;contain:layout paint}
 .mixdrawer{display:grid;grid-template-rows:1fr;transition:grid-template-rows .22s ease-out;margin-top:12px;padding-top:10px;border-top:1px solid rgba(0,0,0,.45);box-shadow:0 -1px 0 rgba(255,255,255,.08);position:relative;min-width:0}
 .mixdrawer[hidden],.mixdrawer [hidden]{display:none!important}
 .mixdrawer.mx-shut{grid-template-rows:0fr}

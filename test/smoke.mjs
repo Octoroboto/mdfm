@@ -126,7 +126,8 @@ await key('.mx-k[data-key="g-humanize"] .rd-knob'); await key('.mx-k[data-key="f
 r.mixMoved = await p3.evaluate(() => { const R = window.__radio; return { realism: R.getSound().realism, low: R.getTone().low, pop: R.getStyleMix().pop, hum: R.getGroove().humanize, echo: R.getFx().echo, led: document.querySelector("label.tunesw").classList.contains("tuned") }; });
 await p3.click('[data-t="reset"]'); await p3.click('[data-t="reset"]'); await p3.waitForTimeout(100);
 r.mixReset = await p3.evaluate(() => { const R = window.__radio, e = R.getEq(); return e.p2.gain === 0 && R.getGroove().ghosts === 0 && R.getSound().realism === 0 && R.getTone().low === 0 && !Object.values(R.getStyleMix()).some(v => v > 0) && R.getGroove().humanize === 0 && R.getFx().echo === 0 && !document.querySelector("label.tunesw").classList.contains("tuned"); });
-await p3.focus('.mx-k[data-key="realism"] .rd-knob'); await p3.keyboard.press("Escape"); await p3.waitForTimeout(400);
+await p3.focus('.mx-k[data-key="realism"] .rd-knob'); await p3.keyboard.press("Escape");
+await p3.waitForFunction(() => document.querySelector("#tunePop").hidden, null, { timeout: 2500 }).catch(() => {});   // 1.26: wait for the close (a fixed 400 ms was flaky on slower machines)
 r.mixClosed = await p3.evaluate(() => document.querySelector("#tunePop").hidden && document.activeElement === document.querySelector("#tuneOn"));
 r.mixErrs = errs3;
 console.log(r); await b.close(); srv.close();
