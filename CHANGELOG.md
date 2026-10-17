@@ -2,6 +2,20 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.28.0 (2026-10-17, Rob)
+- **Settings › Instruments shows what's playing.**
+  - **Playing now:** a card at the top names the song on air and lists its drums, bass, keys, hook lead, verse lead and pad. Each has a **Switch off** button that takes effect from the next song, and a **Next song** button sits beside them.
+  - **Marks in the list:** **▶ NOW** for what the song on air is playing, and **HEARD ×n** for what played in the last 12 songs (kept on this device).
+  - Works on MDFM 99.9, PTRN 101.1 and CLUK 92.3.
+- **More to switch off:**
+  - CLUK's horn and guitar stabs, chicken-scratch guitar, rave piano, hard house stabs, electro stabs and acid lead.
+  - The genre bass lines: reese, wobble, slap, and CLUK's riff, acid, electro, rubber and hard house basses. A switched-off bass line plays as a plain synth bass line.
+  - The section is now "Instruments on MDFM 99.9, PTRN 101.1 and CLUK 92.3", and items that came with CLUK are marked **CLUK**.
+- **API:**
+  - `instrumentsNow(np?)` returns `[{role, cat, id, key, label, on}]`.
+  - Now-playing carries `inst`.
+- With everything on, songs are unchanged: a seeded render matches 1.27 to the render floor.
+
 ## 1.27.0 (2026-10-16, Rob)
 - **VOID** (a button in MIX, next to LITE): while MIX is open, the radio drops its skin and every texture, glass, glow, shadow, filter and decoration, and draws flat dark-grey blocks with crisp lit edges. The layout and controls stay the same. On an iPhone 13, turning knobs went from about 2 fps to 50–60 fps. Tap it again to get the skin back; the choice is remembered.
 - **PERF** (a button in MIX): a small on-screen readout of frame rate, the longest freeze, whether notes arrive on time (skipped or near misses), the time to spare, and the audio state. Touches pass through it. It stays up until you close it.

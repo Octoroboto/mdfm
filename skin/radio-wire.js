@@ -93,17 +93,39 @@
     // Instruments on MDFM and PTRN (1.23): kits, bass, keys, leads and pads, in groups with All / None (this device)
     const il=$("#instList"), ilist=radio.instrumentList?radio.instrumentList():[];
     if(il&&ilist.length){ let it={}; try{ it=JSON.parse(localStorage.getItem("mdfmInstruments")||"{}"); }catch(e){} if(!it||typeof it!=="object"||Array.isArray(it)) it={};
-      const CAT={kit:"Drum kits",bass:"Bass",keys:"Keys and guitars",lead:"Leads",pad:"Pads"}, TAG={classic:"classic","1.22":"PTRN","1.23":"new"};
+      const CAT={kit:"Drum kits",bass:"Bass",keys:"Keys and guitars",lead:"Leads",pad:"Pads"}, TAG={classic:"classic","1.22":"PTRN","1.23":"new","1.24":"CLUK"};
       for(const c of Object.keys(CAT)){ const items=ilist.filter(x=>x[2]===c); if(!items.length) continue; const box=document.createElement("div"); box.className="ptrnfam"; const hd=document.createElement("div"); hd.className="ptrnfamhd"; const nm=document.createElement("span"); nm.textContent=CAT[c]; hd.append(nm);
         for(const [lab,v] of [["All",true],["None",false]]){ const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent=lab; b.setAttribute("aria-label",`${lab} of ${CAT[c]}`); b.addEventListener("click",()=>{ box.querySelectorAll("input").forEach(cb=>cb.checked=v); il.dispatchEvent(new Event("change")); }); hd.append(b); }
         const g=document.createElement("div"); g.className="types";
-        for(const [k,label,,since] of items){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-itype="${k}" data-since="${since}"> <span></span> <small></small>`; l.querySelector("span").textContent=label; l.querySelector("small").textContent=TAG[since]||""; l.querySelector("input").checked=it[k]!==false; g.appendChild(l); }
+        for(const [k,label,,since] of items){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-itype="${k}" data-since="${since}"> <span></span> <small></small><em class="inow" hidden>▶ NOW</em><em class="iheard" hidden></em>`; l.querySelector("span").textContent=label; l.querySelector("small").textContent=TAG[since]||""; l.querySelector("input").checked=it[k]!==false; g.appendChild(l); }
         box.append(hd,g); il.appendChild(box); }
       const is=()=>{ const t={}; il.querySelectorAll("input[data-itype]").forEach(cb=>t[cb.dataset.itype]=cb.checked); return t; };
       const saveI=()=>{ const t=is(); radio.setInstruments(t); try{ localStorage.setItem("mdfmInstruments",JSON.stringify(t)); }catch(e){} };
       radio.setInstruments(is()); il.addEventListener("change",saveI);
       $("#instClassic").addEventListener("click",()=>{ il.querySelectorAll("input[data-itype]").forEach(cb=>cb.checked=cb.dataset.since==="classic"); saveI(); });
       $("#instAll").addEventListener("click",()=>{ il.querySelectorAll("input[data-itype]").forEach(cb=>cb.checked=true); saveI(); });
+      // 1.28: what's playing. A "Playing now" card (each part with Switch off) and NOW / HEARD marks on the list.
+      const nowBox=$("#instNow"), HK="mdfmInstHeard"; let heard=[]; try{ heard=JSON.parse(localStorage.getItem(HK)||"[]"); }catch(e){} if(!Array.isArray(heard)) heard=[];
+      const cbOf=k=>il.querySelector(`input[data-itype="${k}"]`);
+      const paintNow=np=>{ const L=radio.instrumentsNow?radio.instrumentsNow(np):[], keys=new Set(L.map(x=>x.key).filter(Boolean)), cnt={};
+        for(const song of heard) for(const k of song) cnt[k]=(cnt[k]||0)+1;
+        il.querySelectorAll("label.opt").forEach(l=>{ const k=l.querySelector("input").dataset.itype, n=l.querySelector(".inow"), h=l.querySelector(".iheard"); n.hidden=!keys.has(k); l.classList.toggle("isnow",keys.has(k));
+          h.hidden=keys.has(k)||!cnt[k]; h.textContent=cnt[k]>1?`HEARD ×${cnt[k]}`:"HEARD"; });
+        if(!nowBox) return; nowBox.textContent=""; if(!L.length){ nowBox.hidden=true; return; } nowBox.hidden=false;
+        const hd=document.createElement("div"); hd.className="ptrnfamhd"; const t=document.createElement("span"); t.textContent=`Playing now${np&&np.title?": “"+np.title+"”":""}`; hd.append(t);
+        if(radio.skip){ const sk=document.createElement("button"); sk.type="button"; sk.className="btn"; sk.textContent="Next song"; sk.addEventListener("click",()=>radio.skip()); hd.append(sk); } nowBox.append(hd);
+        const g=document.createElement("div"); g.className="instnowlist";
+        for(const x of L){ const row=document.createElement("div"); row.className="instrow"+(x.on?"":" off"); const r=document.createElement("small"); r.textContent=x.role; const nm=document.createElement("span"); nm.textContent=x.label; row.append(r,nm);
+          if(x.key){ const cb=cbOf(x.key), b=document.createElement("button"); b.type="button"; b.className="btn"; const on=cb?cb.checked:x.on; b.textContent=on?"Switch off":"Switch on"; b.setAttribute("aria-label",`${on?"Switch off":"Switch on"} ${x.label}`);
+            if(!on){ const o=document.createElement("em"); o.textContent="off from the next song"; row.append(o); }
+            b.addEventListener("click",()=>{ if(cb){ cb.checked=!cb.checked; saveI(); paintNow(radio.nowPlaying&&radio.nowPlaying()); } }); row.append(b); }
+          else { const o=document.createElement("em"); o.textContent="this genre's own"; row.append(o); }
+          g.append(row); }
+        nowBox.append(g); };
+      let lastT=null; radio.on("nowplaying",np=>{ if(!np||np.talk) return; const L=radio.instrumentsNow?radio.instrumentsNow(np):[]; if(!L.length) return;
+        if(np.title!==lastT){ lastT=np.title; heard.push([...new Set(L.map(x=>x.key).filter(Boolean))]); while(heard.length>12) heard.shift(); try{ localStorage.setItem(HK,JSON.stringify(heard)); }catch(e){} }
+        paintNow(np); });
+      il.addEventListener("change",()=>paintNow(radio.nowPlaying&&radio.nowPlaying())); paintNow(radio.nowPlaying&&radio.nowPlaying());
       $("#instSet").hidden=false; }
     // PTLK's show switches (this device)
     const pl=$("#ptlkList"), plist=radio.stationTypeList("ptlk");

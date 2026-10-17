@@ -162,7 +162,9 @@ presets, `resetSound()` goes back, and `createMDFM({ sound })` starts tuned. The
 **Instruments** (1.23): each MDFM and PTRN song picks a drum kit (classic, 808 boom, punchy, dusty lo-fi), a bass sound
 (synth, 808, sub, FM, acid), keys, a lead and a pad. `radio.instrumentList()` lists the pool as [key, label, category, since]
 ("classic" = MDFM before 1.22, "1.22" = came with PTRN, "1.23" = new); `setInstruments({key: false})` takes one out (from
-the next song). The radio page's Settings has the switches (localStorage `mdfmInstruments`).
+the next song). The radio page's Settings has the switches (localStorage `mdfmInstruments`). Since 1.28 CLUK uses the pool too, the genre bass lines
+(reese, wobble, slap, CLUK's five) and CLUK's keys and acid lead are in it, and `instrumentsNow()` says what the song on air
+is playing; Settings shows it as a "Playing now" card with Switch off buttons, plus ▶ NOW / HEARD marks on the list.
 
 **Effects** (1.22): `radio.setFx({ echo, reverb, chorus, flange, phaser, warble, crush, drive, filter, gate, pump })`, all 0 to 1
 (0 = off; `filter` .5 = off, below is low-pass, above is high-pass), on every station and in Save. Echo, gate and pump follow

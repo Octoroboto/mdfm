@@ -130,3 +130,22 @@ label.vizsw{min-width:44px;min-height:44px;justify-content:center}
 #typeList label:has([data-type=meters]){grid-column:1/-1;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.12)}
 /* Phones: the console stacks; volume and LET IT RIDE share a row */
 @media (max-width:560px){.strow{gap:12px}.strow .vu,.strow .lcd.status{flex:1 1 100%}.strow .fxbtns{margin-left:12px}.strow .mixer{transform-origin:right center}}
+/* 1.28: Instruments › playing now */
+.instnow{display:grid;gap:6px;padding:10px 12px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(0,0,0,.28);margin:4px 0 6px}
+.instnow .ptrnfamhd{margin:0}.instnow .ptrnfamhd span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.instnowlist{display:grid;gap:4px}
+.instrow{display:grid;grid-template-columns:76px minmax(0,1fr) auto auto;gap:8px;align-items:center;min-height:36px;color:var(--label,#e6e6ee)}
+.instrow small{font:700 .58rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--caption,#cfd2de);opacity:.8}
+.instrow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.instrow em{font-style:normal;font-size:.72rem;color:var(--caption,#cfd2de);opacity:.75;white-space:nowrap}
+.instrow .btn{min-height:32px;padding:4px 12px;font-size:.78rem}
+.instrow.off span{text-decoration:line-through;opacity:.6}
+@media (pointer:coarse){.instrow{min-height:44px}.instrow .btn{min-height:44px}}
+@media (max-width:480px){.instrow{grid-template-columns:minmax(0,1fr) auto}.instrow small{grid-column:1/-1}.instrow em{display:none}}
+.setsec .opt em,.opt em.inow,.opt em.iheard{font-style:normal;font:700 .55rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.1em;padding:3px 5px;border-radius:3px;white-space:nowrap}
+.opt em.inow{background:#1d4a1d;color:#9dff9d;box-shadow:0 0 6px rgba(80,255,80,.35)}
+.opt em.iheard{background:rgba(0,0,0,.35);color:var(--caption,#cfd2de)}
+.opt.isnow span{color:#c8ffc8}
+#instSet{min-width:0;max-width:100%}.instnow,.instnowlist,.instrow{min-width:0;max-width:100%}
+.instnow .ptrnfamhd .btn{white-space:nowrap;flex:none}
+.instnow,.instnowlist{grid-template-columns:minmax(0,1fr)}
