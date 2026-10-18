@@ -241,11 +241,15 @@ function glitchBar(t,bs,beat){ const F=ctx&&FXW.get(ctx), v=fxv.glitch; if(!F||!
 function curBeat(){ const b=STN[station]&&STN[station].beat(); if(b) return b;
   const np=nowPlaying, bpm=np&&np.bpm?+np.bpm:120; return {t0:fxFree||(fxFree=ctx?ctx.currentTime:0),beat:60/Math.max(40,Math.min(220,bpm))}; }
 let fxFree=0;
+/* 1.30: on iPhone and iPad the system voice (PTRN's tags in a browser, the DJ without app voices) can interrupt the AudioContext;
+   resuming it while the voice is still talking cut the voice off mid-word (and the music stuttered as the two took turns).
+   While a system line is being spoken the context is left alone; it's resumed when the line ends. */
+let sysVoice=false, ctxKick=null;
 function init(c){
   ctx=c||new (window.AudioContext||window.webkitAudioContext)({latencyHint:"playback"});
   if(!(typeof OfflineAudioContext!=="undefined"&&ctx instanceof OfflineAudioContext)){   // 1.25: a context the OS suspended or interrupted (a call, sleep) comes back by itself while SOUND is on
-    const c0=ctx, kick=()=>{ if(on&&ctx===c0&&c0.state!=="running"&&c0.state!=="closed"){ try{ const p=c0.resume(); p&&p.catch&&p.catch(()=>{}); }catch(e){} } };
-    try{ c0.addEventListener?.("statechange",()=>setTimeout(kick,300)); }catch(e){}
+    const c0=ctx, kick=()=>{ if(sysVoice&&IS_IOS) return; if(on&&ctx===c0&&c0.state!=="running"&&c0.state!=="closed"){ try{ const p=c0.resume(); p&&p.catch&&p.catch(()=>{}); }catch(e){} } };
+    ctxKick=kick; try{ c0.addEventListener?.("statechange",()=>setTimeout(kick,300)); }catch(e){}
     try{ if(typeof document!=="undefined"&&document.addEventListener) document.addEventListener("visibilitychange",kick); if(typeof window!=="undefined"&&window.addEventListener) window.addEventListener("focus",kick); }catch(e){} }
   coreWarm(ctx.sampleRate);   // the cymbal cores for this rate (1.25)
   pre=G(1);
@@ -741,8 +745,11 @@ function makeSong(force,from=MDFM_STY,recent=recentStyles){
   // 1.23: newer instruments some of the time, then Settings' instrument pool (anything switched off is swapped for one that's on)
   if(R()<.2&&!["vox","chop","chip","cowbell"].includes(leadI)) leadI=pick(XTRA.lead); if(R()<.2) leadB=pick(XTRA.lead);
   if(R()<.3&&["piano","pianostab","rhodes","rhodesoff"].includes(chordsI)) chordsI="wurli"; if(R()<.15&&padI!=="none") padI="warm";
-  chordsI=poolFix("keys",chordsI,[st.chords,...fam.chords,"wurli"],st.chords); leadI=poolFix("lead",leadI,[st.lead,...fam.lead,...XTRA.lead],st.lead); leadB=poolFix("lead",leadB,[...fam.lead,...XTRA.lead],st.lead); padI=poolFix("pad",padI,[st.pad,...fam.pad,"warm","none"],st.pad);
-  const kitId=kitFor(name), bassKit=bassFor(name), no808=!poolOn("bass","b808"), bassP=poolOn("bass",st.bass)?null:"pulse";   // 1.28: a genre bass line switched off plays as plain synth eighths
+  { let h=2166136261^root*7919^(major?1:0); for(const c of name+K+bassOff.join(",")+bassPat.join("")) h=Math.imul(h^c.charCodeAt(0),16777619);   // 1.30: higher-end instruments, from a side stream so the song's own random choices stay as they were
+    const nr=()=>{ h=Math.imul(h^(h>>>15),2246822519)+0x9E3779B9|0; return ((h^(h>>>13))>>>0)/4294967296; }, nf=["METAL","PUNK","CHIPTUNE"].includes(name)?"":familyOf(name), NK=NEWI.keys[nf], NL=NEWI.lead[nf], np=a=>a[Math.floor(nr()*a.length)];
+    if(NK&&nr()<.22) chordsI=np(NK); if(NL&&nr()<.2&&!["vox","chop","chip","cowbell"].includes(leadI)) leadI=np(NL); if(NL&&nr()<.15) leadB=np(NL); var upB=["soul","Chill","Jazz, funk & soul"].includes(nf)&&nr()<(nf==="soul"?.2:.25); }
+  chordsI=poolFix("keys",chordsI,[st.chords,...fam.chords,"wurli",...(NEWI.keys[familyOf(name)]||[])],st.chords); leadI=poolFix("lead",leadI,[st.lead,...fam.lead,...XTRA.lead,...(NEWI.lead[familyOf(name)]||[])],st.lead); leadB=poolFix("lead",leadB,[...fam.lead,...XTRA.lead],st.lead); padI=poolFix("pad",padI,[st.pad,...fam.pad,"warm","none"],st.pad);
+  const kitId=kitFor(name), bassKit=(b=>upB&&!(STY[name]&&BASSX[STY[name].bass]&&!["offbeat","roll"].includes(STY[name].bass))&&poolOn("bass","upright")?"upright":b)(bassFor(name)), no808=!poolOn("bass","b808"), bassP=poolOn("bass",st.bass)?null:"pulse";   // 1.28: a genre bass line switched off plays as plain synth eighths
   const dens=({piano:.24,bell:.26,whistle:.2,rhodesline:.18,pluck:.3,cowbell:.32,saw:.2,vox:.17,chop:.3}[leadI]||.25)*rr(.75,1.3);
   const base=root+12*Math.round((st.octLead-root)/12);
   const hookLen=pick([1,2,2,4]), verseLen=pick([2,4]);
@@ -814,58 +821,68 @@ function playStep(s,step,t){
   if(MXON[sid]&&i===0&&!s.gExtra){ s.mxD=d; s.mxTr=tr; s.mxRoot=s.root+s.deg(d)+tr; s.mxNd=prog[Math.floor((bar+1)/s.cpb)%prog.length]; s.mxNx=s.root+s.deg(s.mxNd)+tr; s.mxCh=notes; s.mxFill=lastBar&&nextSec.kind!=="outro"; mxGroove(sid,s,t,16*sp,bar); }   // 1.25 (E3): the style matrix's bar (its swaps, extras and pattern bass), on this chord
   if(GN){ s.gPos=i; s.gSp=sp; s.gSw=tt-t; }   // 1.25 (E3): the step and its swing offset, for HAT SWING
   const drumsOn=K.drums&&!st.nodrums&&!(st.drumHook&&!(sec.kind==="hook"||sec.kind==="bridge"||sec.kind==="outro")), KICK=st.kickI?D[st.kickI]:D.kick, HAT=st.hat?D[st.hat]:D.hat;
-  if(drumsOn&&!drop&&!gSkip){
-    const kp=(K.kick==="B")!==deckB?s.K2:s.K; if(kp[di]==="x") KICK(s,tt,(di===0?1:.88)*(st.kv||1),s.kTn||s.kTune);
+  const BP=beatOn(sid)?beatPlan(s,sid,bar,sec,K,deckB,sb,gf,drumsOn):null;   // 1.31: BEAT (MIX › Groove & Key): the bar's plan, or null (the song as written)
+  if((BP||BWATCH)&&i===0&&!s.gExtra&&beatLive()) beatLog(sid,s,bar,t,BP?BP.own:beatSong(s,bar,sec,K,deckB,sb,gf),BP);
+  if((drumsOn||BP&&BP.fill)&&!drop&&!gSkip){
+    const kp=(K.kick==="B")!==deckB?s.K2:s.K; if(BP){ if(BP.k[i]) KICK(s,tt,(di===0?1:.88)*(st.kv||1)*BP.k[i],s.kTn||s.kTune); } else if(kp[di]==="x") KICK(s,tt,(di===0?1:.88)*(st.kv||1),s.kTn||s.kTune);
     const sp2=s.S[bar%s.S.length];
-    if(sp2[di]==="x"){ if(s.snv===1) D.snare(s,tt,1,.24,s.sTone); else if(s.snv===2){ D.snare(s,tt,1,.24,s.sTone); D.clap(s,tt,.4,.15); }   // this song: snare only, or a snare with a soft clap under it
-      else if(SNX[st.snare]) SNX[st.snare](s,tt,di); else if(st.snare==="big"){ D.snare(s,tt,1.05,.6,s.sTone*.9); D.clap(s,tt,.7,.55); } else if(st.snare==="ballad"){ D.snare(s,tt,.75,.7,s.sTone*.85); } else if(st.snare==="snare"){ D.snare(s,tt,1,.22,s.sTone); if(st.clap) D.clap(s,tt,.65);} else if(st.snare==="snapclap"){ D.snap(s,tt,1.1); D.clap(s,tt,.5,.45);} else { D.clap(s,tt,1); D.snare(s,tt,.3,.1,s.sTone); } }
-    const Pp=sec.kind==="hook"?s.P2:s.P; if(Pp&&Pp[di]==="x"&&sec.kind!=="intro"){ if(st.perc==="rim") D.rim(s,tt,.9); else if(st.perc==="snap") D.snap(s,tt,.8); else if(st.perc==="conga") D.conga(s,tt,.9,(di>>1)%2===1); else if(st.perc==="ghost") D.snare(s,tt,.2,.05); else if(PERCX[st.perc]) PERCX[st.perc](s,tt,di,bar); }
-    if(PERCX[st.perc2]&&sec.kind!=="intro") PERCX[st.perc2](s,tt,di,bar);
-    if(st.shaker&&sec.kind!=="intro") D.shaker(s,tt,di%2?1:.6);
-    if(lastBar&&nextSec.kind!=="outro"&&!(GN&&s.gNoFill)){   // the fill into the next section
+    const bs=BP?BP.s[i]:sp2[di]==="x"?1:0;
+    if(bs&&BP&&BP.rim) D.rim(s,tt,.9*bs);   // BEAT on a drumless song, gently: a rim click on the backbeat
+    else if(bs){ if(s.snv===1) D.snare(s,tt,1*bs,.24,s.sTone); else if(s.snv===2){ D.snare(s,tt,1*bs,.24,s.sTone); D.clap(s,tt,.4*bs,.15); }   // this song: snare only, or a snare with a soft clap under it
+      else if(SNX[st.snare]) SNX[st.snare](s,tt,di); else if(st.snare==="big"){ D.snare(s,tt,1.05*bs,.6,s.sTone*.9); D.clap(s,tt,.7*bs,.55); } else if(st.snare==="ballad"){ D.snare(s,tt,.75*bs,.7,s.sTone*.85); } else if(st.snare==="snare"){ D.snare(s,tt,1*bs,.22,s.sTone); if(st.clap) D.clap(s,tt,.65*bs);} else if(st.snare==="snapclap"){ D.snap(s,tt,1.1*bs); D.clap(s,tt,.5*bs,.45);} else { D.clap(s,tt,1*bs); D.snare(s,tt,.3*bs,.1,s.sTone); } }
+    const Pp=sec.kind==="hook"?s.P2:s.P, bq=BP?BP.p[i]:Pp&&Pp[di]==="x"&&sec.kind!=="intro"?1:0, pRest=!!BP&&beatOf(sid).grid.p[i]<0&&beatOf(sid).inf>=.5;
+    if(bq){ if(st.perc==="rim") D.rim(s,tt,.9*bq); else if(st.perc==="snap") D.snap(s,tt,.8*bq); else if(st.perc==="conga") D.conga(s,tt,.9*bq,(di>>1)%2===1); else if(st.perc==="ghost") D.snare(s,tt,.2*bq,.05); else if(PERCX[st.perc]) PERCX[st.perc](s,tt,di,bar);
+      else if(BP){ if(PERCX[st.perc2]) PERCX[st.perc2](s,tt,di,bar); else if(st.shaker) D.shaker(s,tt,bq); else D.rim(s,tt,.8*bq); } }   // BEAT's PERC on a song without a perc part: its second perc, its shaker, or a rim
+    if(PERCX[st.perc2]&&sec.kind!=="intro"&&!pRest) PERCX[st.perc2](s,tt,di,bar);
+    if(st.shaker&&sec.kind!=="intro"&&!pRest) D.shaker(s,tt,di%2?1:.6);
+    const sf=!(BP&&BP.fill&&beatOf(sid).inf<.5);   // BEAT's gentle drums on a drumless song: no fills or crashes
+    if(sf&&lastBar&&nextSec.kind!=="outro"&&!(GN&&s.gNoFill)){   // the fill into the next section
       const mk=songMeter(s), f0=mk==="3/4"?8:mk==="6/8"||mk==="7/8"?10:12;   // where the fill starts: the last beat of the bar (3/4, 6/8, 7/8 bars end early; 1.25: TUNE's TIME too)
       if(fill==="tom"&&i>=f0&&i<f0+4) D.tom(s,tt,.7,[190,160,130,100][i-f0]);
       else if(fill==="snareroll"&&i>=f0-4) D.snare(s,tt,.3+(i-f0+4)*.08,.12,s.sTone);
       else if(fill==="hatstutter"&&i>=f0&&i<f0+4) for(let k=0;k<4;k++) D.hat(s,tt+k*sp/4,.6,false,s.hatDec);
-    } else if(s.ride&&bar%16===15&&i>=8) D.snare(s,tt,.35+(i-8)*.08,.12,s.sTone);
-    if(sb===0&&i===0&&(sec.kind==="hook"||(sec.kind==="verse"&&R()<.4))) D.crash(s,tt,sec.kind==="hook"?1:.6);
-    else if(st.crashBar&&sec.kind==="hook"&&i===0&&sb%2===0) D.crash(s,tt,.45);
+    } else if(sf&&s.ride&&bar%16===15&&i>=8) D.snare(s,tt,.35+(i-8)*.08,.12,s.sTone);
+    if(sf&&sb===0&&i===0&&(sec.kind==="hook"||(sec.kind==="verse"&&R()<.4))) D.crash(s,tt,sec.kind==="hook"?1:.6);
+    else if(sf&&st.crashBar&&sec.kind==="hook"&&i===0&&sb%2===0) D.crash(s,tt,.45);
   }
   if(!s.gExtra&&lastBar&&nextSec.kind==="hook"&&i===0&&(sec.kind==="pre"||sec.kind==="break"||bar===s.keyFrom-1||R()<.5)) D.riser(s,t,sp*16);
   if(s.keyUp&&!st.set&&!s.gExtra){ if(bar===s.keyFrom-1&&i===8){ for(const [g,v] of [[s.mu.gain,1.1],[s.rv.gain,1]]){ g.setValueAtTime(v,t); g.setTargetAtTime(.0001,t,.03); } }   // 1.25 (E2): the key change lands clean:
     else if(bar===s.keyFrom&&i===0){ s.mu.gain.setValueAtTime(1.1,t); s.rv.gain.setValueAtTime(1,t); } }   // the old key's pads and reverb sends are choked in the dropped half bar
-  if(!(sec.kind==="intro"&&sb===0)&&!drop&&sec.kind!=="break"&&(drumsOn||!st.drumHook)&&!st.nodrums&&!gSkip){
-    const hp=(K.hats==="busy")!==deckB?s.H2:s.H, c=hp[di], hv=(di%4===0?1:rr(.55,.75))*(sec.kind==="intro"?.5:1)*(K.hats==="sparse"?.8:1)*(st.hv||1);
+  const hatOK=!(sec.kind==="intro"&&sb===0)&&!drop&&sec.kind!=="break"&&(drumsOn||!st.drumHook)&&!st.nodrums&&!gSkip;
+  if(hatOK||(BP&&BP.fill&&!drop&&!gSkip)){
+    const hp=(K.hats==="busy")!==deckB?s.H2:s.H, c=hp[di], hq=BP?BP.h[i]:1, hv=(di%4===0?1:rr(.55,.75))*(sec.kind==="intro"?.5:1)*(K.hats==="sparse"?.8:1)*(st.hv||1)*(hq||1);
     const build=K.hats==="build"&&sb>=sec.bars-2;
-    if(K.hats==="sparse"){ if(di%4===0||c==="r") HAT(s,tt,hv,false,s.hatDec); }
+    if(BP&&!(hatOK&&BP.hOwn[i])){ if(hq){ if(BP.shk) D.shaker(s,tt,hv); else HAT(s,tt,hv,false,s.hatDec); } }   // BEAT: a hat where the song has none (a shaker on a drumless song, gently)
+    else if(!hq){}   // BEAT: this one rests
+    else if(K.hats==="sparse"){ if(di%4===0||c==="r") HAT(s,tt,hv,false,s.hatDec); }
     else if(build){ if(di%2===0||sb===sec.bars-1) HAT(s,tt,hv*(.6+sb/sec.bars*.4),false,s.hatDec); }
     else if(c==="x") HAT(s,tt,hv,false,s.hatDec);
     else if(c==="r"){ HAT(s,tt,hv*.8,false,s.hatDec); HAT(s,tt+sp/2,hv*.6,false,s.hatDec); }
     else if(c==="3"){ for(let k=0;k<3;k++) HAT(s,tt+k*sp/3,hv*(.85-k*.12),false,s.hatDec); }
-    if(s.O&&s.O[di]==="o"&&K.drums) HAT(s,tt,.85,true,.2);
+    if(BP){ if(BP.o[i]) HAT(s,tt,.85*BP.o[i],true,.2); } else if(s.O&&s.O[di]==="o"&&K.drums) HAT(s,tt,.85,true,.2);
   }
   if(i===0&&st.vinyl) D.vinyl(s,t,sp*16);
   /* bass */
   const bL=s.bassP||st.bass;   // 1.28: the bass line on (its genre's own unless switched off in Settings)
-  const bassOn=K.bass==="full"||(K.bass==="half"&&i<8), BX=BASSX[bL];
+  const bassOn=K.bass==="full"||(K.bass==="half"&&i<8), BX=BASSX[bL], bpat=BP&&BP.bass?BP.bass:s.bassPat;   // 1.31: BASS FOLLOWS KICK (BEAT) moves the bass hits
   if(BX){ if(bassOn&&!drop) BX(s,tt,i,d,tr,prog[Math.floor((bar+1)/s.cpb)%prog.length],bar); }
   else if(bassOn&&!drop&&bL==="log"&&s.LOG[i]==="x"){ let m=s.root+s.deg(d)+tr+pick([0,0,0,7,12,-5]); if(m>55) m-=12; D.logdrum(s,tt,m,1); }
   if(!BX&&bassOn&&!drop&&(bL==="pulse"||bL==="octave")){   // dance: eighth-note synth bass (octave: jumps up on the offbeat)
-    if(i%2===0){ let m=s.root+s.deg(d)+tr; while(m>50) m-=12; const up=bL==="octave"&&i%4===2?12:0; M.bass(s,tt,m+up,sp*1.6,i%4===0?.95:.75); } }
+    if(i%2===0&&(!BP||!BP.b8||BP.b8[i])){ let m=s.root+s.deg(d)+tr; while(m>50) m-=12; const up=bL==="octave"&&i%4===2?12:0; M.bass(s,tt,m+up,sp*1.6,i%4===0?.95:.75); } }
   else if(bassOn&&!drop&&bL==="held"){ if(i===0||(i===8&&R()<.3)){ let m=s.root+s.deg(d)+tr; while(m>50) m-=12; M.bass(s,tt,m,sp*(i?7:15),.7); } }
-  else if(!BX&&bassOn&&!drop&&bL!=="log"&&s.bassPat[i]){
-    let len=1; while(i+len<16&&!s.bassPat[i+len]) len++;
-    if(bL==="bass"||s.no808){ let m=s.root+s.deg(d)+s.bassOff[i]+tr; if(m>52) m-=12; M.bass(s,tt,m,Math.min(len,4)*sp*.9,1,R()<.2?m+pick([-2,2]):null); }
-    else { let m=s.root-12+s.deg(d)+tr+(s.bassOff[i]===12?0:s.bassOff[i]); if(m>40) m-=12; if(m<28) m+=12;   // 1.25 (E2): 808 notes from 41 Hz (was 37)
+  else if(!BX&&bassOn&&!drop&&bL!=="log"&&bpat[i]){
+    let len=1; while(i+len<16&&!bpat[i+len]) len++;
+    if(bL==="bass"||s.no808){ let m=s.root+s.deg(d)+(s.bassOff[i]||0)+tr; if(m>52) m-=12; M.bass(s,tt,m,Math.min(len,4)*sp*.9,1,R()<.2?m+pick([-2,2]):null); }
+    else { let m=s.root-12+s.deg(d)+tr+(s.bassOff[i]===12?0:s.bassOff[i]||0); if(m>40) m-=12; if(m<28) m+=12;   // 1.25 (E2): 808 notes from 41 Hz (was 37)
       let nxt=null; if(R()<st.slide) nxt=m+pick([-5,-2,3,5,7,12]);
       D.b808(s,tt,m,Math.min(len,8)*sp,bL==="808soft"?.75:1,nxt,false); }
   }
   /* chords + pad */
   const ck=s.chordsI, cmode=K.chords;
   const CX=CHX[ck]; if(CX&&cmode!=="sustain"&&cmode!=="sparse"){ if(!drop) CX(s,tt,i,notes,cmode,d,tr,bar,di); }
-  else if(cmode==="sustain"){ if(i===0&&bar%2===0) (ck==="organ"?M.organ:ck==="guitar"?(s2,t2,n,du,v)=>M.guitar(s2,t2,Math.min(...n)-12,du,v*.8):M.rhodes)(s,tt,notes,sp*30,.7); }
-  else if(cmode==="mute"&&ck!=="guitar"){ if(i===0) M.rhodes(s,tt,notes,sp*12,.6); }
-  else if(cmode==="sparse"){ if(i===0) (ck==="piano"||ck==="pianostab"?M.piano:M.rhodes)(s,tt,notes,sp*12,.6); }
+  else if(cmode==="sustain"){ if(i===0&&bar%2===0) (ck==="organ"?M.organ:ck==="guitar"?(s2,t2,n,du,v)=>M.guitar(s2,t2,Math.min(...n)-12,du,v*.8):SUSK[ck]?M[SUSK[ck]]:M.rhodes)(s,tt,notes,sp*30,.7); }
+  else if(cmode==="mute"&&ck!=="guitar"){ if(i===0) (SUSK[ck]?M[SUSK[ck]]:M.rhodes)(s,tt,notes,sp*12,.6); }
+  else if(cmode==="sparse"){ if(i===0) (ck==="piano"||ck==="pianostab"?M.piano:SUSK[ck]?M[SUSK[ck]]:M.rhodes)(s,tt,notes,sp*12,.6); }
   else if(cmode==="stab"){ if("x..x..x.x.....x."[i]==="x") M.piano(s,tt,notes,sp*1.1,.6); }
   else if(ck==="piano"&&i===0) M.piano(s,tt,notes,sp*15,.75);
   else if(ck==="rhodes"&&(i===0||i===10)) M.rhodes(s,tt,notes,sp*(i?5:9),.9);
@@ -1426,7 +1443,8 @@ function systemSpeak(text,fin,c){
   if(!HAS_TTS){ setTimeout(fin,Math.min(20000,text.length*70)); return; }
   const u=new SpeechSynthesisUtterance(text); if(c.voice) u.voice=c.voice;
   u.pitch=c.pitch; u.rate=c.rate; u.volume=Math.max(0,Math.min(1,(opts.volume??1)*(c.vol??1)));   // system speech can't be EQ'd, but it follows the volume
-  u.onboundary=()=>{ voicePulse=1; }; u.onend=fin; u.onerror=fin; setTimeout(fin,Math.min(32000,3000+text.length*120));
+  let ended=false; const fin2=()=>{ if(ended) return; ended=true; sysVoice=false; if(ctxKick) setTimeout(ctxKick,60); fin(); };
+  u.onboundary=()=>{ voicePulse=1; }; u.onend=fin2; u.onerror=fin2; setTimeout(fin2,Math.min(32000,3000+text.length*120)); sysVoice=true;
   if(speechSynthesis.speaking||speechSynthesis.pending) speechSynthesis.cancel();   // a cancel right before speak drops the line on iPhone
   speechSynthesis.speak(u);
 }
@@ -1641,7 +1659,7 @@ function wybcId(force){
   const cast={voice:v,voiceName:v?null:"Whisper",pitch:sp.pitch,rate:sp.rate,vol:w?.85:.6,who:"WYBC whisper DJ"};
   setTimeout(()=>{ if(g!==gen||station!=="wybc"){ speaking=false; return; } speak(line,()=>{ if(g!==gen) return; speaking=false; if(amb) fadeTo(amb.out.gain,1,3,ctx.currentTime); },cast); },1600);
 }
-function hush(){ try{ speechSynthesis.cancel(); }catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false; }
+function hush(){ try{ speechSynthesis.cancel(); }catch(e){} try{ voiceSrc&&voiceSrc.stop(); }catch(e){} speaking=false; if(sysVoice){ sysVoice=false; if(ctxKick) setTimeout(ctxKick,60); } }
 function leaveStation(id,t){ recStop(true); STN[id].off(1.2,t); }   // tune away: everything that station had going stops and fades
 function enterStation(id,t){ STN[id].on(t,false); }
 function setStation(id){
@@ -2686,6 +2704,108 @@ Object.assign(M,{
 Object.assign(INST_NAMES,{wurli:"Wurlitzer",warm:"warm analog pad",fmlead:"FM lead",sqlead:"square lead",vibes:"vibraphone"});
 Object.assign(LEADX,{fmlead:(s,t,m,dur,v,p)=>M.fmlead(s,t,m,dur,v,p),sqlead:(s,t,m,dur,v,p)=>M.sqlead(s,t,m,dur,v,p),vibes:(s,t,m,dur,v)=>M.vibes(s,t,m,dur,v)});
 CHX.wurli=(s,t,i,n,c)=>{ if(c==="stab"){ if("x..x..x.x.....x."[i]==="x") M.wurli(s,t,n,s.sp*1.1,.6); } else if(i===0||i===10) M.wurli(s,t,n,s.sp*(i?5:9),.9); };
+/* ---------- 1.30: higher-end instruments ----------
+   All synthesized (no recordings), light enough for phones:
+   - modal mallets: MARIMBA, KALIMBA and CELESTA, built from the partials a struck bar, tine or plate actually rings at,
+     each decaying at its own rate, plus the mallet's or thumb's click;
+   - plucked strings: an UPRIGHT BASS, a HARP and a KOTO, from a string model (partials set by where the string is
+     plucked; the high ones die first, as on a real string) through a body resonance;
+   - a SUITCASE electric piano (tine and tone bar: it barks when played harder; stereo tremolo, a touch of drive);
+   - a FELT PIANO (soft hammers, muffled, a felt thump) and an UPRIGHT PIANO (two strings per note a hair apart,
+     boxy and bright).
+   Each has a Settings › Instruments switch (since "1.30"), shows in "Playing now", and comes up in the genres that
+   suit it. */
+const NLV={marimba:0.398,kalimba:0.305,celesta:1.000,plharp:0.525,koto:0.631,suitcase:0.224,felt:0.178,upiano:0.345};   // levels, measured solo against the piano, rhodes and vibes (p75 of 300 ms windows)
+const LEAN=()=>LITE&&!isOff(ctx);   // LITE (MIX open on a phone): the quietest partials are left out live; a Save keeps them all
+function partials(dst,t,f,P,end,att=.0015,rl=.15){ const ln=LEAN(); let k=0; for(const [r,a,dk] of P){ const fn=f*r; if(fn>16000||a<(ln?.012:.004)||(ln&&k>=4)) continue; k++;
+    const o=osc("sine",fn),g=ctx.createGain(),e=Math.max(t+.05,Math.min(end,t+dk*4)),fr=end<t+dk*4?rl:.06;   // fr: a damped note fades over rl (a felt or a damper), not in a click
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(a,t+att); g.gain.setTargetAtTime(.0001,t+att,dk); g.gain.setValueAtTime(Math.max(.0001,a*Math.exp(-(e-t-att)/dk)),e); g.gain.exponentialRampToValueAtTime(.0001,e+fr);
+    o.connect(g); g.connect(dst); o.start(t); o.stop(e+fr+.02); } }
+function strike(dst,t,len,fc,q,lvl){ const n=nz(t,len+.02),bp=filt("bandpass",fc,q),g=ctx.createGain(); env(g,t,.0008,lvl,len); n.connect(bp); bp.connect(g); g.connect(dst); }
+// a plucked string: [pos 0..1 where it's plucked, partials, ring (s) of the fundamental, how much faster the highs die, inharmonicity]
+function pluckStr(dst,t,f,v,o,end){ const N=o.n||8, P=[];
+  for(let n=1;n<=N;n++){ const fn=n*Math.sqrt(1+(o.inh||0)*n*n), a=Math.abs(Math.sin(n*Math.PI*o.pos))/Math.pow(n,o.roll||1)*(n>2?(.55+.5*v):1); P.push([fn,a*.12,o.ring/(1+(o.damp||.1)*(n-1)*(n-1))]); }
+  partials(dst,t,f,P,end,o.att||.002); }
+Object.assign(M,{
+  marimba(s,t,m,dur,v=1){ const f=mtof(m),dk=Math.max(.22,Math.min(1.9,1.25*Math.pow(2,(52-m)/22))),out=G(.95*v*NLV.marimba),lp=filt("lowpass",6500,.5),end=t+Math.max(.4,dk*3.2),b=.55+.6*v;
+    lp.connect(out); out.connect(s.mu); to(out,s,.22);
+    partials(lp,t,f,[[1,.13,dk],[3.98,.045*b,dk*.32],[9.6,.016*b,dk*.12],[.5,.012,dk*1.4]],end);
+    strike(lp,t,.014,Math.min(5200,Math.max(1800,f*4)),1.4,.05*v); },
+  kalimba(s,t,m,dur,v=1){ const f=mtof(m),dk=Math.max(.35,Math.min(2.2,1.3*Math.pow(2,(64-m)/30))),out=G(.9*v*NLV.kalimba),body=filt("peaking",430,2.2),lp=filt("lowpass",7000,.5),end=t+dk*3.6;
+    body.gain.value=5; body.connect(lp); lp.connect(out); out.connect(s.mu); to(out,s,.28);
+    const o=osc("sine",f),g=ctx.createGain(); o.frequency.setValueAtTime(f*1.012,t); o.frequency.exponentialRampToValueAtTime(f,t+.045);   // the tine settles
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.12,t+.002); g.gain.setTargetAtTime(.0001,t+.002,dk); o.connect(g); g.connect(body); o.start(t); o.stop(end+.1);
+    partials(body,t,f,[[5.65,.022*(.5+.7*v),dk*.22],[13.1,.008*(.4+.8*v),.07]],end);
+    strike(body,t,.008,1400,.8,.03*v); },
+  celesta(s,t,m,dur,v=1){ const f=mtof(m),dk=Math.max(.3,Math.min(1.8,1.2*Math.pow(2,(74-m)/28))),out=G(.85*v*NLV.celesta),lp=filt("lowpass",9000,.5),p=pan(.1),end=t+dk*3.4,b=.5+.7*v;
+    lp.connect(out); out.connect(p); p.connect(s.mu); to(out,s,.34);
+    partials(lp,t,f,[[1,.1,dk],[2,.045*b,dk*.6],[3.01,.014*b,dk*.3],[4.21,.02*b,dk*.22],[6.7,.006*b,.09]],end);
+    strike(lp,t,.006,3200,1,.018*v); },
+  plharp(s,t,m,dur,v=1){ const f=mtof(m),ring=Math.max(.5,Math.min(3.2,2.1*Math.pow(2,(58-m)/24))),out=G(.95*v*NLV.plharp),lp=filt("lowpass",5200+1800*v,.5),p=pan(Math.max(-.35,Math.min(.35,(m-64)/40))),end=t+ring*3;
+    lp.connect(out); out.connect(p); p.connect(s.mu); to(out,s,.36);
+    pluckStr(lp,t,f,v,{pos:.29,n:m>72?4:6,ring,damp:.09},end); strike(lp,t,.006,Math.min(6000,f*3),1.2,.012*v); },
+  koto(s,t,m,dur,v=1){ const f=mtof(m),ring=Math.max(.35,Math.min(2.2,1.4*Math.pow(2,(62-m)/26))),out=G(.9*v*NLV.koto),body=filt("peaking",320,1.6),lp=filt("lowpass",6400,.5),end=t+ring*2.8;
+    body.gain.value=4; body.connect(lp); lp.connect(out); out.connect(s.mu); to(out,s,.26);
+    const g=G(1); g.connect(body); pluckStr(g,t,f,v,{pos:.12,n:9,ring,damp:.13,inh:.0006,roll:.85},end);
+    strike(body,t,.007,Math.min(7000,f*5),1.5,.02*v); },
+  suitcase(s,t,notes,dur,v=1){ const out=G(v*NLV.suitcase),sh=ctx.createWaveShaper(),lp=filt("lowpass",3600+1600*v,.5),L=G(1),Rg=G(1),pl=pan(-.55),pr=pan(.55),lfo=osc("sine",4.6),la=G(.32),lb=G(-.32),end=t+dur+.5;
+    sh.curve=SAT; lfo.connect(la); lfo.connect(lb); la.connect(L.gain); lb.connect(Rg.gain); lfo.start(t); lfo.stop(end+.1);   // the stereo tremolo: left and right swap
+    lp.connect(sh); sh.connect(L); sh.connect(Rg); L.connect(pl); Rg.connect(pr); pl.connect(out); pr.connect(out); out.connect(s.mu); to(out,s,.2);
+    for(const m of notes){ const f=mtof(m),c=osc("sine",f),mo=osc("sine",f),mg=ctx.createGain(),g=ctx.createGain(),bark=.5+1.9*Math.pow(v,1.5),e=t+dur+.45;
+      mg.gain.setValueAtTime(f*bark,t); mg.gain.exponentialRampToValueAtTime(f*.12,t+.55); mo.connect(mg); mg.connect(c.frequency);   // harder: more bark
+      g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.085,t+.004); g.gain.exponentialRampToValueAtTime(.042,t+.7); g.gain.setValueAtTime(.042,Math.max(t+.71,t+dur)); g.gain.exponentialRampToValueAtTime(.0001,e);
+      c.connect(g); g.connect(lp); c.start(t); mo.start(t); c.stop(e+.05); mo.stop(e+.05);
+      partials(lp,t,f,[[7.1,.014*(.4+.9*v),.09],[2,.01,.5]],e); } },   // the tine's ping and the tone bar
+  felt(s,t,notes,dur,v=1){ const lp=filt("lowpass",1500+1200*v,.5),out=G(v*NLV.felt),p=pan(-.06); lp.connect(out); out.connect(p); p.connect(s.mu); to(out,s,.32);
+    for(const m of notes){ const f=mtof(m),rel=t+dur+.35, P=[];
+      for(let n=1;n<=(notes.length>3?4:6);n++){ const fn=n*Math.sqrt(1+.00035*n*n); if(f*fn>4200) break; P.push([fn,.17/Math.pow(n,1.6)*(m>74?.75:1),Math.min(5.5,3.4/Math.pow(n,.7)*Math.pow(2,(60-m)/24))]); }
+      partials(lp,t,f,P,rel,.007,.4);
+      if(!LEAN()){ const th=nz(t,.03),tl=filt("lowpass",380),tg=ctx.createGain(); env(tg,t,.002,.04*v,.03); th.connect(tl); tl.connect(tg); tg.connect(lp); } } },   // the felt's thump
+  upiano(s,t,notes,dur,v=1){ const lp=filt("lowpass",3800+1500*v,.5),box=filt("peaking",1150,1.2),out=G(v*NLV.upiano),p=pan(.08); box.gain.value=3.5; lp.connect(box); box.connect(out); out.connect(p); p.connect(s.mu); to(out,s,.18);
+    for(const m of notes){ const f=mtof(m),rel=t+dur+.25, P=[];
+      for(let n=1;n<=(notes.length>3?4:5);n++){ const fn=n*Math.sqrt(1+.0005*n*n); if(f*fn>6000) break; P.push([fn,.15/Math.pow(n,1.15),Math.min(4,3/Math.pow(n,.6)*Math.pow(2,(60-m)/24))]); }
+      partials(lp,t,f,P,rel,.003,.32); if(!LEAN()) partials(lp,t,f*Math.pow(2,7/1200),P.slice(0,2).map(([r,a,d])=>[r,a*.6,d]),rel,.003,.32); }   // the second string, 7 cents up: the honky beat
+    strike(lp,t,.02,2200,.9,.03*v*Math.sqrt(notes.length)); },
+});
+// the plucked upright as a bass sound (M.bass hands over to it): woody, round, with the finger's thump
+BASSK.upright=(s,t,m,dur,v=1,prev=null)=>{ const sb=subM(m)-m, f=mtof(m+(sb>0?0:0)),ring=Math.max(.6,Math.min(2.4,1.6*Math.pow(2,(40-m)/24))),out=G(1.4*v),body=filt("peaking",110,1.1),lp=filt("lowpass",1900,.6),end=t+Math.min(ring*2.6,Math.max(.25,dur)+.35);
+  body.gain.value=6; body.connect(lp); lp.connect(out); out.connect(bOut(s));
+  pluckStr(body,t,f,v,{pos:.22,n:8,ring,damp:.16,att:.004},end);
+  const th=nz(t,.03),tl=filt("lowpass",260),tg=ctx.createGain(); env(tg,t,.002,.12*v,.03); th.connect(tl); tl.connect(tg); tg.connect(body); bDuck(s,t,.7); };
+BASS_NAMES.upright="upright bass";
+// how each plays as the song's keys
+const ARP=(n,k)=>n[((k%n.length)+n.length)%n.length];
+Object.assign(CHX,{
+  suitcase(s,t,i,n,c,d,tr,bar){ if(c==="stab"){ if("x..x..x.x.....x."[i]==="x") M.suitcase(s,t,n,s.sp*1.1,.55); return; }
+    if(i===0) M.suitcase(s,t,n,s.sp*(bar%2?7:9),.75); else if(i===10&&bar%2===0) M.suitcase(s,t,n,s.sp*5,.6); else if(i===7&&bar%4===3) M.suitcase(s,t,n.slice(1),s.sp*1.2,.85); },   // a pushed chord into every fourth bar (it barks)
+  felt(s,t,i,n,c,d,tr,bar){ if(c==="stab"){ if("x..x..x.x.....x."[i]==="x") M.felt(s,t,n,s.sp*1.4,.55); return; }
+    if(i===0) M.felt(s,t,n,s.sp*(bar%2?8:15),.7); else if(i===6||i===10||i===14) M.felt(s,t,[ARP(n,(i-6)/4+bar)+12],s.sp*3,.38); },   // a held chord, a few soft notes from it on top
+  upiano(s,t,i,n,c,d,tr,bar){ if(c==="stab"){ if("x..x..x.x.....x."[i]==="x") M.upiano(s,t,n,s.sp*1.1,.55); return; }
+    if(i===0&&bar%2===0) M.upiano(s,t,n,s.sp*3,.6); else if(i%4===2) M.upiano(s,t,n.slice(0,3).map(x=>x+12),s.sp*1.3,.42); },
+  marimbaarp(s,t,i,n,c,d,tr,bar){ if(i%2) return; const k=i>>1; if(c==="stab"&&k%2) return; M.marimba(s,t,ARP(n,k%2?k+1:k)+12,s.sp*1.5,k%4===0?.85:.6); if(k===0&&bar%2===0) M.marimba(s,t,n[0],s.sp*3,.55); },
+  kalimbaarp(s,t,i,n,c,d,tr,bar){ s.kp=s.kp||pick(["x.x..x.x..x.x...","x..x.x..x.x..x..","x.x.x..x.x..x.x."]); if(s.kp[i]!=="x") return; const k=[...s.kp.slice(0,i)].filter(x=>x==="x").length;
+    M.kalimba(s,t,ARP(n,k+bar)+12,s.sp*2,k===0?.85:.6); },
+  harparp(s,t,i,n,c,d,tr,bar){ if(i===0&&bar%2===0){ n.forEach((m,k)=>M.plharp(s,t+k*.045,m,s.sp*8,.7)); return; }   // a rolled chord, then a run up through it
+    if(c!=="stab"&&i%2===0&&i>=8){ const k=(i-8)>>1; M.plharp(s,t,ARP(n,k)+12+(k>=n.length?12:0),s.sp*3,.45); } },
+  celestaarp(s,t,i,n,c,d,tr,bar){ if(i%4!==0&&!(i===14&&bar%2)) return; M.celesta(s,t,ARP(n,(i>>2)+bar)+24,s.sp*3,i===0?.75:.5); },
+});
+Object.assign(LEADX,{ marimba:(s,t,m,dur,v)=>M.marimba(s,t,m,dur,v), kalimba:(s,t,m,dur,v)=>M.kalimba(s,t,m,dur,v), celesta:(s,t,m,dur,v)=>M.celesta(s,t,m,dur,v),
+  plharp:(s,t,m,dur,v)=>M.plharp(s,t,m,dur,v), koto:(s,t,m,dur,v)=>M.koto(s,t,m,dur,v), suitcaseline:(s,t,m,dur,v)=>M.suitcase(s,t,[m],dur,v*.95), feltline:(s,t,m,dur,v)=>M.felt(s,t,[m],dur,v*1.15) });
+Object.assign(LEAD_TRIM,{marimba:1.12,celesta:.7,suitcaseline:1.3});
+Object.assign(LEAD_TOP,{marimba:84,kalimba:88,celesta:96,plharp:91,koto:86,suitcaseline:84,feltline:88});
+Object.assign(INST_NAMES,{marimba:"marimba",kalimba:"kalimba",celesta:"celesta",plharp:"harp",koto:"koto",suitcase:"suitcase electric piano",suitcaseline:"suitcase electric piano",felt:"felt piano",feltline:"felt piano",
+  upiano:"upright piano",marimbaarp:"marimba",kalimbaarp:"kalimba",harparp:"harp",celestaarp:"celesta"});
+POOL.push(["keys_suitcase","Suitcase electric piano","keys","1.30",["suitcase"]],["keys_felt","Felt piano","keys","1.30",["felt"]],["keys_upiano","Upright piano","keys","1.30",["upiano"]],
+  ["keys_marimba","Marimba patterns","keys","1.30",["marimbaarp"]],["keys_kalimba","Kalimba patterns","keys","1.30",["kalimbaarp"]],["keys_harp","Harp arpeggios","keys","1.30",["harparp"]],["keys_celesta","Celesta arpeggios","keys","1.30",["celestaarp"]],
+  ["lead_marimba","Marimba","lead","1.30",["marimba"]],["lead_kalimba","Kalimba","lead","1.30",["kalimba"]],["lead_celesta","Celesta","lead","1.30",["celesta"]],["lead_harp","Harp","lead","1.30",["plharp"]],["lead_koto","Koto","lead","1.30",["koto"]],
+  ["lead_suitcase","Suitcase electric piano lead","lead","1.30",["suitcaseline"]],["lead_felt","Felt piano lead","lead","1.30",["feltline"]],["bass_upright","Upright bass (plucked)","bass","1.30",["upright"]]);
+// where they come up: each song has a chance of one of its family's (the pool switches still apply after this)
+const SUSK={suitcase:"suitcase",felt:"felt",upiano:"upiano",marimbaarp:"felt",kalimbaarp:"felt",harparp:"felt",celestaarp:"felt"};   // held and sparse chords stay in the song's own keys
+const NEWI={keys:{soul:["suitcase","felt","marimbaarp","kalimbaarp","suitcase"],trap:["felt","kalimbaarp","marimbaarp","harparp"],ballad:["felt","harparp","upiano","felt"],dance:["marimbaarp","suitcase"],
+    pop:["kalimbaarp","felt"],goth:["celestaarp","harparp"],emo:["felt"],set:["marimbaarp"],"Jazz, funk & soul":["suitcase","upiano","suitcase"],Chill:["felt","kalimbaarp","marimbaarp","suitcase"],
+    "Rock & pop":["upiano"],"Country & folk":["upiano","harparp"],"Latin & Caribbean":["marimbaarp"],Electronic:["marimbaarp","kalimbaarp"]},
+  lead:{soul:["suitcaseline","marimba","kalimba","feltline"],trap:["kalimba","marimba","koto","celesta","plharp"],ballad:["plharp","celesta","feltline"],dance:["marimba","kalimba"],pop:["kalimba","celesta"],
+    goth:["celesta","koto"],emo:["feltline"],set:["marimba"],"Jazz, funk & soul":["suitcaseline","marimba"],Chill:["kalimba","koto","feltline","marimba"],"Latin & Caribbean":["marimba"],"Country & folk":["plharp"],Electronic:["marimba","kalimba","koto"]}};
 /* ---------- CLUK 92.3: Everything in the Chicken ----------
    Music that rips: big beat, breakbeat and its cousins, electro and hard house, on MDFM's song writer with basses,
    stabs and a drum-bus drive of their own; between songs, scripted shows (src/cluk/*.js), ads, call-ins and IDs
@@ -3210,7 +3330,7 @@ function mxFxLevels(id,now,inst){ const F=MXF.get(ctx); if(!F) return; const P=M
     T(S.ph.gain,.5*sp); for(const [d,fq] of S.lfoG) T(d.gain,fq*.65*sp); T(S.echo.gain,.3*sp); T(S.hall.gain,.35*ha+.2*sp); if(S.hasHall) gate(S.hallHp,S.hallCv,ha>0||sp>0,4.5); T(S.slap.gain,.12*sl); T(S.glue.gain,gl); T(S.pre.gain,1); } }
 // what each instrument is, and where its loudness is: [role, index of velocity in the arguments after the bus]
 const MX_ROLE={D:{kick:["kick",1],snare:["snare",1],clap:["clap",1],snap:["snare",1],rim:["perc",1],hat:["hat",1],conga:["perc",1],tom:["tom",1],crash:["crash",1],shaker:["shaker",1],cowbell:["perc",3],b808:["bass",3],logdrum:["bass",2],ride:["hat",1],brush:["snare",1],clave:["perc",1],timbale:["perc",1],chipk:["kick",1],chipn:["hat",1]},
-  M:{piano:["chord",3],rhodes:["chord",3],organ:["chord",3],pad:["pad",3],choir:["pad",3],saw:["chord",3],accordion:["chord",3],brass:["chord",3],guitar:["gchord",3],bell:["lead",3],pluck:["lead",3],whistle:["lead",3],bass:["bass",3],vox:["lead",3],chop:["lead",3],sax:["lead",3],clav:["chord",3],nylon:["chord",3],wurli:["chord",3],warmpad:["pad",3],fmlead:["lead",3],sqlead:["lead",3],vibes:["lead",3],reese:["bass",3],wobble:["bass",3],slap:["bass",3],upright:["bass",3],harm:["lead",3],gtrlead:["lead",3]},
+  M:{piano:["chord",3],rhodes:["chord",3],organ:["chord",3],pad:["pad",3],choir:["pad",3],saw:["chord",3],accordion:["chord",3],brass:["chord",3],guitar:["gchord",3],bell:["lead",3],pluck:["lead",3],whistle:["lead",3],bass:["bass",3],vox:["lead",3],chop:["lead",3],sax:["lead",3],clav:["chord",3],nylon:["chord",3],wurli:["chord",3],warmpad:["pad",3],fmlead:["lead",3],sqlead:["lead",3],vibes:["lead",3],reese:["bass",3],wobble:["bass",3],slap:["bass",3],upright:["bass",3],harm:["lead",3],gtrlead:["lead",3],marimba:["lead",3],kalimba:["lead",3],celesta:["lead",3],plharp:["lead",3],koto:["lead",3],suitcase:["chord",3],felt:["chord",3],upiano:["chord",3]},
   FI:{harp:["lead",2],strings:["pad",3],fiddle:["lead",3],chant:["lead",3],horn:["chord",3],shawm:["lead",3],drone:["pad",3],drum:["kick",1],frame:["perc",1],tamb:["shaker",1],hat:["hat",1],synbass:["bass",3],strum:["chord",2],organ:["chord",3],pipe:["lead",3],lute:["lead",2],flute:["lead",3]},
   PI:{lute:["lead",2],flute:["lead",3],timp:["tom",2],pulse:["bass",3],chip:["lead",3]}};
 function noteInfo(role,a){ const t=a[0]; if(role==="chord"||role==="pad"){ const notes=Array.isArray(a[1])?a[1]:[a[1]]; return {t,notes,m:notes[0],dur:role==="chord"&&typeof a[2]!=="number"?.6:+a[2]||.5}; }
@@ -3629,6 +3749,79 @@ function setGroove(id,vals){ const r=GRAW[id]||(GRAW[id]={...GROOVE_UI}), g=grvO
   if(id==="hearye"&&g.length!==was.length&&fair&&fair.next&&!(fair.piece&&fair.piece.p===fair.next)){ const o=fair.next, p=fPiece(o.style,o.seed,o.base*gLenMul("hearye")); p.base=o.base; p.title=o.title; p.artist=o.artist; fair.next=p; }
   if(station===id&&nowPlaying) emit("nowplaying",nowPlaying);
   emit("groove",{id,groove:{...r}}); return {...r}; }
+/* 1.31: BEAT, a one-bar drum pattern that steers the song's drums (MIX › Groove & Key › BEAT).
+   Each cell: 0 = no opinion (the song decides), 1 soft / 2 hit / 3 loud = play here, -1 = rest (keep this step quiet).
+   INFLUENCE 0-1 decides how hard the pattern pulls: nudge (adds soft hits, thins with rests, keeps the backbone),
+   blend, lead (your pattern, the song decorates), 1 = exactly your pattern. A song without drums gets drums that fit its
+   style (from the next section). BASS FOLLOWS KICK moves the song's bass hits toward the kicks. FOLLOW BREAKS keeps the
+   song's intros and breaks drumless. Choices use mHash (never R()), and nothing changes until a cell is set. */
+const BEAT_LANES=[["k","KICK"],["s","SNARE / CLAP"],["h","HAT"],["o","OPEN HAT"],["p","PERC"]];
+const BEAT_PRE=[["four","Four on the floor",{k:"x...x...x...x...",s:"....x.......x...",h:"x-x-x-x-x-x-x-x-",o:"..x...x...x...x."}],
+  ["boombap","Boom bap",{k:"x......x..x.....",s:"....x.......x...",h:"x.x.x.x.x.x.x.x.",o:"----------------"}],
+  ["trap","Trap",{k:"x......x..x....x",s:"----....X.......",h:"xxxxxxxxxxxxxxxx"}],
+  ["half","Half-time",{k:"x.....x.........",s:"....-...X...-...",h:"x...x...x...x..."}],
+  ["break","Breakbeat",{k:"x.x.......x.x...",s:"....X..g.g..X..g",h:"x.x.x.x.x.x.x.x."}],
+  ["dembow","Dembow",{k:"x...x...x...x...",s:"...x..x....x..x.",h:"x.x.x.x.x.x.x.x.",p:"..x...x...x...x."}],
+  ["twostep","Two-step",{k:"x.........x.....",s:"....x.......x..g",h:"..x...x.x.x...x."}],
+  ["lesshats","Fewer hats",{h:".-.-.-.-.-.-.-.-",o:"----------------"}],
+  ["nokick","Kick on 1 only",{k:"x---------------"}]];
+const BEAT_CH={".":0,g:1,x:2,X:3,"-":-1};
+const beatGrid=o=>Object.fromEntries(BEAT_LANES.map(([k])=>[k,Array.from({length:16},(_,i)=>o&&o[k]?BEAT_CH[o[k][i]]??0:0)]));
+const BEAT_DEF={inf:.5,bass:false,follow:true};
+const BEAT={}, BEATV={}, BON={};
+const beatOf=id=>BEAT[id]||(BEAT[id]={...BEAT_DEF,grid:beatGrid()});
+function cleanBeat(v){ const o={}; if(!v||typeof v!=="object") return o;
+  if(typeof v.inf==="number"&&Number.isFinite(v.inf)) o.inf=Math.max(0,Math.min(1,v.inf));
+  if(typeof v.bass==="boolean") o.bass=v.bass; if(typeof v.follow==="boolean") o.follow=v.follow;
+  if(v.grid&&typeof v.grid==="object"){ o.grid={}; for(const [k] of BEAT_LANES){ const a=v.grid[k]; o.grid[k]=Array.from({length:16},(_,i)=>{ const x=Array.isArray(a)?Math.round(+a[i]):0; return x>=-1&&x<=3?x:0; }); } }
+  return o; }
+const beatUsed=b=>!!b&&BEAT_LANES.some(([k])=>b.grid[k].some(x=>x!==0));
+function setBeat(id,v){ const b=beatOf(id), c=cleanBeat(v); if(c.grid) b.grid=c.grid; for(const k of ["inf","bass","follow"]) if(k in c) b[k]=c[k];
+  BON[id]=b.inf>.004&&beatUsed(b); BEATV[id]=(BEATV[id]|0)+1; emit("beat",{id,beat:getBeat(id)}); return getBeat(id); }
+function getBeat(id){ const b=beatOf(id); return {inf:b.inf,bass:b.bass,follow:b.follow,grid:Object.fromEntries(BEAT_LANES.map(([k])=>[k,[...b.grid[k]]]))}; }
+const beatOn=sid=>!!BON[sid]&&!BYP;
+// a soft style-fit kit pattern for songs (or sections) the genre wrote without drums
+const BEAT_FIT={half:{k:"x......x..x.....",s:"........x.......",h:"x.x.x.x.x.x.x.x."},back:{k:"x.....x...x.....",s:"....x.......x...",h:"x.x.x.x.x.x.x.x."},
+  four:{k:"x...x...x...x...",s:"....x.......x...",h:"..x...x...x...x."},ballad:{k:"x.......x.......",s:"........x.......",h:"x...x...x...x..."}};
+const bSeed=s=>s.bSeed??(s.bSeed=[...String(s.title||s.name||"")].reduce((h,c)=>Math.imul(h^c.charCodeAt(0),16777619)>>>0,2166136261)|0);
+// the song's own drums for one bar, step by step, as the playStep code below plays them (ignoring drops and the density control)
+function beatSong(s,bar,sec,K,deckB,sb,gf){ const st=s.st, o={k:[],s:[],h:[],o:[],p:[]}, kp=(K.kick==="B")!==deckB?s.K2:s.K, sp2=s.S[bar%s.S.length], hp=(K.hats==="busy")!==deckB?s.H2:s.H, Pp=sec.kind==="hook"?s.P2:s.P;
+  for(let i=0;i<16;i++){ const di=gf>.75?(i*2)%16:gf<.25?(i>>1)+8*(bar%2):i, c=hp&&hp[di];
+    o.k[i]=!!kp&&kp[di]==="x"; o.s[i]=!!sp2&&sp2[di]==="x"; o.o[i]=!!s.O&&s.O[di]==="o"&&!!K.drums; o.p[i]=!!Pp&&Pp[di]==="x"&&sec.kind!=="intro";
+    o.h[i]=K.hats==="sparse"?(di%4===0||c==="r"):K.hats==="build"&&sb>=sec.bars-2?(di%2===0||sb===sec.bars-1):(c==="x"||c==="r"||c==="3"); }
+  return o; }
+/* the bar's plan: per lane a velocity multiplier per step (0 = not played), plus whether the song's own hat figure plays,
+   the soft "fit" mode for drumless parts, and the bass hits when BASS FOLLOWS KICK is on */
+function beatPlan(s,sid,bar,sec,K,deckB,sb,gf,drumsOn){ const key=bar+":"+(BEATV[sid]|0)+":"+sec.kind; if(s.bP&&s.bP.key===key) return s.bP;
+  const B=beatOf(sid), inf=B.inf, st=s.st, own=beatSong(s,bar,sec,K,deckB,sb,gf), P={key,fill:false,lvl:1,rim:false,shk:false,own:{...own}};
+  if(!drumsOn){ const brk=!K.drums||sec.kind==="intro"||sec.kind==="break", songless=!!(st.nodrums||st.drumHook);
+    if(B.follow?(!brk&&songless):true){ if(s.bIn==null) s.bIn=sb===0?bar:sec.start+sec.bars; P.fill=bar>=s.bIn; } }
+  P.on=drumsOn||P.fill; P.sec=sec.kind;
+  if(P.fill){ P.lvl=.35+.65*inf; const fit=BEAT_FIT[st.feel||FAM_FEEL[STYLE_FAM[s.name]]||"ballad"]||BEAT_FIT.ballad;
+    for(const k of ["k","s","h"]) if(!own[k].some(Boolean)) own[k]=[...fit[k]].map(c=>c==="x");
+    if(st.nodrums||!own.o.some(Boolean)) own.o=Array(16).fill(false);
+    if(inf<.5){ own.k=own.k.map((x,i)=>x&&i%8===0); P.rim=true; } if(inf<.4) P.shk=true; }
+  const sd=bSeed(s), protect={k:i=>i===0,s:i=>i===4||i===8||i===12,h:()=>false,o:()=>false,p:()=>false};
+  BEAT_LANES.forEach(([k],li)=>{ const g=B.grid[k], a=P[k]=[];
+    for(let i=0;i<16;i++){ const c=g[i], ow=own[k][i], h=mHash(sd,bar*16+i,li+11), pr=ow&&protect[k](i); let v=0;
+      if(c>0){ const vt=[0,.42,.85,1.15][c]; v=ow?1+(vt-1)*Math.min(1,inf*1.5):h<Math.min(1,inf*2)?vt*(inf<.5?.55+inf*.9:1):0; }
+      else if(c<0) v=ow&&h>=(pr?Math.max(0,(inf-.5)*2):Math.min(1,inf*1.5))?1:0;
+      else v=ow&&h<(pr?(inf<.85?1:1-(inf-.85)/.15):(inf<=.6?1:1-(inf-.6)/.4))?1:0;
+      a[i]=v*P.lvl; } });
+  P.hOwn=own.h;
+  if(B.bass){ const bp=s.bassPat||[], b=P.bass=[], b8=P.b8=[];
+    for(let i=0;i<16;i++){ const kick=P.k[i]>0, h=mHash(sd,bar*16+i,29);
+      b[i]=bp[i]?(kick||i===0||h>=inf*.9?1:0):(kick&&h<inf*1.2?1:0);
+      b8[i]=i%2===0&&(P.k[i]>0||P.k[i+1]>0||mHash(sd,bar*16+i,31)>=inf)?1:0; } }
+  return s.bP=P; }
+// what the on-air song's drums are doing, for the BEAT card's playhead and its faint "song" dots (logged only while the card watches)
+let BWATCH=0; const BLOG={};
+const beatLive=()=>!(typeof OfflineAudioContext!=="undefined"&&ctx instanceof OfflineAudioContext);
+function beatLog(sid,s,bar,t0,own,P){ const L=BLOG[sid]||(BLOG[sid]=[]); L.push({s,bar,t0,own,P}); if(L.length>8) L.shift(); }
+function beatNow(id){ const L=BLOG[id]; if(!L||!ctx) return null; const now=ctx.currentTime; let e=null;
+  for(const x of L) if(x.t0<=now+.02&&(!e||x.t0>=e.t0)) e=x;
+  if(!e||now-e.t0>e.s.sp*16*meterRatio(e.s)+.5) return null; const i=Math.max(0,Math.min(15,Math.floor((now-e.t0)/e.s.sp)));
+  return {step:i,bar:e.bar,song:Object.fromEntries(BEAT_LANES.map(([k])=>[k,e.own[k].map(Boolean)])),play:e.P?Object.fromEntries(BEAT_LANES.map(([k])=>[k,e.P[k].map(v=>e.P.on&&v>0)])):null,sec:e.P?e.P.sec:null,on:e.P?!!e.P.on:null}; }
 // what's on now, with the groove's tempo and key
 function gFacts(np){ if(!np) return np; const id=np.station||"mdfm"; if(!GON[id]) return np; const o={...np};
   if(gOn(id,"bpm")) o.bpm=GRV[id].bpm;
@@ -3774,7 +3967,8 @@ async function renderOffline(kind,secs,arg){
   let rendering, fill=null, off=null;
   try{ init(oc); master.gain.value=VOL;
   let fxS=null;
-  if(kind==="song"){ const s=fxS=setupSong(makeSong(arg),.05,0); if(ride) rideOn(s); fill=songFill(s,secs,false); fill(lim(0)); }
+  if(kind==="song"){ const rec=makeSong(arg&&typeof arg==="object"?arg.style:arg); if(arg&&arg.over) Object.assign(rec,arg.over);   // over: instruments forced, for level and cost checks
+    const s=fxS=setupSong(rec,.05,0); if(arg&&arg.from==="hook"){ const h=rec.sections.find(x=>x.kind==="hook"); if(h) s.step=h.start*16; }   /* from: start at the first hook (A/B clips) */ if(ride) rideOn(s); fill=songFill(s,secs,false); fill(lim(0)); }
   else if(kind==="ptrn"){   // a PTRN track: from its recipe (Save), or a fresh one in a genre (tests); with the tags it had ready
     ptrnIn=null; const s=fxS=setupSong(arg&&arg.recipe?{...arg.recipe}:makeSong(arg&&arg.style||null,ptrnPool(),[]),.05,0,pDest(),ptrnRv,"ptrn"); s.sp0=s.sp; s.swing0=s.swing;
     fill=songFill(s,secs,true); fill(lim(0));
@@ -3791,6 +3985,12 @@ async function renderOffline(kind,secs,arg){
   else if(kind==="bed"){ const b=startBed(.05); if(arg!=null) b.def=BEDS[arg];
     fill=u=>{ while(b.next<Math.min(u,secs-2.5)){ playBed(b,b.next); b.step++; b.next+=b.sp; } if(!b.ended&&b.next>=secs-2.5){ b.ended=1; endBed(b,secs-2.4); } }; fill(lim(0)); }
   else if(kind==="sting"){ STINGS[arg](.1); }
+  else if(kind==="inst"){ const s=setupSong(makeSong(arg.style||null),.05,0), sp=s.sp, ch=[[57,60,64,67],[53,57,60,64],[55,59,62,65],[52,55,59,64]], mel=[72,74,76,79,76,74,72,69,71,72,74,71,67,69,72,74];   // one instrument alone, for level checks
+    for(let bar=0;bar*16*sp<secs-2;bar++){ const n=ch[bar%4], t0=.1+bar*16*sp;
+      for(let i=0;i<16;i++){ const t=t0+i*sp;
+        if(arg.role==="keys"){ if(CHX[arg.id]) CHX[arg.id](s,t,i,n,"main",0,0,bar,0); else if(i===0) M[arg.id](s,t,n,sp*15,.75); }
+        else if(arg.role==="lead"){ if(i%4===0) playLead(s,arg.id,t,mel[(bar*4+i/4)%16]-(arg.down||0),sp*3.5,null,.8); }
+        else if(arg.role==="bass"){ if(i%4===0){ s.bassKit=arg.id==="synth"?null:arg.id; M.bass(s,t,n[0]-24+(i===8?7:0),sp*3.5,.9,null); } } } } }
   else if(kind==="current"){   // the song on air, from the top, as written (and as long as it runs now, Let It Ride included)
     const s=fxS=setupSong({...arg.recipe},.05,0); s.bars=arg.bars; if(arg.brk2!=null) s.brk2=arg.brk2; s.ride=!!arg.ride;
     fill=songFill(s,secs,true); fill(lim(0)); }
@@ -4002,6 +4202,16 @@ return {
   meters(){ return Object.keys(METERS); },
   grooveSupport(id){ return {...(GSUP[id||station]||GSUP.mdfm)}; },
   getGroove(id){ return {...(GRAW[id||station]||GROOVE_UI)}; },
+  /* 1.31: BEAT, a one-bar drum pattern that steers the song's drums. Cells: 0 the song decides, 1 soft / 2 hit / 3 loud, -1 rest.
+     {inf 0-1, bass (BASS FOLLOWS KICK), follow (FOLLOW BREAKS), grid:{k,s,h,o,p: 16 cells}}; per station; event "beat". */
+  beatInfo(){ return {lanes:BEAT_LANES.map(x=>[...x]),steps:16,presets:BEAT_PRE.map(([id,name])=>[id,name]),def:{...BEAT_DEF}}; },
+  beatSupport(id){ return (GSUP[id||station]||{}).melody===1; },   // MDFM, PTRN and CLUK: the stations whose songs MDFM writes
+  getBeat(id){ return getBeat(id||station); },
+  setBeat(v,id){ return setBeat(id||station,v); },
+  resetBeat(id){ return setBeat(id||station,{...BEAT_DEF,grid:beatGrid()}); },
+  beatPreset(p){ const x=BEAT_PRE.find(q=>q[0]===p); return x?beatGrid(x[2]):null; },
+  beatWatch(v){ BWATCH=v?1:0; return !!BWATCH; },   // while the BEAT card shows: log the on-air bar (no sound change)
+  beatNow(id){ return beatNow(id||station); },   // {step, bar, song:{k..p: 16 booleans}, play:{...}|null}
   setGroove(vals,id){ return setGroove(id||station,vals); },
   resetGroove(id){ return setGroove(id||station,GROOVE_UI); },
   stationTypeList(id){ return (STATION_TYPES[id]||[]).map(x=>[...x]); },   // PTRN's entries carry a third item: the genre's family
@@ -4010,7 +4220,7 @@ return {
   /* Instruments (1.23): the pool MDFM 99.9 and PTRN 101.1 pick from. instrumentList() gives [key, label, category
      (kit, bass, keys, lead, pad), since ("classic" = MDFM before 1.22, "1.22" = came with PTRN, "1.23" = new)];
      setInstruments({key: false}) switches one off (from the next song). Everything off in a category: the genre's own. */
-  instrumentList(){ return POOL.map(([k,l,c,s])=>[k,l,c,s]); },
+  instrumentList(){ return POOL.map(([k,l,c,s])=>[k,l,c,s,s==="1.30"?"highend":null]); },   // 1.30: a fifth item, the pack ("highend": Settings shows these in a High-end pack box)
   getInstruments(){ return Object.fromEntries(POOL.map(([k])=>[k,INSTR[k]!==false])); },
   /* 1.28: what the song on air is playing: [{role, cat, id, key, label, on}] (key null = not in the pool, can't be switched off).
      Pass a nowplaying object to describe that song instead. Empty on talk, WYBC, HEARYE and PTLK. */

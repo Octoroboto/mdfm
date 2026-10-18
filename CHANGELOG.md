@@ -2,6 +2,20 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.31.0 (2026-10-18, Rob)
+Ships the 1.30 instruments work (previewed, never released on its own) together with BEAT.
+- **BEAT** (MIX › Groove & Key, a new full-width card after Drums; a BEAT tab on phones): a one-bar drum pattern that steers the song's drums.
+  - **The grid:** 16 steps for KICK, SNARE / CLAP, HAT, OPEN HAT and PERC. Each step is empty (the song decides), a hit (soft, normal or loud) or **✕ rest** (keep that step quiet). Tools: HIT, LOUD, SOFT, REST and ERASE. Tap to set (the same value again clears it); drag across a row to paint. Arrows, Enter and Delete work from the keyboard.
+  - **INFLUENCE:** NUDGE (adds soft hits, thins with rests, keeps the kick on 1 and the backbeat), BLEND, LEAD (your pattern, with the song's touches), EXACT (only your pattern).
+  - **Songs without drums** (and a ballad's drumless verses) get drums that fit the song from its next section: gentle at low influence (a rim click and a shaker), your full pattern at high.
+  - **FOLLOW BREAKS** (on): intros and breaks stay without drums. **BASS FOLLOWS KICK**: the song's bass hits move toward your kicks (genre bass lines like reese and wobble keep their own rhythm).
+  - Faint dots show what the song plays, the playing step is outlined and what actually plays lights up. **COPY SONG**, **START FROM…** (nine starting patterns) and **CLEAR**.
+  - Per station, on MDFM 99.9, PTRN 101.1 and CLUK 92.3; kept on this device (`mdfmBeat`); RESET and ORIGINAL include it. With no steps set (or INFLUENCE at 0) the song is unchanged: a seeded render matches 1.30 to the render floor.
+  - Works in VOID: the grid keeps its own colours.
+- **Higher-end instruments** (from the 1.30 preview): marimba, kalimba, celesta, plucked harp, koto, a suitcase electric piano, felt and upright pianos, and a plucked upright bass. About one song in three picks one (never METAL, PUNK or CHIPTUNE); Settings › Instruments has them in a **High-end pack** box with All and None. Partials no longer click at their end, and damped notes fade out instead of cutting.
+- **iPhone and iPad:** PTRN's voice tags (the system voice in a browser) are no longer cut off mid-word: the radio waits for the line to end before waking the audio back up.
+- **API:** `beatInfo()`, `beatSupport(id)`, `getBeat(id)`, `setBeat(v, id)`, `resetBeat(id)`, `beatPreset(name)`, `beatWatch(on)`, `beatNow(id)`, event `beat`; `instrumentList()` items carry a fifth field (`"highend"` for the pack).
+
 ## 1.29.0 (2026-10-18, Rob)
 - **MELODY** (MIX › Groove & Key, a new card between Key and Drums; a MELODY tab on phones). Four knobs, per station, each AS IS at 50:
   - **COMPLEXITY:** simpler (the weaker in-between notes drop out and the strong ones ring on) to busier (passing notes fill the gaps, then quick 16th pickups lead into notes).

@@ -70,6 +70,7 @@ html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;
 .ptrnfam{display:grid;gap:4px}
 .ptrnfamhd{display:flex;align-items:center;gap:8px;font:700 .62rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--caption,#cfd2de);margin-top:4px}
 .ptrnfamhd .btn{min-height:24px;padding:2px 10px;font-size:.74rem;letter-spacing:0;text-transform:none}
+.packnote{margin:4px 0 2px;font:.74rem/1.35 Tahoma,Verdana,sans-serif;color:var(--caption,#cfd2de);opacity:.85;max-width:60ch}
 .ptrnfamhd .btn:first-of-type{margin-left:auto}
 /* The page never scrolls sideways (a skin's spray can may hang past the edge; it is clipped, not scrolled to). */
 body{overflow-x:clip}

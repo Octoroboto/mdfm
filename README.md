@@ -126,6 +126,8 @@ The MIX drawer (`mountMix`, alias `mountTune`, in `src/tune.js`) opens under the
 
 **MELODY (1.29):** groove keys `mel` (COMPLEXITY), `rep` (REPETITION), `range` (RANGE) and `harm` (HARMONY), each 0..1 with .5 as written, kept per station with the rest of GROOVE. `playStep` uses `melMot` (which phrase, varied, simplified or filled, wider or narrower) and `harmChord` (fifths, triads, the song's voicing, 7ths, 9ths) only while one is moved. Choices come from a hash, never the song's random stream. `grooveSupport(id).melody` is 1 on MDFM, PTRN and CLUK.
 
+**BEAT (1.31):** `setBeat({inf, bass, follow, grid:{k,s,h,o,p}}, id)` (cells 0 = the song decides, 1/2/3 = soft/hit/loud, −1 = rest) steers the song's drums per bar (`beatPlan`, hashed, never the song's random stream); `beatNow()` gives the on-air bar for the MIX card (logged only while `beatWatch(true)`). Nothing changes until a step is set.
+
 **LITE (1.26, phones and tablets):** the LITE button next to ORIGINAL cycles AUTO / ON / OFF. It's saved in `mdfmMixUI.lite`, and AUTO means touch devices. While MIX is open in LITE:
 - the page gets `html.mx-lite` and `window.MDFM_lite` (the receiver's meters drop to 20 fps);
 - the engine gets `setLite(true)`: notes are scheduled 0.5 s ahead and the matrix saturators skip oversampling;
@@ -167,6 +169,8 @@ presets, `resetSound()` goes back, and `createMDFM({ sound })` starts tuned. The
 the next song). The radio page's Settings has the switches (localStorage `mdfmInstruments`). Since 1.28 CLUK uses the pool too, the genre bass lines
 (reese, wobble, slap, CLUK's five) and CLUK's keys and acid lead are in it, and `instrumentsNow()` says what the song on air
 is playing; Settings shows it as a "Playing now" card with Switch off buttons, plus ▶ NOW / HEARD marks on the list.
+Since 1.31 a **High-end pack** (marimba, kalimba, celesta, harp, koto, suitcase, felt and upright pianos, upright bass) is in the pool too,
+marked by a fifth item `"highend"` in `instrumentList()`.
 
 **Effects** (1.22): `radio.setFx({ echo, reverb, chorus, flange, phaser, warble, crush, drive, filter, gate, pump })`, all 0 to 1
 (0 = off; `filter` .5 = off, below is low-pass, above is high-pass), on every station and in Save. Echo, gate and pump follow
