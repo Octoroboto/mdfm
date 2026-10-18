@@ -2,6 +2,15 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.29.0 (2026-10-18, Rob)
+- **MELODY** (MIX › Groove & Key, a new card between Key and Drums; a MELODY tab on phones). Four knobs, per station, each AS IS at 50:
+  - **COMPLEXITY:** simpler (the weaker in-between notes drop out and the strong ones ring on) to busier (passing notes fill the gaps, then quick 16th pickups lead into notes).
+  - **REPETITION:** varied (the tune changes a few notes every time through) to repetitive (the answer phrase becomes the hook, then the verse sings the hook too, in its own register).
+  - **RANGE:** narrow and low-key to wide and soaring (each note's distance from the phrase's middle, ×0.35 to ×1.8).
+  - **HARMONY:** open fifths, then triads, then the song's own chords (35–65), then 7ths, then 9ths (rootless over a bass).
+  They reshape the song as it plays (heard within a bar), and Save and its MIDI file get the same notes. They never draw from the song's own random choices, so turning a knob back gives the same song. At 50 the sound is unchanged (a seeded render matches 1.28 to the render floor). They work on MDFM 99.9, PTRN 101.1 and CLUK 92.3; HEARYE, PTLK and WYBC say "Not on" (their music is written differently).
+- **Engine:** groove keys `mel`, `rep`, `range` and `harm` (0..1, .5 as written; `grooveKeys()` now has 26), and `grooveSupport(id).melody`.
+
 ## 1.28.0 (2026-10-17, Rob)
 - **Settings › Instruments shows what's playing.**
   - **Playing now:** a card at the top names the song on air and lists its drums, bass, keys, hook lead, verse lead and pad. Each has a **Switch off** button that takes effect from the next song, and a **Next song** button sits beside them.

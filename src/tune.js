@@ -223,23 +223,24 @@ function mountMix(radio, opts = {}) {
   const CAPS = { push: ["EARLY", "LATE"], pushK: ["EARLY", "LATE"], pushS: ["EARLY", "LATE"], pushH: ["EARLY", "LATE"], hatdens: ["LESS", "MORE"], hatswing: ["0", "HEAVY"], swing: ["0", "SHUFFLE"] };   // short enough for the knob's width
   for (const m of GI) if (CAPS[m.id]) m.captions = CAPS[m.id];
   const GIK = Object.fromEntries(GI.map(m => [m.id, m])), gtip = Object.fromEntries(GI.map(m => [m.id, m.tip || ""]));
-  const GORD = ["swing", "length", "density", "hatdens", "fills", "ghosts", "push", "hatswing", "humanize", "accent", "pushK", "pushS", "pushH", "kick", "snare", "hats", "drums"];   // matrix.md 5.3
+  const GORD = ["mel", "rep", "range", "harm", "swing", "length", "density", "hatdens", "fills", "ghosts", "push", "hatswing", "humanize", "accent", "pushK", "pushS", "pushH", "kick", "snare", "hats", "drums"];   // matrix.md 5.3
   const GKNOB = GI.filter(m => m.type === "knob" && typeof GD[m.id] === "number").sort((a, b) => (GORD.indexOf(a.id) + 1 || 99) - (GORD.indexOf(b.id) + 1 || 99));
   const capFix = s => String(s).replace(/^x(?=\d)/, "×");
   const GSUB = [["drums", "PATTERN"], ["feel", "FEEL"], ["levels", "LEVELS"]];
   const GLAB = { drums: "ALL", hats: "HATS", kick: "KICK", snare: "SNARE", pushK: "KICK", pushS: "SNARE", pushH: "HATS" };   // short captions inside their group
   const GARIA = { drums: "Drums level, all of the kit", hats: "Hats level", kick: "Kick level", snare: "Snare level", pushK: "Kick push", pushS: "Snare push", pushH: "Hat push", hatdens: "Hat density" };
-  const DEFCAP = { push: "ON", accent: "AS IS", humanize: "OFF", ghosts: "OFF" };
+  const DEFCAP = { push: "ON", accent: "AS IS", humanize: "OFF", ghosts: "OFF", mel: "AS IS", rep: "AS IS", range: "AS IS", harm: "AS IS" };
   const kw = m => `<div class="mx-kw">${knobHTML("g-" + m.id, GLAB[m.id] || m.label, capFix(m.captions[0]), capFix(m.captions[1]), m.bipolar ? "mx-bip" : "", GARIA[m.id] || "")}` +
     `<button type="button" class="btn mx-song" data-song="${m.id}" aria-pressed="true" title="${esc(m.song ? (m.song === "FOLLOW" ? "Follow the main setting" : "Back to the song's own") : "Back to the default")}" aria-label="${esc((GARIA[m.id] || m.label) + ": " + (m.song ? (m.song === "FOLLOW" ? "follow" : "the song's own") : "default"))}">${m.song || DEFCAP[m.id] || "DEF"}</button></div>`;
-  const gTempoK = GKNOB.filter(m => m.group === "tempo"), gPushPart = new Set(["pushK", "pushS", "pushH"]);
-  if (SEC.groove) html += secHTML("groove", "GROOVE &amp; KEY", "THIS STATION", "Tempo, time, key and drums. SONG follows the song as written.",
+  const gTempoK = GKNOB.filter(m => m.group === "tempo"), gMelK = GKNOB.filter(m => m.group === "melody"), gPushPart = new Set(["pushK", "pushS", "pushH"]);
+  if (SEC.groove) html += secHTML("groove", "GROOVE &amp; KEY", "THIS STATION", gMelK.length ? "Tempo, time, key, melody and drums. SONG and AS IS follow the song as written." : "Tempo, time, key and drums. SONG follows the song as written.",
     `<div class="mx-gtabs" data-gtabs></div><div class="mx-grid mx-gcards">` +
     `<div class="mx-card" data-card="tempo" id="${mkid("gc-tempo")}"><h4>TEMPO &amp; TIME</h4>${GKS.has("bpm") ? `<div class="mx-num" data-key="bpm"><span class="mx-numl" id="${mkid("bpml")}">BPM</span><button type="button" class="btn" data-d="-1" aria-label="Slower">−</button><div class="lcd mx-lcd" role="spinbutton" tabindex="0" aria-labelledby="${mkid("bpml")}" aria-valuemin="40" aria-valuemax="220" title="${esc(gtip.bpm || "")}"></div><button type="button" class="btn" data-d="1" aria-label="Faster">+</button><button type="button" class="btn" data-tap title="Tap the beat">TAP</button>${songBtn("bpm", "tempo")}</div>` : ""}` +
     `${GKS.has("meter") ? `<div class="mx-row"><span class="mx-rl">TIME</span><div data-g="meter"></div></div>` : ""}${GKS.has("feel") ? `<div class="mx-row"><span class="mx-rl">FEEL</span><div data-g="feel"></div></div>` : ""}` +
     `${gTempoK.length ? `<div class="mx-knobs mx-kwrap">${gTempoK.map(kw).join("")}</div>` : ""}</div>` +
     `<div class="mx-card" data-card="key" id="${mkid("gc-key")}"><h4>KEY</h4>${GKS.has("root") ? `<div data-g="root"></div>` : ""}${GKS.has("mode") ? `<label class="mx-fld">MODE <select data-g="mode" title="${esc(gtip.mode || "")}"></select></label>` : ""}</div>` +
-    `<div class="mx-card mx-drums" data-card="drums" id="${mkid("gc-drums")}"><h4>DRUMS</h4>${GSUB.map(([g, l]) => { const ks = GKNOB.filter(m => m.group === g || (g === "drums" && !["tempo", "feel", "levels"].includes(m.group)));
+    `${gMelK.length ? `<div class="mx-card mx-melody" data-card="melody" id="${mkid("gc-melody")}"><h4>MELODY</h4><div class="mx-knobs mx-kwrap">${gMelK.map(kw).join("")}</div></div>` : ""}` +
+    `<div class="mx-card mx-drums" data-card="drums" id="${mkid("gc-drums")}"><h4>DRUMS</h4>${GSUB.map(([g, l]) => { const ks = GKNOB.filter(m => m.group === g || (g === "drums" && !["tempo", "feel", "levels", "melody"].includes(m.group)));
       if (!ks.length) return ""; const main = ks.filter(m => !gPushPart.has(m.id)), part = ks.filter(m => gPushPart.has(m.id));
       return `<div class="mx-sub" data-sub="${g}"><h5>${l}</h5><div class="mx-knobs mx-kwrap">${main.map(kw).join("")}</div>${part.length ? `<details class="mx-more"><summary>PUSH EACH PART</summary><div class="mx-knobs mx-kwrap">${part.map(kw).join("")}</div></details>` : ""}</div>`; }).join("")}</div></div>`);
   // FX (GLITCH is a trick: it lives in TRICKS with TAPE STOP and SPIN BACK)
@@ -554,7 +555,10 @@ function mountMix(radio, opts = {}) {
     const msOf = (m, v) => { const [a, z] = m.scale || [-30, 30]; return a + (z - a) * v / 100; };
     const GF = { swing: v => v === 0 ? "STRAIGHT" : v + "%", length: v => "×" + lenMul(v / 100).toFixed(1), density: v => v === 0 ? "BARE" : String(v),
       fills: v => v === 0 ? "NONE" : String(v), humanize: v => v ? v + "%" : "OFF", ghosts: v => v ? v + "%" : "OFF", accent: v => Math.abs(v - 50) < 1 ? "AS IS" : v < 50 ? "FLAT " + (50 - v) : "+" + (v - 50),
-      hatdens: v => Math.abs(v - 50) < 1 ? "AS IS" : v < 50 ? "LESS " + (50 - v) : "MORE " + (v - 50), hatswing: v => v === 0 ? "STRAIGHT" : v + "%" };
+      hatdens: v => Math.abs(v - 50) < 1 ? "AS IS" : v < 50 ? "LESS " + (50 - v) : "MORE " + (v - 50), hatswing: v => v === 0 ? "STRAIGHT" : v + "%",
+      mel: v => Math.abs(v - 50) < 1 ? "AS IS" : v < 50 ? "SIMPLE " + (50 - v) : "BUSY " + (v - 50), rep: v => Math.abs(v - 50) < 1 ? "AS IS" : v < 50 ? "VARIED " + (50 - v) : "REPEAT " + (v - 50),
+      range: v => Math.abs(v - 50) < 1 ? "AS IS" : v < 50 ? "NARROW " + (50 - v) : "WIDE " + (v - 50),
+      harm: v => Math.abs(v - 50) < 1 || (v >= 35 && v < 65) ? "AS IS" : v < 12 ? "FIFTHS" : v < 35 ? "TRIADS" : v < 85 ? "7THS" : "9THS" };
     const fmtG = m => GF[m.id] || (m.unit === "dB" || m.group === "levels" ? dB : m.unit === "ms" ? (v => { const x = msOf(m, v); return Math.abs(x) < .5 ? "ON" : (x < 0 ? "AHEAD " : "BEHIND ") + Math.abs(x).toFixed(0); }) : (v => v + "%"));
     const txtG = m => m.unit === "ms" ? (v => { const x = msOf(m, v); return Math.abs(x) < .5 ? "on the beat" : `${Math.abs(x).toFixed(0)} milliseconds ${x < 0 ? "ahead" : "behind"}`; }) : null;
     let ownBpm = 0, own = null;
@@ -596,9 +600,9 @@ function mountMix(radio, opts = {}) {
       for (const f of ["Major family", "Minor family", "Exotic"]) if (gr[f]) modeSel.appendChild(gr[f]);
       modeSel.addEventListener("change", () => setG({ mode: modeSel.value })); }
     // the mini tabs (phones): TEMPO · KEY · DRUMS, one card at a time
-    const gt = $p("[data-gtabs]"); segs.gtab = Seg(gt, [["tempo", "TEMPO"], ["key", "KEY"], ["drums", "DRUMS"]], v => { ui.grooveCard = v; saveUI(); layoutGroove(); resized(); }, "Groove card");
+    const gt = $p("[data-gtabs]"); segs.gtab = Seg(gt, [["tempo", "TEMPO"], ["key", "KEY"], ...(gMelK.length ? [["melody", "MELODY"]] : []), ["drums", "DRUMS"]], v => { ui.grooveCard = v; saveUI(); layoutGroove(); resized(); }, "Groove card");
     const isMoved = (g, k) => typeof GD[k] === "number" ? Math.abs(g[k] - GD[k]) > .005 : g[k] !== GD[k];
-    const DRUMCARD = new Set(GKNOB.filter(m => m.group !== "tempo").map(m => m.id));
+    const DRUMCARD = new Set(GKNOB.filter(m => m.group !== "tempo" && m.group !== "melody").map(m => m.id)), MELCARD = new Set(gMelK.map(m => m.id));
     S.groove = {
       paint() { const g = radio.getGroove(), sup = radio.grooveSupport(sid()), nm = station() ? station().name : "this station";
         own = has("songOwn") ? radio.songOwn() : null; ownBpm = own && own.bpm ? +own.bpm : 0; const kp = own && own.key ? String(own.key).split(" ") : null;
@@ -606,7 +610,7 @@ function mountMix(radio, opts = {}) {
         for (const k of Object.keys(GKn)) { const m = GIK[k], raw = g[k], song = !!m.song && GD[k] < 0 && raw < 0, x = song ? 50 : Math.round(raw * 100); GKn[k].set(x);
           GKn[k].state({ moved: isMoved(g, k), song, text: song ? m.song : null, aria: song ? (m.song === "FOLLOW" ? "follows the main setting" : "the song's own") : null });
           const sb = $p(`.mx-song[data-song="${k}"]`); if (sb) sb.setAttribute("aria-pressed", String(!isMoved(g, k)));
-          const cap = { swing: "swing", length: "length", drums: "drums" }[k]; GKn[k].disable(cap && !sup[cap] ? not : DRUMCARD.has(k) && sup.drums === 0 ? not : ""); }
+          const cap = { swing: "swing", length: "length", drums: "drums" }[k]; GKn[k].disable(cap && !sup[cap] ? not : DRUMCARD.has(k) && sup.drums === 0 ? not : MELCARD.has(k) && sup.melody === 0 ? not : ""); }
         if (num) { const song = !g.bpm; lcd.textContent = song ? (ownBpm ? String(Math.round(ownBpm)) : "SONG") : String(g.bpm); lcd.classList.toggle("song", song);
           lcd.setAttribute("aria-valuenow", String(g.bpm || Math.round(ownBpm) || 0)); lcd.setAttribute("aria-valuetext", song ? (ownBpm ? `the song's own, ${Math.round(ownBpm)} BPM` : "the song's own") : `${g.bpm} BPM`);
           num.classList.toggle("moved", g.bpm > 0); num.querySelector('.mx-song[data-song="bpm"]').setAttribute("aria-pressed", String(song));

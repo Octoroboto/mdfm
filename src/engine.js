@@ -805,7 +805,7 @@ function playStep(s,step,t){
   const sb=bar-sec.start, lastBar=sb===sec.bars-1, nextSec=secAt(s,sec.start+sec.bars), fill=s.fills[s.sections.indexOf(sec)]||(sec.kind==="hook"?"snareroll":"tom");
   const drop=lastBar&&fill==="drop"&&nextSec.kind==="hook"&&i>=8;   // a beat of silence before the hook lands
   const tr=bar>=s.keyFrom?s.keyUp:0, prog=sec.kind==="hook"||sec.kind==="pre"?s.prog:s.progB;
-  const d=prog[Math.floor(bar/s.cpb)%prog.length], notes=s.chord(d,K.up).map(n=>n+tr);
+  const d=prog[Math.floor(bar/s.cpb)%prog.length], notes=(harmOn(sid)?harmChord(s,d,K.up,GRV[sid].harm):s.chord(d,K.up)).map(n=>n+tr);
   // filter sweeps: open up across the intro and out of breaks; close down into a break
   if(step===0&&!s.gExtra){ s.mlp.frequency.setValueAtTime(450,t); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*16*Math.max(2,s.sections[0].bars)); }
   if(!s.gExtra&&sb===0&&i===0&&(sec.kind==="break"||sec.kind==="bridge")&&bar>0){ s.mlp.frequency.setValueAtTime(18000,t); s.mlp.frequency.exponentialRampToValueAtTime(900,t+sp*8); s.mlp.frequency.setValueAtTime(900,t+sp*16*(sec.bars-1)); s.mlp.frequency.exponentialRampToValueAtTime(18000,t+sp*16*sec.bars); }
@@ -886,7 +886,7 @@ function playStep(s,step,t){
   if((st.cx||st.laser)&&!drop&&!s.gExtra) clukExtras(s,sec,sb,i,tt,lastBar,nextSec);
   /* melodies: the hook in hooks (sometimes up an octave or doubled), a sparser line in verses */
   if(K.lead!=="none"&&!drop&&bar>=1){
-    const isHook=K.lead!=="verse", L=isHook?s.hookLen:s.verseLen, phrase=Math.floor(sb/L), mot=isHook?(phrase%2?s.answer:s.hook):s.verse;
+    const isHook=K.lead!=="verse", L0=isHook?s.hookLen:s.verseLen, phrase=Math.floor(sb/L0), [mot,L]=melOn(sid)?melMot(s,sid,isHook,phrase,L0,bar):[isHook?(phrase%2?s.answer:s.hook):s.verse,L0];   // 1.29: MELODY
     const ph=(sb%L)*16+i, inst=isHook?s.leadI:s.leadB, oct=K.lead==="hookHi"?12:0, nd=prog[Math.floor((bar+1)/s.cpb)%prog.length];
     for(let k=0;k<mot.length;k++){ const n=mot[k]; if(n.i!==ph) continue; const [m,len]=leadNote(s,n,d,tr,oct,i,inst,notes,nd), dur=len*sp, prev=k&&s.llast!=null?s.llast:null; s.llast=m;   // 1.25 (E2): fitted to the chord and the register; slides from the note actually played
       playLead(s,inst,tt,m,dur,prev,isHook?1:.75);
@@ -3435,7 +3435,7 @@ const METERS={"4/4":{name:"4/4",map:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]},"3/
   "7/4":{name:"7/4",map:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7,8,9,10,11]}};
 for(const k in METERS){ const M=METERS[k]; M.slots=Array.from({length:16},()=>[]); M.map.forEach((p,j)=>M.slots[p].push(j)); M.ratio=M.map.length/16; }
 const GROOVE_DEF={bpm:0,meter:"",swing:.5,swAbs:-1,length:.5,root:-1,mode:"",density:.5,fills:.5,feel:.5,humanize:0,drums:.5,
-  push:.5,pushK:-1,pushS:-1,pushH:-1,ghosts:0,accent:.5,hsAbs:-1,hatdens:.5,kick:.5,snare:.5,hats:.5};   // inside the engine (.5 = as written); 1.25 (E3): the drum controls
+  push:.5,pushK:-1,pushS:-1,pushH:-1,ghosts:0,accent:.5,hsAbs:-1,hatdens:.5,kick:.5,snare:.5,hats:.5,mel:.5,rep:.5,range:.5,harm:.5};   // inside the engine (.5 = as written); 1.25 (E3): the drum controls
 /* What the controls hold (1.22): swing, length, density, fills and drums are -1 for the song's own (TUNE's SONG button),
    or 0..1 on their own scale: swing 0 = dead straight .. 1 = heavy shuffle; length x0.5 .. x3; density 0 = bare .. 1 = busiest;
    fills 0 = none .. 1 = lots; drums 0 = off .. 1 = +6 dB (density, fills, length and drums at .5 play as written). */
@@ -3445,10 +3445,10 @@ const GROOVE_DEF={bpm:0,meter:"",swing:.5,swAbs:-1,length:.5,root:-1,mode:"",den
    0 straight .. 1 heavy, the hats only); hatdens (-1 song; 0 quarters only .. .5 as written .. 1 sixteenths and rolls);
    kick / snare / hats (-1 song; 0 off .. .5 0 dB .. 1 +6 dB). gv 3: HUMANIZE is per part (kicks tighter than hats). */
 const GROOVE_UI={bpm:0,meter:"",swing:-1,length:-1,root:-1,mode:"",density:-1,fills:-1,feel:.5,humanize:0,drums:-1,
-  push:.5,pushK:-1,pushS:-1,pushH:-1,ghosts:0,accent:.5,hatswing:-1,hatdens:-1,kick:-1,snare:-1,hats:-1,gv:3};
+  push:.5,pushK:-1,pushS:-1,pushH:-1,ghosts:0,accent:.5,hatswing:-1,hatdens:-1,kick:-1,snare:-1,hats:-1,mel:.5,rep:.5,range:.5,harm:.5,gv:3};
 const GSONG=["swing","length","density","fills","drums","hatdens","kick","snare","hats"], GFOLLOW=["pushK","pushS","pushH","hatswing"], GRAW={};
 const grvDerive=r=>{ const n=x=>x<0||x==null?.5:x, f=x=>x==null||x<0?-1:x; return {bpm:r.bpm,meter:r.meter,root:r.root,mode:r.mode,feel:r.feel,humanize:r.humanize,swing:.5,swAbs:r.swing,length:n(r.length),density:n(r.density),fills:n(r.fills),drums:n(r.drums),
-  push:r.push??.5,pushK:f(r.pushK),pushS:f(r.pushS),pushH:f(r.pushH),ghosts:r.ghosts||0,accent:r.accent??.5,hsAbs:f(r.hatswing),hatdens:n(r.hatdens),kick:n(r.kick),snare:n(r.snare),hats:n(r.hats),hum3:(r.gv||0)>=3}; };
+  push:r.push??.5,pushK:f(r.pushK),pushS:f(r.pushS),pushH:f(r.pushH),ghosts:r.ghosts||0,accent:r.accent??.5,hsAbs:f(r.hatswing),hatdens:n(r.hatdens),kick:n(r.kick),snare:n(r.snare),hats:n(r.hats),hum3:(r.gv||0)>=3,mel:r.mel??.5,rep:r.rep??.5,range:r.range??.5,harm:r.harm??.5}; };
 const GROOVE_KEYS=[["bpm","BPM","The tempo (SONG: the song's own, where the slider sits)"],["meter","TIME","Time signature: the song's own (most are 4/4), or 4/4, 3/4, 6/8, 5/4, 7/8, 7/4"],
   ["swing","SWING","Dead straight to a heavy shuffle (SONG: the song's own)"],["length","LENGTH","How long each song or piece runs, from the next song (SONG: as written)"],
   ["root","KEY","The key the song is played in"],["mode","MODE","The scale: major, minor, the church modes and the strange ones"],
@@ -3458,7 +3458,11 @@ const GROOVE_KEYS=[["bpm","BPM","The tempo (SONG: the song's own, where the slid
   ["pushK","KICK PUSH","The kick alone, ahead or behind (FOLLOW: as PUSH / PULL)"],["pushS","SNARE PUSH","The snare and clap alone, ahead or behind (FOLLOW: as PUSH / PULL)"],["pushH","HAT PUSH","The hats and shaker alone, ahead or behind (FOLLOW: as PUSH / PULL)"],
   ["ghosts","GHOSTS","Ghost notes: quiet snares between the beats"],["accent","ACCENT","Dynamics: flat (every hit the same) to hard accents on the beats; 50 is as written"],
   ["hatswing","HAT SWING","The hats' own swing, straight to heavy (FOLLOW: the SWING setting)"],["hatdens","HATS","Hat density: quarters only to sixteenths and rolls; 50 is as written (SONG)"],
-  ["kick","KICK","The kick's level: off to +6 dB (SONG: as mixed)"],["snare","SNARE","The snare and clap level: off to +6 dB (SONG: as mixed)"],["hats","HATS LEVEL","The hats, shaker and percussion level: off to +6 dB (SONG: as mixed)"]];
+  ["kick","KICK","The kick's level: off to +6 dB (SONG: as mixed)"],["snare","SNARE","The snare and clap level: off to +6 dB (SONG: as mixed)"],["hats","HATS LEVEL","The hats, shaker and percussion level: off to +6 dB (SONG: as mixed)"],
+  ["mel","COMPLEXITY","The melody: simpler (just the strong notes, held longer) to busier (passing notes and quick pickups). 50 is as written"],
+  ["rep","REPETITION","Varied (the tune changes a little every time through) to repetitive (the answer phrase and the verse turn into the hook). 50 is as written"],
+  ["range","RANGE","How far the melody moves: narrow and low-key to wide and soaring. 50 is as written"],
+  ["harm","HARMONY","The chords: plain (open fifths, then triads) to rich (sevenths, then ninths). 50 is as written"]];
 // how to build each control (UI): range, default, what -1 means, labels at each end, the group it sits in
 const GROOVE_META={bpm:{type:"bpm",min:40,max:220,def:0,song:"SONG",group:"tempo"},meter:{type:"choice",def:"",song:"SONG",group:"tempo"},feel:{type:"choice",options:[0,.5,1],def:.5,group:"tempo",captions:["HALF","NORMAL","DOUBLE"]},
   swing:{type:"knob",min:0,max:1,def:-1,song:"SONG",group:"tempo",captions:["STRAIGHT","SHUFFLE"]},length:{type:"knob",min:0,max:1,def:-1,song:"SONG",group:"tempo",captions:["x0.5","x3"]},
@@ -3472,11 +3476,13 @@ const GROOVE_META={bpm:{type:"bpm",min:40,max:220,def:0,song:"SONG",group:"tempo
   hatswing:{type:"knob",min:0,max:1,def:-1,song:"FOLLOW",group:"feel",captions:["STRAIGHT","HEAVY"]},humanize:{type:"knob",min:0,max:1,def:0,group:"feel",captions:["TIGHT","LOOSE"]},
   accent:{type:"knob",min:0,max:1,def:.5,bipolar:true,group:"feel",captions:["FLAT","PUNCHY"]},
   kick:{type:"knob",min:0,max:1,def:-1,song:"SONG",group:"levels",captions:["OFF","+6 dB"],unit:"dB"},snare:{type:"knob",min:0,max:1,def:-1,song:"SONG",group:"levels",captions:["OFF","+6 dB"],unit:"dB"},
+  mel:{type:"knob",min:0,max:1,def:.5,bipolar:true,group:"melody",captions:["SIMPLE","BUSY"]},rep:{type:"knob",min:0,max:1,def:.5,bipolar:true,group:"melody",captions:["VARIED","REPEAT"]},
+  range:{type:"knob",min:0,max:1,def:.5,bipolar:true,group:"melody",captions:["NARROW","WIDE"]},harm:{type:"knob",min:0,max:1,def:.5,bipolar:true,group:"melody",captions:["PLAIN","RICH"]},
   hats:{type:"knob",min:0,max:1,def:-1,song:"SONG",group:"levels",captions:["OFF","+6 dB"],unit:"dB"},drums:{type:"knob",min:0,max:1,def:-1,song:"SONG",group:"levels",captions:["OFF","LOUD"],unit:"dB"}};
 const GRV={}, GON={};
 const grvOf=id=>GRV[id]||(GRV[id]={...GROOVE_DEF});
-const GSUP={mdfm:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},cluk:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},ptrn:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},hearye:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1},
-  ptlk:{bpm:1,meter:1,swing:1,length:0,key:1,drums:1},wybc:{bpm:1,meter:0,swing:1,length:1,key:1,drums:1}};
+const GSUP={mdfm:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1,melody:1},cluk:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1,melody:1},ptrn:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1,melody:1},hearye:{bpm:1,meter:1,swing:1,length:1,key:1,drums:1,melody:0},
+  ptlk:{bpm:1,meter:1,swing:1,length:0,key:1,drums:1,melody:0},wybc:{bpm:1,meter:0,swing:1,length:1,key:1,drums:1,melody:0}};   // 1.29: MELODY works on the stations whose songs MDFM writes (MDFM, PTRN, CLUK)
 const GDRUM=new Set(["kick","snare","clap","hat","perc","shaker","tom","crash"]);
 function cleanGroove(v){ const o={}; if(!v) return o;
   if("bpm" in v){ const x=+v.bpm; o.bpm=Number.isFinite(x)&&x>=30?Math.max(40,Math.min(220,Math.round(x))):0; }
@@ -3489,7 +3495,7 @@ function cleanGroove(v){ const o={}; if(!v) return o;
   for(const k of ["swing","length","density","fills","humanize","drums"]) if(k in v){ let x=+v[k]; if(!Number.isFinite(x)) continue;
     if(GSONG.includes(k)&&(x<0||(legacy&&Math.abs(x-.5)<.006))){ o[k]=-1; continue; }
     if(legacy&&k==="swing") x=x<.5?x*.4:.2+(x-.5)*1.6; o[k]=Math.max(0,Math.min(1,x)); }
-  for(const k of ["push","pushK","pushS","pushH","ghosts","accent","hatswing","hatdens","kick","snare","hats"]) if(k in v){ const x=+v[k]; if(!Number.isFinite(x)) continue;   // 1.25 (E3)
+  for(const k of ["push","pushK","pushS","pushH","ghosts","accent","hatswing","hatdens","kick","snare","hats","mel","rep","range","harm"]) if(k in v){ const x=+v[k]; if(!Number.isFinite(x)) continue;   // 1.25 (E3)
     o[k]=x<0&&(GSONG.includes(k)||GFOLLOW.includes(k))?-1:Math.max(0,Math.min(1,x)); }
   return o; }
 const grvIsDef=g=>Object.keys(GROOVE_DEF).every(k=>typeof GROOVE_DEF[k]==="number"?Math.abs(g[k]-GROOVE_DEF[k])<.005:g[k]===GROOVE_DEF[k]);
@@ -3559,6 +3565,50 @@ function gPump(id,s,t0,bs,bar,noFill){ const g=GRV[id]; if(!GON[id]||!g||(g.dens
   if(g.hatdens>.51){ const q=(g.hatdens-.5)*2; for(let i=1;i<16;i+=2) if(R()<q) hit("hat",(b,t,v)=>D.hat(b,t,v,false,b.hatDec),t0+i*st+sw,.22+.1*q,i);   // 1.25 (E3): busier hats, and rolls
     if(R()<q*.3){ const r=R()<.5?6:14; for(let j=0;j<4;j++) hit("hat",(b,t,v)=>D.hat(b,t,v,false,b.hatDec),t0+(r+j/2)*st+sw,.3,r); } }
   if(s.gNative) s.gPos=null; }
+/* 1.29 MELODY (Groove & Key, per station): COMPLEXITY, REPETITION, RANGE and HARMONY. Each at .5 plays the song as written:
+   nothing here runs, and nothing here ever draws from the song's random stream (choices come from a hash of where a note is),
+   so turning a control and back gives the same song. They reshape the melody as it plays (and the chords, for HARMONY), so a
+   move is heard within a bar, and Save and its MIDI file get the same notes. */
+const MEL_KEYS=["mel","rep","range"];
+const melOn=id=>{ const g=GON[id]&&GRV[id]; return !!g&&MEL_KEYS.some(k=>Math.abs((g[k]??.5)-.5)>.005); };
+const harmOn=id=>{ const g=GON[id]&&GRV[id]; return !!g&&Math.abs((g.harm??.5)-.5)>.005; };
+function mHash(a,b,c){ let h=(Math.imul(a|0,374761393)+Math.imul(b|0,668265263)+Math.imul(c|0,-2048144777))>>>0; h=Math.imul(h^(h>>>13),1274126177)>>>0; return ((h^(h>>>16))>>>0)/4294967296; }
+const mDeg=(s,m)=>{ const sc=s.sc||[0,2,4,5,7,9,11], rel=m-s.root, o=Math.floor(rel/12), pc=rel-12*o; let k=0; for(let j=0;j<7;j++) if(sc[j]<=pc) k=j; return 7*o+k; };   // a pitch's scale degree in the song's key (the answer phrase's changed notes don't carry one)
+const mDg=(s,n,dg)=>({...n,dg,m:n.m-s.deg(n.dg)+s.deg(dg)});   // the same note moved to another scale degree (its octave base kept)
+function melFix(ns,L){ ns=ns.filter(n=>n.i>=0&&n.i<L*16).sort((a,b)=>a.i-b.i); const out=[]; for(const n of ns) if(!out.length||out[out.length-1].i!==n.i) out.push(n);
+  out.forEach((n,k)=>{ const nx=k+1<out.length?out[k+1].i:L*16; n.len=Math.max(1,Math.min(8,nx-n.i)); }); return out; }
+// REPETITION below 50: each pass of the phrase changes a few notes by a step or two (and drops the odd one when very varied)
+function melVary(s,ns,v,pass,salt){ const out=[]; ns.forEach((n,k)=>{ if(k>0&&mHash(pass,k,salt+7)<v*.14) return;
+    if(k===0||mHash(pass,k,salt+5)>=v*.55){ out.push(n); return; } const r=mHash(k,pass,salt+6); out.push(mDg(s,n,n.dg+(r<.4?-1:r<.8?1:r<.9?2:-2))); }); return out; }
+// COMPLEXITY: below 50 the weakest notes go first (off-beats, then 8ths...; never the first note) and the rest ring on;
+// above 50 passing and neighbour notes fill the gaps, then quick 16th pickups lead into notes
+function melCx(s,ns,c,L,salt){ if(Math.abs(c-.5)<.005) return ns;
+  if(c<.5){ const q=(.5-c)*2, w=n=>n.i%16===0?0:n.i%8===0?1:n.i%4===0?2:n.i%2===0?3:4;
+    const cand=ns.slice(1).map((n,k)=>({n,r:w(n)+mHash(n.i,k,salt)})).sort((a,b)=>b.r-a.r), drop=new Set(cand.slice(0,Math.round(cand.length*q*.7)).map(x=>x.n));
+    return ns.filter(n=>!drop.has(n)); }
+  const q=(c-.5)*2, out=[...ns];
+  for(let k=0;k<ns.length;k++){ const a=ns[k], b=ns[k+1], end=b?b.i:L*16, gap=end-a.i; if(gap<2) continue;
+    if(mHash(a.i,k,salt+1)<q*.9){ const nd=b?b.dg:a.dg, st=nd>a.dg?1:nd<a.dg?-1:(mHash(k,a.i,salt+2)<.5?1:-1); out.push({...mDg(s,a,a.dg+st),i:a.i+Math.max(1,Math.floor(gap/2))}); }
+    if(q>.5&&b&&gap>=4&&mHash(b.i,k,salt+3)<(q-.5)*1.4) out.push({...mDg(s,b,b.dg+(mHash(k,b.i,salt+4)<.5?1:-1)),i:b.i-1}); }
+  return out; }
+// RANGE: the notes' distance from the phrase's middle degree, x0.35 (narrow) .. x1.8 (wide)
+function melRange(s,ns,r){ if(Math.abs(r-.5)<.005||!ns.length) return ns; const k=r<.5?.35+1.3*r:1+(r-.5)*1.6, c=ns.reduce((a,n)=>a+n.dg,0)/ns.length;
+  return ns.map(n=>mDg(s,n,Math.round(c+(n.dg-c)*k))); }
+// the phrase to play now, and how many bars it runs. REPETITION above 50: the answer phrase becomes the hook (from 67),
+// then the verse sings the hook too, in the verse's register (from 83)
+function melMot(s,id,isHook,phrase,L,bar){ const g=GRV[id], c=g.mel??.5, p=g.rep??.5, r=g.range??.5;
+  let mot=isHook?(phrase%2?s.answer:s.hook):s.verse, len=L, which=isHook?(phrase%2?"a":"h"):"v", oct=0;
+  if(p>.505){ const q=(p-.5)*2; if(isHook&&phrase%2&&q>=.34){ mot=s.hook; which="h"; }
+    if(!isHook&&q>=.67){ const av=x=>x.reduce((a,n)=>a+n.m,0)/Math.max(1,x.length); oct=Math.round((av(s.verse)-av(s.hook))/12)*12; mot=s.hook; len=s.hookLen; which="hv"; } }
+  const pass=p<.495?Math.floor(bar/Math.max(1,len)):0, key=which+"|"+c.toFixed(3)+"|"+p.toFixed(3)+"|"+r.toFixed(3)+"|"+pass, C=s.melC||(s.melC=new Map()); let out=C.get(key);
+  if(!out){ const salt=which.charCodeAt(0)*31+which.length*7; let ns=mot.map(n=>({...n,m:n.m+oct,dg:mDeg(s,n.m+oct)}));
+    if(p<.495) ns=melVary(s,ns,(.5-p)*2,pass,salt); ns=melCx(s,ns,c,len,salt); ns=melRange(s,ns,r); out=melFix(ns,len); if(C.size>48) C.clear(); C.set(key,out); }
+  return [out,len]; }
+// HARMONY: the chord on a degree, plain (below 12: root, fifth and octave; below 35: the triad) to rich (from 65: the 7th;
+// from 85: the 9th, rootless over a bass as the song's own five-note voicings are). 35..65 is the song's own voicing.
+function harmChord(s,d,up,h){ if(h>=.35&&h<.65) return s.chord(d,up);
+  const V=h<.12?[0,4,7]:h<.35?[0,2,4]:h<.85?[0,2,4,6]:(s.st&&s.st.bass!=="none"?[2,4,6,8]:[0,2,4,6,8]);
+  return tidyV(V.map((x,j)=>s.root+12+s.deg(d+x)+(j<up?12:0))); }
 // MDFM songs: one step (a 16th) on the scheduler, through the time signature. Returns how far to move on.
 const songMeter=s=>{ const id=s.mxId||"mdfm"; return gOn(id,"meter")?GRV[id].meter:s.meter||""; };   // TUNE's time signature, else the song's own
 const meterRatio=s=>{ const k=songMeter(s); return k?METERS[k].ratio:1; };

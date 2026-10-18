@@ -124,6 +124,8 @@ The MIX drawer (`mountMix`, alias `mountTune`, in `src/tune.js`) opens under the
 - **Groove & Key:** `setGroove`, `grooveKeyInfo()` for ranges and defaults, including the drum controls: push/pull, ghosts, accent, hat swing, hat density, kick/snare/hat level.
 - **FX:** `setFx`, including `glitch`.
 
+**MELODY (1.29):** groove keys `mel` (COMPLEXITY), `rep` (REPETITION), `range` (RANGE) and `harm` (HARMONY), each 0..1 with .5 as written, kept per station with the rest of GROOVE. `playStep` uses `melMot` (which phrase, varied, simplified or filled, wider or narrower) and `harmChord` (fifths, triads, the song's voicing, 7ths, 9ths) only while one is moved. Choices come from a hash, never the song's random stream. `grooveSupport(id).melody` is 1 on MDFM, PTRN and CLUK.
+
 **LITE (1.26, phones and tablets):** the LITE button next to ORIGINAL cycles AUTO / ON / OFF. It's saved in `mdfmMixUI.lite`, and AUTO means touch devices. While MIX is open in LITE:
 - the page gets `html.mx-lite` and `window.MDFM_lite` (the receiver's meters drop to 20 fps);
 - the engine gets `setLite(true)`: notes are scheduled 0.5 s ahead and the matrix saturators skip oversampling;
