@@ -1,22 +1,28 @@
 // 1.31 BEAT (Groove & Key): a one-bar drum pattern that steers the song's drums. Nothing changes until a cell is set
 // (and at INFLUENCE 0); at 1 the drums play exactly the pattern; rests thin the song; BASS FOLLOWS KICK; per station.
 // On the strict fake Web Audio (test/_fakeaudio.mjs), against dist/mdfm.mjs.
+// Run: node scripts/build.mjs, then node --test test/*.test.mjs (or just this file). Needs dist/mdfm.mjs from the build.
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { FakeAudioContext, installGlobals } from "./_fakeaudio.mjs";
 installGlobals(); globalThis.self = globalThis;
 const { createMDFM } = await import("../dist/mdfm.mjs");
+// seed(n): replaces Math.random with a seeded mulberry32 stream, so a run is repeatable; done() puts the real one back.
 function seed(n) { let a = n >>> 0; Math.random = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const realRandom = Math.random;
+// sim(): fake clock (mock timers, a fixed date) and a fresh FakeAudioContext with a radio on it; run(sec) advances both in 40 ms steps. s: seed.
 function sim(opts = {}, s = 11) { mock.timers.reset(); mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"], now: new Date(2026, 9, 18, 9, 20).getTime() }); seed(s);
   const ctx = new FakeAudioContext({ sampleRate: 48000 }), r = createMDFM({ audioContext: ctx, spots: false, ...opts });
   const run = async (sec, each) => { for (let i = 0; i < Math.round(sec * 25); i++) { ctx.currentTime += .04; mock.timers.tick(40); await new Promise(setImmediate); if (each) each(); } };
   return { ctx, r, run }; }
 const done = () => { mock.timers.reset(); Math.random = realRandom; };
+// play(beat): plays sec seconds with that pattern set and returns how many audio nodes were made (a cheap fingerprint of the graph).
 const play = async (beat, sec = 20, s = 11) => { const { ctx, r, run } = sim({}, s); if (beat) r.setBeat(beat); r.start(); await run(sec); r.stop(); const n = ctx.nodes; done(); return n; };
 // the bars the on-air song played while the card watched: {bar: {song, play}}
 const watch = async (beat, sec = 40, s = 11) => { const { r, run } = sim({}, s); if (beat) r.setBeat(beat); r.beatWatch(true); r.start(); const bars = {};
   await run(sec, () => { const n = r.beatNow(); if (n && n.on !== false) bars[n.bar + ":" + JSON.stringify(n.song.k)] = n; }); r.stop(); done(); return Object.values(bars); };
+// G({ k, s, h, o, p }): builds a beat from 16-character strings per lane (kick, snare, hat, open hat, perc):
+// "." rest, g ghost, x hit, X accent, "-" blank (follow the song).
 const G = (o) => Object.fromEntries(["k", "s", "h", "o", "p"].map(k => [k, Array.from({ length: 16 }, (_, i) => o[k] ? ({ ".": 0, g: 1, x: 2, X: 3, "-": -1 })[o[k][i]] : 0)]));
 
 test("the API: lanes, presets, cleaning, per station, only where MDFM writes the songs", () => {

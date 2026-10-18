@@ -5,6 +5,10 @@
 //    hubUrl setting, and any ids in the optional "bridgeArtifacts" list in settings.json).
 //  - Safety valve: if the top page's address isn't recognisable as a claude.ai artifact address at all (claude.ai may change
 //    its layout), the frame is allowed and main logs a warning once. A claude.ai artifact with any other id is refused.
+// Process: Electron main (main.js hubFrame() and hubPermission()). Security: this decides which web content can call the
+// app's IPC (live data, voices, settings), so it fails closed: any parse error or unknown host is "deny".
+// HUB_ARTIFACT: the MD Hub artifact's id. HUB_HOSTS: sites the hub view may navigate to. BRIDGE_FRAME: where the
+// artifact's sandboxed code runs. BETWEEN: frames allowed between it and the top page. ID: an artifact id's shape.
 const HUB_ARTIFACT = "V9DKVsKPguVWjCGFacb5iM";
 const HUB_HOSTS = /(^|\.)(claude\.ai|claudeusercontent\.com|claude\.site|claude\.com|anthropic\.com)$/;
 const BRIDGE_FRAME = /(^|\.)claudeusercontent\.com$/;
@@ -17,10 +21,12 @@ function artifactId(url) {
   const m = /^\/(?:code\/)?(?:public\/)?artifacts?\/([^/?#]+)\/?/.exec(u.pathname);
   return m && ID.test(m[1]) ? m[1] : null;
 }
+// The artifact ids whose frames may use the bridge: the built-in hub, the id in settings.hubUrl, and settings.bridgeArtifacts.
 function allowedIds(settings) {
   const s = settings || {}, extra = Array.isArray(s.bridgeArtifacts) ? s.bridgeArtifacts : [];
   return new Set([HUB_ARTIFACT, artifactId(s.hubUrl), ...extra.map(String)].filter(x => x && ID.test(x)));
 }
+// True when url parses, is https, and its host matches re.
 const https = (url, re) => { try { const u = new URL(String(url)); return u.protocol === "https:" && re.test(u.hostname); } catch { return false; } };
 // The top page: "ok" (an allowed artifact), "unknown" (a claude page whose address isn't an artifact address), or "deny".
 function topVerdict(topUrl, ids) {

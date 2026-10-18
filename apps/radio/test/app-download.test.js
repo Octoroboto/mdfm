@@ -1,6 +1,10 @@
 // App updates download the .dmg in the app: only mdfm release .dmg files, redirects followed only to GitHub's file hosts.
+// Tests common/app-download.js with a local fake of GitHub (no real downloads).
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path");
 const { createAppDownload, isReleaseDmg } = require("../src/common/app-download");
+// A real-shaped release asset URL (the only kind start() accepts).
 const URL0 = "https://github.com/Octoroboto/mdfm/releases/download/radio-v0.3.7/MDFM.Radio-0.3.7-arm64.dmg";
 test("app download: only mdfm release .dmg files", () => {
   assert.ok(isReleaseDmg(URL0));

@@ -1,9 +1,36 @@
+// ===== CLUK 92.3 show: The Gizzard Report =====
+// News, traffic and weather, anchored for thirty-one years by Dale Pruitt, with co-anchor Simone Abara, Ingrid
+// Mull on the grinding season, and reporters Gus Larrabee and Wendell Pike on the line (ph_).
+// How it airs: scripts/build.mjs concatenates every src/cluk/*.js file in front of src/cluk.js, so SHOW_GIZZARD is a plain
+// global const (no imports or exports). createCluk() in src/cluk.js lists it in SHOWS. show("gizzard") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js clukSegment() picks a show for a talk break when its "gizzard" switch is on,
+// and clukShowLines() wraps the episode: Clark's open and the episode title around the style's theme, the bed under the
+// first and last spoken lines, the lines in order, then the outro and Clark's close.
+//
+// Shape of SHOW_GIZZARD:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a CLUK_GENRES key (engine.js); that genre's song gives the show its theme, stingers and bed ("breaks")
+//   tags      loglines; one is dealt per airing and read after the open ("It's time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two non-ph_ ids are credited as hosts.
+//             An id starting ph_ is heard through the telephone filter (a caller, or someone on the phone).
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned ("CLUK" is said "cluck", captions keep the letters)
+//   ["sfx", name]        a sound effect from OT in engine.js (door, gavel, clock...); an unknown name is skipped
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
 // The Gizzard Report: CLUK 92.3's flagship news, traffic and weather broadcast.
 const SHOW_GIZZARD = {
   id: "gizzard",
   name: "The Gizzard Report",
   label: "The Gizzard Report",
   style: "breaks",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "Dale Pruitt has anchored The Gizzard Report for thirty-one years and has never once taken a sick day.",
     "Simone Abara wants to do real investigative journalism, and keeps getting assigned grit-storm features.",
@@ -14,6 +41,7 @@ const SHOW_GIZZARD = {
     "Somewhere at the Grain Exchange, a very small cover-up is about to meet a very determined co-anchor.",
     "Close your mouth, and hold onto something. This is The Gizzard Report.",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     dale: { name: "Dale Pruitt", accent: "american", pitch: 0.86, rate: 0.94 },
     simone: { name: "Simone Abara", accent: "british", pitch: 1.12, rate: 1.04 },
@@ -21,6 +49,7 @@ const SHOW_GIZZARD = {
     ph_gus: { name: "Gus Larrabee", accent: "australian", pitch: 0.98, rate: 1.07 },
     ph_wendell: { name: "Wendell Pike", accent: "southafrican", pitch: 0.92, rate: 0.95 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     // Episode 1: the grit front, and Simone counts the scoops.
     { title: "Grit: Friend or Foe, Part Nine",

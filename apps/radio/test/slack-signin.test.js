@@ -1,4 +1,8 @@
 // Slack sign-in in an app window, the helper address, and the builder's setup wizard (the parts that don't need a window).
+// Tests common/signin.js allowed(), common/slack-config.js, slack-setup.js's output parsers, common/slack.js connect() and
+// common/signin-policy.cedar (real Cedar). No Electron: sign-in windows are faked.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path"), http = require("http");
 const { allowed, SLACK_HOSTS, CLOUDFLARE_HOSTS } = require("../src/common/signin");
 const { createSlackConfig, validRelay } = require("../src/common/slack-config");

@@ -1,5 +1,6 @@
 // Pure Slack helpers for the company-news break (tested in test/). No network here.
 // Turns Slack posts into short, speakable news items, and skips anything that shouldn't be read between beats.
+// Used by slack.js (Electron main). users maps a Slack user id to personFromProfile()'s { first, initial, pron, bot }.
 
 // Posts about loss, illness, layoffs and similar are never read on the radio (official or puff).
 const SENSITIVE = /\b(rip|r\.i\.p|rest in peace|passed away|passed on|has passed|died|death|dying|funeral|memorial|obituary|condolences?|sorry for (your|the) loss|grieving|grief|rainbow bridge|put (him|her|them) down|euthan|hospice|hospital|surgery|cancer|diagnos|sick|illness|injur|accident|emergency|layoffs?|laid off|terminat|severance|resign|lawsuit|harass|investigation|confidential|do not share|don'?t share|password|ssn|medical|pregnan|miscarri|divorce)\b/i;
@@ -36,6 +37,7 @@ function shorten(t, max = 260) {
   const cut = t.slice(0, max), end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
   return (end > 80 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(" ")) + "...") + " There's more in Slack.";
 }
+// A Slack users.info user -> { first, initial, pron, bot }. Only first name and last initial are ever spoken.
 function personFromProfile(u) {
   const p = (u && u.profile) || {};
   const real = (p.real_name || u.real_name || "").trim(), parts = real.split(/\s+/);
@@ -49,7 +51,9 @@ function parseFixes(text) {
   for (const line of String(text || "").split(/\n+/)) { const m = line.match(/^\s*([^=]{1,40}?)\s*=\s*(.{1,60}?)\s*$/); if (m) out[m[1].toLowerCase()] = m[2]; }
   return out;
 }
+// A post worth reading: a normal top-level message (or a file share) from a person, not a bot and not a thread reply.
 const isTopLevel = m => m && m.type === "message" && (!m.subtype || m.subtype === "file_share") && !m.bot_id && (!m.thread_ts || m.thread_ts === m.ts) && typeof m.text === "string";
+// Returns { image, video }: how many of each the post has.
 // Photos and videos the radio can't see (no AI at runtime). The newsreader jokes about it instead.
 function media(m) {
   let image = 0, video = 0;
@@ -73,7 +77,9 @@ function toItems(history, { channel, kind, users = {}, since = 0, fixes = {} }) 
   }
   return out.sort((a, b) => b.ts - a.ts);
 }
+// Channel name -> the kind of news it is (decides the newsreader's lead-in and summary length).
 const KIND_BY_NAME = { general: "official", littlevisionaries: "kids", "animal-pics": "animals" };
+// "#a, b c" from Settings -> ["a", "b", "c"]; anything that isn't a valid channel name is dropped.
 function parseChannelList(text) { return String(text || "").split(/[\s,]+/).map(s => s.replace(/^#/, "").toLowerCase()).filter(s => /^[a-z0-9._-]{1,80}$/.test(s)); }
 // Rough spoken length in seconds (robot voices run ~2.4 words a second), plus the lead-in and any reaction.
 const secs = x => 2.5 + (x.kind === "official" ? 0 : 2.5) + (x.image || x.video ? 4.5 : 0) + (x.text ? String(x.text).split(/\s+/).length / 2.4 : 0);

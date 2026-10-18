@@ -1,8 +1,36 @@
-const SHOW_PEST = {
+const SHOW_PEST = {   // ===== HEARYE 95.5 show: Pestilence Today =====
+// A chipper health magazine: Royal Physician Doctor Ambrose Leechworth (leeches for everything) and Nurse
+// Hettie Thimble cover the season's maladies, one per episode, with a patient in the episode cast.
+// How it airs: scripts/build.mjs concatenates every src/faire/*.js file in front of src/faire.js, so SHOW_PEST is a plain
+// global const (no imports or exports). createFaire() in src/faire.js lists it in SHOWS. show("pest") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js fairSegment() picks a show for a talk break when its "pest" switch is on (shows that
+// aired recently wait their turn), and fairShowLines() wraps the episode: the crier's open and the episode title around
+// the style's theme, the bed under the first and last spoken lines, the lines in order, then the outro and the crier's close.
+// test/faire.test.mjs checks every show: 15+ episodes, unique titles, a known style, a voice for every speaker, known sfx.
+//
+// Shape of SHOW_PEST:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a HEARYE music style (F_STYLE_STINGS in engine.js) for the theme, stingers and bed ("lament")
+//   tags      loglines; one is dealt per airing and read after the open ("It is time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two cast entries are credited as hosts
+//             unless they are ph_ ids. An id starting ph_ is heard through the telephone filter (the "speaking shell").
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned
+//   ["sfx", name]        a sound effect from OT in engine.js; the test allows rain knock door steps claps thunder clock
+//                        horse wind teacup page applause hammer crash gallery
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
   id: "pest",
   name: "Pestilence Today",
   label: "Pestilence Today",
   style: "lament",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "The realm's most chipper health magazine, covering the hottest maladies of the season",
     "Royal Physician Doctor Ambrose Leechworth prescribes leeches for absolutely everything",
@@ -10,10 +38,12 @@ const SHOW_PEST = {
     "Symptoms, patient interviews, and side effects read at tremendous speed",
     "The doctor is definitely coming down with something, and he definitely is not",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     leechworth: { name: "Doctor Ambrose Leechworth", accent: "british", pitch: 0.96, rate: 1.02 },
     hettie: { name: "Nurse Hettie Thimble", accent: "irish", pitch: 1.08, rate: 1.0 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     { title: "Knight's Elbow",
       cast: { knight: { name: "Sir Barnaby Wavesworth", accent: "american", pitch: 0.94, rate: 0.98 } },

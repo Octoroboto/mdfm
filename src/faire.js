@@ -3,22 +3,40 @@
    every episode has aired). This file writes everything procedural: the jousting and royal show-pony broadcasts, the
    realm news (the company's Slack news read by the herald in the old tongue, or made-up proclamations without it),
    ads assembled from parts, call-ins to the bard, station IDs and the bard's intros. Plain functions, no imports. */
+// ===== File overview =====
+// Where it fits: scripts/build.mjs pastes src/faire/*.js (the SHOW_* objects, FAIRE_IDS, FAIRE_ADS, FAIRE_AD_PARTS,
+// FAIRE_CALLERS, FAIRE_ARTISTS, FAIRE_PIECE and the other pools) and then this file into the bundle's shared scope, so
+// those names are globals here. src/engine.js calls createFaire(R) once (const FAIRE; also createFaire(Math.random) just to
+// list the shows for STATION_TYPES) and the HEARYE station code (fairAfterPiece, fairSegment, fairAdLines, fairShowLines, fairId) asks it for
+// every spoken part, voiced through fairCast() -> talkCast(). The music itself is the engine's FS fantasy writer; this
+// file only names the pieces and players.
+// A show entry (src/faire/<show>.js): { id, name, label, style (the FS style its theme and stingers use), tags, cast
+// { key: voice }, episodes [{ title, cast?, lines }] }. Lines are [speaker key, text], ["sfx", cue] or ["seg"] (a stinger).
+// Voices are { name, accent, names? (preferred system voice names, tried first), pitch, rate } (about 1 = natural).
+// createFaire(R): R is the engine's random stream (0..1). Returns the station writer (see the return at the bottom).
 function createFaire(R) {
+  // pick(a): one random element. ri(a, b): an integer from a to b inclusive.
   const pick = a => a[Math.floor(R() * a.length)], ri = (a, b) => Math.floor(a + R() * (b - a + 1));
-  const shuf = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = ri(0, i); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const fill = (s, v) => String(s).replace(/\{(\w+)\}/g, (m, k) => v[k] != null ? v[k] : m).replace(/([?!])\./g, "$1");
+  const shuf = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = ri(0, i); [a[i], a[j]] = [a[j], a[i]]; } return a; };   // Fisher-Yates shuffle of a copy
+  const fill = (s, v) => String(s).replace(/\{(\w+)\}/g, (m, k) => v[k] != null ? v[k] : m).replace(/([?!])\./g, "$1");   // fills {key} from v (unknown keys stay) and drops a "." right after "?" or "!" so a filled sentence doesn't double up
   // a deck: every item once, shuffled, before any repeats (and never the same one twice in a row across reshuffles)
-  const decks = {};
+  const decks = {};   // deck state per key: { left: indexes still to deal, last: the index dealt last }
+  // deal(key, src): the next item of src from the deck named key. When a reshuffle would put the last item first again,
+  // it moves it to the back. Side effect: updates decks[key].
   const deal = (key, src) => { let d = decks[key]; if (!d || !d.left.length) { let left = shuf(src.map((_, i) => i)); if (d && d.last != null && left.length > 1 && left[left.length - 1] === d.last) left = [left.pop(), ...left]; d = decks[key] = { left, last: d ? d.last : null }; }
     const i = d.left.pop(); d.last = i; return src[i]; };
-  const SHOWS = [SHOW_DOUG, SHOW_CAULDRON, SHOW_GROG, SHOW_PEST, SHOW_DQI, SHOW_ONESTAR, SHOW_HOARD];
+  const SHOWS = [SHOW_DOUG, SHOW_CAULDRON, SHOW_GROG, SHOW_PEST, SHOW_DQI, SHOW_ONESTAR, SHOW_HOARD];   // order here is only the order of the switches in "What plays"
 
   /* ---------- the station's own voices ---------- */
+  // HOSTS: crier = the Royal Crier (station IDs, ad intros); bard = Merriweather (piece intros, back-announces, call-ins);
+  // herald = the realm news reader.
   const HOSTS = {
     crier: { name: "Bartholomew Bellweather, Royal Crier", accent: "british", names: ["Daniel", "Arthur", "Oliver", "Google UK English Male", "Microsoft George", "Microsoft Ryan"], pitch: .96, rate: 1.02 },
     bard: { name: "Merriweather the Bard", accent: "irish", names: ["Moira", "Microsoft Emily", "Microsoft Connor"], pitch: 1.02, rate: .96 },
     herald: { name: "Osgood Trumpington, Herald of the Realm", accent: "american", names: ["Evan", "Tom", "Aaron", "Microsoft Guy", "Google US English"], pitch: .92, rate: 1 },
   };
+  // ids(): a crier station ID. bardIntro(np) / bardBack(np): the bard introducing the next piece or naming the last
+  // (np = the engine's now-playing fields, filled into {title}, {artist} etc.). BRIDGE / bridge(): a link with no piece named.
   const ids = () => deal("crier", FAIRE_IDS.crier);
   const bardIntro = (np) => fill(deal("bi", FAIRE_IDS.bardIntro), np);
   const bardBack = (np) => fill(deal("bb", FAIRE_IDS.bardBack), np);
@@ -27,11 +45,15 @@ function createFaire(R) {
   const bridge = () => deal("bridge", BRIDGE);
 
   /* ---------- the scripted shows ---------- */
+  // SHOW_OPEN / EP_OPEN / SHOW_CLOSE: the crier's lines around a scripted show ({show} = show name, {title} = episode title).
   const SHOW_OPEN = ["Hear ye, hear ye! It is time for {show}.", "And now, by royal permission that we did not ask for, {show}.", "Gather round, gather round. It is {show}.",
     "Good people of the realm, put down thy turnips. {show} begins.", "The crier announces, with all the breath he has left, {show}.", "Next upon Hear Ye: {show}. Viewer discretion is advised. Listener discretion, also."];
   const EP_OPEN = ["This day's tale: {title}.", "In this episode: {title}.", "Today's chapter is called {title}.", "Hear now the tale of {title}.", "This one is called {title}. The crier has not read it."];
   const SHOW_CLOSE = ["That was {show}. It will return, whether thou wilt or no.", "Thou hast been listening to {show}. Hear Ye takes no responsibility.", "{show}, everybody. Give it a hand. Not like Doug. Normally.",
     "And so ends {show}, for this day. The realm is no better for it, and no worse.", "That was {show}, on Hear Ye, ninety five point five. The Home of High Drama.", "{show} will return. The crier will be here too. He lives here now."];
+  // show(id): the next episode of show id, dealt so no episode repeats until all have aired (deck "ep_<id>").
+  // Returns { id, show, style, title, hosts (the first two cast names that aren't phone voices), cast (show cast plus the
+  // episode's extras), lines (copied so the engine can change them), open [show opener, episode line], close }; null if unknown.
   function show(id) {
     const s = SHOWS.find(x => x.id === id); if (!s) return null;
     const ep = deal("ep_" + id, s.episodes), tag = deal("tag_" + id, s.tags || [""]);
@@ -42,6 +64,11 @@ function createFaire(R) {
   }
 
   /* ---------- jousting: every match written live ---------- */
+  // J: the jousting pools. pbp / color: the play-by-play and color commentators' voices. first / house / epithet / colors /
+  // horse: parts for a knight. venue, intro, colorOpen, introA / introB (each knight's introduction), quirk (the color
+  // commentator on a knight): the opening. ready / charge / outcome[kind] / react[kind]: one pass down the lists, by result.
+  // winner / tie / interviewIntro / interview / loser / close / colorClose: the finish. {k} = a knight, {o} = his opponent,
+  // {h} = his horse, {sa}/{sb} = the scores.
   const J = {
     pbp: { name: "Rodric Hollowell", accent: "british", names: ["Daniel", "Arthur", "Oliver", "Google UK English Male", "Microsoft Ryan"], pitch: .95, rate: 1.06 },
     color: { name: "Big Tamsin Graves", accent: "australian", names: ["Karen", "Catherine", "Microsoft Natasha"], pitch: 1.04, rate: 1.02 },
@@ -87,6 +114,9 @@ function createFaire(R) {
     close: ["That's it from {venue}. For Big Tamsin Graves, I'm Rodric Hollowell. Mind the splinters.", "From {venue}, that's the joust. Tamsin, any final thoughts? None? Good.", "We'll be back next time with more jousting. Until then, keep your lances up and your visors down."],
     colorClose: ["I'm going to go find that sandwich.", "Can I go down and touch the fence now?", "Rodric, I've had a wonderful time. Truly. Nobody's ever let me say this much.", "Turkey leg number five, here I come."],
   };
+  // joust(): writes one Royal Joust broadcast. Two different knights (different names and horses) ride up to 5 passes:
+  // scoring is glance 1, shatter 2, helm 3; an unhorsing ends it. After 3 passes a leader wins; a tie goes to a 4th (and 5th)
+  // pass, then "style points". Returns { kind: "joust", show, title, hosts, style: "battle", cast, lines }.
   function joust() {
     const mk = () => { const f = pick(J.first); return { k: `Sir ${f} ${pick(J.house)}`, short: `Sir ${f}`, house: pick(J.house), col: pick(J.colors), h: pick(J.horse), ep: pick(J.epithet) }; };
     const A = mk(); let B = mk(); while (B.short === A.short || B.h === A.h) B = mk();
@@ -101,7 +131,7 @@ function createFaire(R) {
       if (pass === 4) L.push(["pbp", pick(J.tie)]);
       L.push(["pbp", pick(J.ready)], ["sfx", "horse"], ["pbp", pick(J.charge)]);
       const r = R(), who = R() < .5 ? A : B, o = who === A ? B : A;
-      const kind = r < .14 ? "miss" : r < .4 ? "glance" : r < .64 ? "shatter" : r < .8 ? "helm" : r < .9 ? "unhorse" : "incident";
+      const kind = r < .14 ? "miss" : r < .4 ? "glance" : r < .64 ? "shatter" : r < .8 ? "helm" : r < .9 ? "unhorse" : "incident";   // one pass's result: miss 14%, glance 26%, shatter 24%, helm 16%, unhorse 10%, a horse "incident" 10%
       L.push(["pbp", fill(pick(J.outcome[kind]), { k: who.short, o: o.short, h: who.h })]);
       if (kind === "shatter" || kind === "unhorse") L.push(["sfx", "crash"]);
       if (score[kind]) { if (who === A) sa += score[kind]; else sb += score[kind]; if (R() < .3) { const r2 = R(); const k2 = r2 < .5 ? "glance" : "shatter"; const t2 = fill(pick(J.outcome[k2]), { k: o.short }); L.push(["pbp", pick(["And at the same moment, ", "But wait, ", "And in return, "]) + (/^Sir /.test(t2) ? t2 : t2[0].toLowerCase() + t2.slice(1))]); if (o === A) sa += score[k2]; else sb += score[k2]; } }
@@ -118,6 +148,9 @@ function createFaire(R) {
   }
 
   /* ---------- the royal show ponies ---------- */
+  // P: the pony pageant pools. ann / color: the two commentators' voices. pony / owner / event / judges (sets of three):
+  // who's competing and judging. The rest are lines for each stage: open, event_intro, entry, perf, colorPerf, judge
+  // (one judge's score), judgeNote (a score with a quip), total, win, ownerIntro, ownerSay, close.
   const P = {
     ann: { name: "Lady Philippa Dawes", accent: "british", names: ["Serena", "Kate", "Martha", "Google UK English Female", "Microsoft Hazel", "Microsoft Sonia"], pitch: 1.04, rate: .98 },
     color: { name: "Sir Bertram Oaks", accent: "american", names: ["Aaron", "Tom", "Alex", "Microsoft Guy", "Google US English"], pitch: .92, rate: 1.02 },
@@ -145,17 +178,19 @@ function createFaire(R) {
     close: ["That's all from the Royal Pony Pageant. Brush your ponies, everyone.", "From the castle green, I'm Lady Philippa Dawes. Goodnight, and keep your ribbons where ponies can't reach them.", "The Royal Pony Pageant will return. The ponies will be the same height."],
     colorClose: ["What a day. I need to lie down in some hay.", "I'm going to go pat every one of them. That's not allowed. I'm doing it anyway.", "Long live the ponies. And the King, I suppose."],
   };
+  // ponies(): writes one Royal Pony Pageant. Three ponies each get three judges' scores (5..10); the highest total wins.
+  // Returns { kind: "ponies", show, title (the event), hosts, style: "procession", cast, lines }.
   function ponies() {
     const event = pick(P.event), J3 = pick(P.judges), names = shuf(P.pony).slice(0, 3), owners = shuf(P.owner).slice(0, 3);
     const L = [["sfx", "applause"], ["ann", fill(pick(P.open), { ann: P.ann.name, color: P.color.name })], ["color", pick(P.colorOpen)], ["ann", fill(pick(P.event_intro), { event, j1: J3[0], j2: J3[1], j3: J3[2] })], ["seg"]];
     const totals = [];
     names.forEach((p, i) => {
-      L.push(["sfx", "horse"], ["ann", fill(pick(P.entry), { p, o: owners[i] })], ["ann", fill(deal("pperf", P.perf), { p })], ["color", deal("pcol", P.colorPerf)]);
+      L.push(["sfx", "horse"], ["ann", fill(pick(P.entry), { p, o: owners[i] })], ["ann", fill(deal("pperf", P.perf), { p })], ["color", deal("pcol", P.colorPerf)]);   // an: "an" before eight and eleven, "a" otherwise
       const sc = J3.map(() => ri(5, 10)), quip = R() < .45; let t = 0;
       const an = n => n === 8 || n === 11 ? "an" : "a", up = j => j[0].toUpperCase() + j.slice(1);
       J3.forEach((j, k) => { t += sc[k]; if (!(quip && k === 2)) L.push(["ann", fill(pick(P.judge), { j: up(j), n: sc[k], an: an(sc[k]) })]); });
       if (quip) L.push(["ann", fill(pick(P.judgeNote), { J: up(J3[2]), n: sc[2], an: an(sc[2]) })]);
-      L.push(["ann", fill(pick(P.total), { t, p })]); totals.push(t + i * .01 * R());
+      L.push(["ann", fill(pick(P.total), { t, p })]); totals.push(t + i * .01 * R());   // the tiny random fraction breaks ties between equal totals without changing the spoken score
       if (i === 1) L.push(["seg"]);
     });
     const w = totals.indexOf(Math.max(...totals)), t = Math.round(Math.max(...totals));
@@ -165,6 +200,7 @@ function createFaire(R) {
   }
 
   /* ---------- the realm news: Slack news in the old tongue, or proclamations ---------- */
+  // ARCH: [pattern, old-tongue replacement] pairs applied in order by archaic(). Longer phrases come before single words.
   const ARCH = [[/\byou are\b/gi, "thou art"], [/\byou're\b/gi, "thou art"], [/\byou have\b/gi, "thou hast"], [/\byou've\b/gi, "thou hast"], [/\bare you\b/gi, "art thou"], [/\bdo you\b/gi, "dost thou"], [/\bhave you\b/gi, "hast thou"],
     [/\byou will\b/gi, "thou wilt"], [/\byou'll\b/gi, "thou wilt"], [/\bcan you\b/gi, "canst thou"], [/\byou can\b/gi, "thou canst"], [/\byour\b/gi, "thy"], [/\byours\b/gi, "thine"], [/\byou\b/gi, "thee"], [/\bdoes\b/gi, "doth"], [/\bhas\b/gi, "hath"],
     [/\b(hello|hi|hey)\b/gi, "hail"], [/\bthank you\b/gi, "many thanks"], [/\bthanks\b/gi, "many thanks"], [/\b(congrats|congratulations)\b/gi, "huzzah"], [/\byes\b/gi, "aye"], [/\beveryone\b|\beverybody\b/gi, "all ye good folk"], [/\bteam\b/gi, "fellowship"],
@@ -173,12 +209,18 @@ function createFaire(R) {
     [/\b(okay|ok)\b/gi, "so be it"], [/\bdeadline\b/gi, "reckoning"], [/\bclients\b/gi, "patrons"], [/\bclient\b/gi, "patron"], [/\boffice\b/gi, "keep"], [/\bweekend\b/gi, "days of rest"], [/\bbirthday\b/gi, "name day"], [/\bphotos\b/gi, "portraits"],
     [/\bphoto\b/gi, "portrait"], [/\bvideos\b/gi, "moving portraits"], [/\bvideo\b/gi, "moving portrait"], [/\bawesome\b/gi, "most wondrous"], [/\bcool\b/gi, "most fine"], [/\bguys\b/gi, "good gentles"], [/\bfriends\b/gi, "companions"], [/\bmonday\b/gi, "Moonday"],
     [/\bfriday\b/gi, "Freyasday"], [/\bdog\b/gi, "hound"], [/\bdogs\b/gi, "hounds"], [/\bcar\b/gi, "carriage"], [/\bcars\b/gi, "carriages"], [/\bphone\b/gi, "speaking shell"], [/\bwebsite\b/gi, "public scroll"], [/\bpizza\b/gi, "flatbread of the south"]];
-  const keepCase = (src, rep) => src[0] === src[0].toUpperCase() && src[0] !== src[0].toLowerCase() ? rep[0].toUpperCase() + rep.slice(1) : rep;
+  const keepCase = (src, rep) => src[0] === src[0].toUpperCase() && src[0] !== src[0].toLowerCase() ? rep[0].toUpperCase() + rep.slice(1) : rep;   // keeps a leading capital when the matched word had one
+  // archaic(text): one Slack message in the old tongue: links become "a link", :emoji: codes are dropped, then ARCH.
   function archaic(text) { let s = String(text || "").replace(/https?:\/\/\S+/g, "a link").replace(/:[a-z0-9_+-]+:/gi, ""); for (const [re, rep] of ARCH) s = s.replace(re, m => keepCase(m, rep)); return s.replace(/\s+/g, " ").trim(); }
+  // NEWS_LEAD: the herald's attribution ({channel}, {name}). NEWS_REACT: his one-line reaction. NEWS_IMAGE: for attachments.
   const NEWS_LEAD = ["From the hall of {channel}, {name} doth proclaim:", "In {channel}, {name} hath written upon the scroll:", "Word from the hall of {channel}. {name} saith:", "Hark! In {channel}, {name} hath declared:",
     "A missive from {channel}, penned by {name}:", "{name}, of the hall of {channel}, wishes it known:", "The ravens bring word from {channel}. {name} writes:"];
   const NEWS_REACT = ["Huzzah.", "So it is written.", "The herald hath no further comment.", "Make of that what thou wilt.", "Noted, and nailed to the church door.", "A bold proclamation.", "Verily.", "The herald nods, gravely."];
   const NEWS_IMAGE = ["And with it, {athing}. The herald hath looked upon it, and it is good.", "Attached: {athing}. The herald cannot describe it, for he is but a voice.", "There is also {athing}. The realm is invited to gaze upon it."];
+  // news(items, sayName): the realm news from the engine's Slack items ({ who {first, initial?}, channel, text?, names?,
+  // image? (count), video? (count) }). sayName(n) is the engine's pronunciation lookup: spoken text uses it, while the
+  // caption ("show") keeps the written name. Returns herald lines (text lines are { say, show } pairs), at most about 220
+  // words, or null when nothing usable came in (the engine then calls proclamations()).
   function news(items, sayName) {
     const out = [], said = n => (sayName ? sayName(n) : n && n.first) || "a stranger"; let words = 0;
     for (const x of items || []) {
@@ -195,6 +237,7 @@ function createFaire(R) {
     return out.length ? out : null;
   }
   // without Slack (a plain browser page), or when it's quiet: proclamations from around the realm
+  // PROC: made-up proclamations: who, verb, what, plus a closing weather line.
   const PROC = {
     who: ["the King", "the Queen", "the Duke of Vexmoor", "the Guild of Candlemakers", "the Abbot of Saint Hilda's", "the Wizards' Council", "the Lord Mayor of Pellingham", "the Ministry of Moats", "the Royal Beekeeper", "the Orc Chieftain Gorbash", "the Goblin Workers' Union", "the Elven Embassy"],
     verb: ["hath decreed", "hath announced", "doth wish it known", "hath declared, at length,", "hath proclaimed, from a balcony,", "hath let slip at supper"],
@@ -204,10 +247,14 @@ function createFaire(R) {
       "that the war is over, and that nobody remembers who won", "that the castle cat hath been made a baron", "that all wizards must register their beards", "that the forest is open again, except for the parts that bite", "that goblins may now vote, but only for other goblins"],
     weather: ["The weather this day: cloudy, with a chance of omens.", "Weather: fair in the valley, ominous in the mountains, and raining fish over Mudford again.", "The almanac predicts sun, then dragons, then sun.", "The royal soothsayer predicts weather. He would not say which."],
   };
+  // proclamations(): three or four proclamations (each sometimes with a reaction) and the weather, as herald lines.
   function proclamations() { const L = []; const whos = shuf(PROC.who); for (let i = 0; i < ri(3, 4); i++) { L.push(["herald", `${whos[i][0].toUpperCase() + whos[i].slice(1)} ${pick(PROC.verb)} ${deal("procwhat", PROC.what)}.`]); if (R() < .4) L.push(["herald", pick(NEWS_REACT)]); } L.push(["herald", pick(PROC.weather)]); return L; }
-  const heraldOpen = () => deal("ho", FAIRE_IDS.herald), heraldClose = () => deal("hc", FAIRE_IDS.heraldClose);
+  const heraldOpen = () => deal("ho", FAIRE_IDS.herald), heraldClose = () => deal("hc", FAIRE_IDS.heraldClose);   // the herald's sign-on and sign-off lines
 
   /* ---------- ads ---------- */
+  // ===== Ads =====
+  // AD_INTRO: the crier's lead-in. AD_FORM: four templates for an ad built from FAIRE_AD_PARTS (p = { product, maker, claim,
+  // side (side effects), price, slogan }); v1 is the announcer, v2 a customer. ADV: the voices a quick ad draws two of.
   const AD_INTRO = ["And now, a word from our patrons.", "Hear Ye is brought to thee by the following merchants, who paid in coin and in cheese.", "A message from our sponsors. The crier is contractually obligated.", "We pause for commerce."];
   const AD_FORM = [
     p => [["v1", `Tired of the same old ${p.product.toLowerCase()}? Try the ${p.product}, from ${p.maker}.`], ["v1", p.claim], ["v2", `Side effects may include ${p.side}.`], ["v1", `Only ${p.price}. ${p.slogan}`]],
@@ -216,6 +263,7 @@ function createFaire(R) {
     p => [["v1", `Attention, peasants and nobles alike.`], ["v1", `The ${p.product} is here, and ${p.maker} would like a word.`], ["v1", p.claim], ["v1", `Ask thy apothecary if the ${p.product} is right for thee. Do not ask him about ${p.side}. He does not like to talk about it.`], ["v1", `${p.price}. ${p.slogan}`]],
   ];
   const ADV = [{ accent: "american", pitch: .96, rate: 1.06 }, { accent: "british", pitch: 1.04, rate: 1.02 }, { accent: "irish", pitch: 1.05, rate: 1 }, { accent: "australian", pitch: .95, rate: 1.04 }, { accent: "scottish", pitch: 1.02, rate: 1 }, { accent: "southafrican", pitch: 1.04, rate: 1 }];
+  // ad(): one ad, 30% of the time assembled from parts, otherwise the next scripted one from FAIRE_ADS. Returns { title, cast, lines }.
   function ad() {
     if (R() < .3) { const P2 = FAIRE_AD_PARTS, p = { product: deal("adprod", P2.product), maker: pick(P2.maker), claim: deal("adclaim", P2.claim), side: deal("adside", P2.side), price: pick(P2.price), slogan: deal("adslog", P2.slogan) };
       const vs = shuf(ADV); return { title: `${p.maker}: ${p.product}`, cast: { v1: { name: "Announcer", ...vs[0] }, v2: { name: "Customer", ...vs[1] } }, lines: pick(AD_FORM)(p) }; }
@@ -224,9 +272,12 @@ function createFaire(R) {
   const adIntro = () => pick(AD_INTRO);
 
   /* ---------- call-ins to the bard ---------- */
+  // CALL_OPEN / CALL_REPLY2 / CALL_END: the bard's lines around a call; the caller's lines come from FAIRE_CALLERS decks.
   const CALL_OPEN = ["The speaking shells are open. Caller, thou art on Hear Ye.", "We have a caller. Go ahead, friend. The whole realm is listening.", "Another soul on the line. Speak, good caller.", "The bard is taking calls. Mostly because the lute needs tuning. Thou art on the air."];
   const CALL_REPLY2 = ["Then I have no more advice. Only a song. Thou shalt hear it next.", "Hmm. Then perhaps the answer was within thee all along. Or in thy neighbor's tower.", "Fair. Very fair. I withdraw everything I said.", "That is beyond the bard's skills. Try a wizard. Not a cheap one."];
   const CALL_END = ["Fare thee well, caller.", "And they are gone. Like a leaf on the wind.", "Click. The bard is alone again.", "Bless that caller. And bless their cart."];
+  // caller(): one call-in to the bard: opener, gripe, the bard's reply, (70%) a follow-up and second reply, then goodbyes.
+  // "ph_caller" puts the caller through the engine's phone filter.
   function caller() {
     const C = FAIRE_CALLERS, acc = pick(["american", "british", "australian", "irish", "scottish", "indian", "southafrican"]);
     const L = [["bard", pick(CALL_OPEN)], ["ph_caller", deal("copen", C.open)], ["ph_caller", deal("cgripe", C.gripe)], ["bard", deal("creply", C.reply)]];
@@ -236,10 +287,14 @@ function createFaire(R) {
   }
 
   /* ---------- the music: made-up players and pieces ---------- */
+  // artist(): a made-up player: "First Last" (50%), "First of Place" (20%) or an ensemble (30%).
   function artist() { const A = FAIRE_ARTISTS, r = R(); if (r < .5) return `${pick(A.first)} ${pick(A.last)}`; if (r < .7) return `${pick(A.first)} of ${pick(["Thornbury", "the Hollow", "Greywater", "the Marsh", "Highgarden", "the North Tower", "Pellingham", "the Old Mill"])}`; return pick(A.ensemble); }
+  // piece(): a made-up piece title. Retries up to 8 times to avoid a repeated word (ignoring "the" and "of"), then a fallback.
   function piece() { for (let i = 0; i < 8; i++) { const r = R(), a = pick(FAIRE_PIECE.a), b = pick(FAIRE_PIECE.b), t = r < .55 ? `The ${a} ${b}` : r < .8 ? `${b} of the ${a} ${pick(["Hart", "Tower", "Moon", "Queen", "Road", "Glade", "Shield", "Bell"])}` : `${a} ${b}`;
       const w = t.toLowerCase().split(/\s+/).filter(x => x !== "the" && x !== "of"); if (new Set(w).size === w.length) return t; } return `The ${pick(FAIRE_PIECE.a)} Galliard`; }
 
+  // ===== What the engine uses =====
+  // shows: { id, name, label, style, episodes (count) } for the switches; HOSTS for fairCast; archaic is returned too, though the engine only uses it through news().
   return { shows: SHOWS.map(s => ({ id: s.id, name: s.name, label: s.label || s.name, style: s.style, episodes: s.episodes.length })), HOSTS,
     show, joust, ponies, news, proclamations, heraldOpen, heraldClose, ad, adIntro, caller, ids, bardIntro, bardBack, bridge, artist, piece, archaic };
 }

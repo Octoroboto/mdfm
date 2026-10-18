@@ -1,3 +1,28 @@
+// ===== CLUK 92.3 show: The Egg Question =====
+// Professor Amos Fenn's ideas program on "Which came first?", with his producer Dinah Okafor.
+// How it airs: scripts/build.mjs concatenates every src/cluk/*.js file in front of src/cluk.js, so SHOW_EGGQ is a plain
+// global const (no imports or exports). createCluk() in src/cluk.js lists it in SHOWS. show("eggq") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js clukSegment() picks a show for a talk break when its "eggq" switch is on,
+// and clukShowLines() wraps the episode: Clark's open and the episode title around the style's theme, the bed under the
+// first and last spoken lines, the lines in order, then the outro and Clark's close.
+//
+// Shape of SHOW_EGGQ:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a CLUK_GENRES key (engine.js); that genre's song gives the show its theme, stingers and bed ("acidbreaks")
+//   tags      loglines; one is dealt per airing and read after the open ("It's time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two non-ph_ ids are credited as hosts.
+//             An id starting ph_ is heard through the telephone filter (a caller, or someone on the phone).
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned ("CLUK" is said "cluck", captions keep the letters)
+//   ["sfx", name]        a sound effect from OT in engine.js (door, gavel, clock...); an unknown name is skipped
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
 // The Egg Question: CLUK 92.3's prestige ideas program.
 // Professor Amos Fenn has spent thirty years on "Which came first?" and is always one episode from a breakthrough.
 // Running threads: the manuscript "On Priority" (due to Mr. Pelling at Comb University Press), the Tally Board,
@@ -7,6 +32,7 @@ const SHOW_EGGQ = {
   name: "The Egg Question",
   label: "The Egg Question",
   style: "acidbreaks",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "Professor Amos Fenn of the University of the Comb asks the oldest question in the Chicken, and this week he is very close.",
     "Thirty years, one question, and a producer named Dinah who would like him to stop touching the microphone.",
@@ -16,10 +42,12 @@ const SHOW_EGGQ = {
     "A serious program about the great questions, hosted by a man who cannot find his reading glasses.",
     "Pull up a chair, hold onto something during the Bawk, and wonder out loud with Professor Fenn.",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     fenn: { name: "Professor Amos Fenn", accent: "british", pitch: 0.9, rate: 0.95 },
     dinah: { name: "Dinah Okafor", accent: "american", pitch: 1.08, rate: 1.05 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     // 1. The physicist. Sets up the book deadline, the Tally Board and Hypothesis Nine.
     { title: "Hypothesis Nine",

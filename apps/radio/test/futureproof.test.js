@@ -1,4 +1,7 @@
 // Futureproofer kit as MDFM Radio uses it: checks run, results stick, failures show amber and never pass silently.
+// Tests the app kit's futureproofer (kit/futureproofer) with faked npm/OSV answers and a temp state file.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path");
 const { createFutureproofer, checks } = require("../kit/futureproofer");
 test("electron and package checks read npm dist-tags", async () => {

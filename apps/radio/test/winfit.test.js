@@ -1,5 +1,8 @@
-const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), path = require("path");
+const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), path = require("path");   // Tests src/main/winfit.js fitBounds() and createFitter() with fake windows and timers.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const { fitBounds, createFitter } = require("../src/main/winfit");
+// A 1440x875 work area under a 25 px menu bar, and window bounds at a given y and height.
 const wa = { x: 0, y: 25, width: 1440, height: 875 };
 const b = (y, height) => ({ x: 200, y, width: 1060, height });
 
@@ -23,10 +26,12 @@ test("nonsense and no-change requests do nothing", () => {
   assert.equal(fitBounds({ want: 601, bounds: b(40, 600), workArea: wa }), null);
 });
 
+// A fake BrowserWindow: records each setBounds height in sets. full / max: fullscreen or maximized.
 function fakeWin(bounds, { full = false, max = false } = {}) {
   const w = { b: { ...bounds }, sets: [], isDestroyed: () => false, isFullScreen: () => full, isMaximized: () => max, getBounds: () => ({ ...w.b }),
     getMinimumSize: () => [700, 520], setBounds(nb) { w.sets.push(nb.height); w.b = { ...nb }; } }; return w; }
 const screen = { getDisplayMatching: () => ({ workArea: wa }) };
+// Manual timers: run() fires everything pending, so debouncing can be tested without waiting.
 function fakeTimers() { let n = 0; const q = new Map(); return { setTimeout: (f) => { q.set(++n, f); return n; }, clearTimeout: id => q.delete(id), run() { const fs = [...q.values()]; q.clear(); fs.forEach(f => f()); }, size: () => q.size }; }
 
 test("every request is honoured, not just the first (1.24 only ever sized the window once)", () => {

@@ -1,4 +1,11 @@
+<!-- MDFM Radio page body. scripts/build.mjs pastes this into the body of dist/radio.html, swapping the BADGES placeholder in -->
+<!-- the footer for the receiver's badges (vendor/meddev-receiver/badges.html). It is also listed in dist/manifest.json so -->
+<!-- the apps can update it live. The MedDev Receiver (receiver.js) and skin/radio-wire.js find their parts by id, class -->
+<!-- and data attribute, so renaming anything here means changing them too. Styles: the receiver's CSS plus skin/radio.css. -->
+<!-- Elements marked hidden are shown by radio-wire.js when they apply (app window controls, station lists, app-only settings). -->
 <div class="wrap">
+  <!-- The deck: window controls (apps only), the display (station name #stName, now playing #np, captions #cap), the -->
+  <!-- visualizer and the SOUND, MIX and play buttons, and the MIX drawer (#tunePop, filled by mountMix from src/tune.js). -->
   <header class="top">
     <div class="deck">
       <div class="wtitle"><span class="wctl" id="wctl" hidden><span class="wbtn"><span class="rd-led on" id="wPowLed"></span><button type="button" id="wClose" title="Turn off (close)" aria-label="Close"></button><small>POWER</small></span><span class="wbtn"><button type="button" id="wMin" title="Minimize" aria-label="Minimize"></button><small>MIN</small></span><span class="wbtn"><button type="button" id="wFull" title="Full screen" aria-label="Full screen"></button><small>FULL</small></span></span><span>MDFM Radio</span></div>
@@ -12,9 +19,12 @@
       <div class="mixdrawer" id="tunePop" hidden></div>
     </div>
   </header>
+  <!-- The station panel: VU meters, the status display, Let it ride and the other listening buttons, the volume knob, then the -->
+  <!-- Looks and Settings drawers. -->
   <div class="grid">
     <section class="panel station" aria-label="Station">
       <div class="wtitle"><span>Station</span></div>
+      <!-- SVG colour filter for the lights (hue and saturation), driven by the RGB light controls below. -->
       <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><filter id="rgbk" color-interpolation-filters="sRGB"><feColorMatrix id="rgbHue" type="hueRotate" values="0"/><feColorMatrix id="rgbSat" type="saturate" values="1"/><feComponentTransfer><feFuncR type="linear" slope="1"/><feFuncG type="linear" slope="1"/><feFuncB type="linear" slope="1"/></feComponentTransfer></filter></svg>
       <div class="strow">
         <div class="vu"><div class="vu-m" aria-hidden="true"><div class="vu-glass"><canvas data-ch="0"></canvas><span class="vu-pk" title="Peak"></span></div><small>LEFT</small></div><div class="vu-m"><div class="vu-glass"><canvas data-ch="1"></canvas><span class="vu-pk" title="Peak"></span></div><small>RIGHT</small></div></div>
@@ -25,6 +35,7 @@
         </div>
       </div>
       <div class="stdrawers">
+      <!-- Looks: the skin picker (filled from the receiver's skins list) and the display and light colour controls. -->
       <details class="looks" id="looks">
         <summary>Looks</summary>
         <div class="looksgrid">
@@ -43,6 +54,9 @@
 </div>
         </div>
       </details>
+      <!-- Settings: one collapsible section per station, in dial order, with data-station matching the engine's station id so the -->
+      <!-- section for the station on air opens by itself and shows ON AIR. .setcount gets "n of m on". Each list is filled by -->
+      <!-- radio-wire.js from radio.stationTypeList(id); MDFM 99.9's #typeList is filled by the receiver from skin/types.js. -->
       <details class="settings" id="settings" hidden>
         <summary>Settings</summary>
         <div class="setlist">
@@ -95,6 +109,7 @@
             <div class="types" id="ptlkList"></div>
           </fieldset>
           </details>
+          <!-- Instruments: the parts each song may use on MDFM, PTRN and CLUK, plus the "Playing now" card (#instNow). -->
           <details class="setsec" data-sec="inst"><summary>Instruments <small>(MDFM 99.9 and PTRN 101.1)</small> <span class="setcount"></span></summary>
             <fieldset class="slackset" id="instSet" hidden>
             <legend>Instruments on MDFM 99.9, PTRN 101.1 and CLUK 92.3</legend>
@@ -104,6 +119,7 @@
             <div id="instList"></div>
           </fieldset>
           </details>
+          <!-- App only: Slack news (connect, extra channels, name pronunciations) and the Futureproofer / update status. -->
           <details class="setsec apponly" data-sec="slack"><summary>Company news from Slack</summary>
             <fieldset class="apponly slackset" id="slackSet">
             <legend>Company news from Slack (optional)</legend>
@@ -126,5 +142,6 @@
       </div>
     </section>
   </div>
+  <!-- The receiver badges footer, required in every app that plays MDFM (see README). -->
   <footer class="deck pinfoot" aria-label="MedDev" data-mdfm-badges><!--MDFM:BADGES--></footer>
 </div>

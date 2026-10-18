@@ -1,5 +1,16 @@
+// ===== CLUK 92.3 scripted ads, batch two, plus the parts for assembled ads =====
+// Concatenated by scripts/build.mjs in front of src/cluk.js; everything here is a plain global const.
+//   CLUK_ADS_2     more scripted ads; createCluk() joins them with CLUK_ADS_1 (src/cluk/ads1.js) and ad() deals from both
+//   CLUK_AD_PARTS  word pools for the quick ads ad() assembles 30% of the time, read by two random voices (v1, v2)
+//   CLUK_AD_INTRO  Clark's line before each ad block (adIntro(), dealt without repeats)
+// One ad: { title, cast, lines }.
+//   title  shown in now-playing and the recording log
+//   cast   speaker id -> voice { name, accent, pitch, rate } (pitch and rate are multipliers, clamped .88..1.12 and .9..1.1)
+//   lines  [speakerId, "text"] spoken lines, plus ["sfx", name] effects and ["pause", ms] silences. No ["seg"] in ads.
+//
 // CLUK 92.3 radio ads, batch two. Plain consts, no imports or exports.
 
+// ===== Scripted ads, grouped by advertiser =====
 const CLUK_ADS_2 = [
   // ---------- Feed Time Breakfast Cereal (3) ----------
   { title: "Feed Time Cereal: Part of a Complete Feed Time",
@@ -400,7 +411,11 @@ const CLUK_ADS_2 = [
     ] },
 ];
 
+// ===== Parts for assembled ads =====
+// ad() fills one of four AD_FORM templates in src/cluk.js. product, claim, side and slogan are dealt (no repeats
+// until each is used); maker and price are picked at random. Title is "maker: product".
 const CLUK_AD_PARTS = {
+  // product name; used as "the {product}" and lowercased in "the same old ..."
   product: [
     "Grit-Free Pillow", "Feed Time Umbrella", "Bawk Brace", "Heart Sync Wristwatch",
     "Wishbone Splitter", "Gizzard Earmuffs", "Egg Day Calendar", "Keel Commuter Cushion",
@@ -410,6 +425,7 @@ const CLUK_AD_PARTS = {
     "Self-Holding Handrail", "Mill Dust Air Freshener", "Inner Calm Grit Rake", "Talk-Free Dinner Placemat",
     "Emergency Elbow Pads", "Instant Nest Kit", "Upper Wing Starter Wings", "Heartbeat Metronome",
   ],
+  // company that makes it; also opens "{maker} presents" and the sign-off
   maker: [
     "Pelt Brothers Industries", "The Keel Supply Depot", "Crop and Daughters", "Gizzard Honest Goods",
     "Drumstick Home Outfitters", "Wattle Hand Made", "Comb Heritage Company", "Lower Wing Aeronautics",
@@ -417,6 +433,7 @@ const CLUK_AD_PARTS = {
     "Feather and Sons", "Barnaby's Bargain Silo", "Heart Time Instruments", "Grain Street Goods",
     "Doreen Mask Technologies", "The Plucky Company", "Grinding Season Outfitters", "Second Egg Enterprises",
   ],
+  // one full sentence of sales claim, read by the announcer
   claim: [
     "It's the only one in the Chicken, and also there are several.",
     "Nine out of ten Gizzard residents said it was there.",
@@ -447,6 +464,7 @@ const CLUK_AD_PARTS = {
     "It points toward the Egg, which is down, which you knew.",
     "It works great until the moment you really need it, which is honest.",
   ],
+  // side effect, a noun phrase: "Side effects may include {side}."
   side: [
     "a mild urge to describe the Outside",
     "holding onto things that are not moving",
@@ -477,6 +495,7 @@ const CLUK_AD_PARTS = {
     "asking where the Egg goes at a party",
     "an overwhelming need to sit near a friend",
   ],
+  // price phrase, read before the slogan
   price: [
     "Only twelve grain",
     "Two sacks of grain, or best offer",
@@ -495,6 +514,7 @@ const CLUK_AD_PARTS = {
     "One sack of grain, layaway available until Egg Day",
     "Priced to move, which is the only direction it goes",
   ],
+  // closing slogan, a full sentence
   slogan: [
     "Made right here, in the Chicken.",
     "Hold onto it.",
@@ -523,6 +543,7 @@ const CLUK_AD_PARTS = {
   ],
 };
 
+// ===== Ad block intros (Clark Featherstone) =====
 const CLUK_AD_INTRO = [
   "CLUK 92.3 is brought to you by the following businesses, all of them inside the Chicken.",
   "We'll be right back after these messages from your neighbors in the Chicken.",

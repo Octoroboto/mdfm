@@ -1,8 +1,34 @@
-const SHOW_WISHBONE = {
+const SHOW_WISHBONE = {   // ===== CLUK 92.3 show: Wishbone Court =====
+// A courtroom show: Judge Marla Kettering and Bailiff Terrence Oduya hear a new case each episode, in a
+// courthouse on the line between Left and Right Wishbone. The litigants are in each episode's own cast.
+// How it airs: scripts/build.mjs concatenates every src/cluk/*.js file in front of src/cluk.js, so SHOW_WISHBONE is a plain
+// global const (no imports or exports). createCluk() in src/cluk.js lists it in SHOWS. show("wishbone") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js clukSegment() picks a show for a talk break when its "wishbone" switch is on,
+// and clukShowLines() wraps the episode: Clark's open and the episode title around the style's theme, the bed under the
+// first and last spoken lines, the lines in order, then the outro and Clark's close.
+//
+// Shape of SHOW_WISHBONE:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a CLUK_GENRES key (engine.js); that genre's song gives the show its theme, stingers and bed ("bigbeat")
+//   tags      loglines; one is dealt per airing and read after the open ("It's time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two non-ph_ ids are credited as hosts.
+//             An id starting ph_ is heard through the telephone filter (a caller, or someone on the phone).
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned ("CLUK" is said "cluck", captions keep the letters)
+//   ["sfx", name]        a sound effect from OT in engine.js (door, gavel, clock...); an unknown name is skipped
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
   id: "wishbone",
   name: "Wishbone Court",
   label: "Wishbone Court",
   style: "bigbeat",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "Judge Marla Kettering has no patience, a perfect memory, and a courthouse that sits exactly on the line between Left and Right Wishbone.",
     "Small claims, big feelings: every case starts petty and ends somewhere nobody expected, including the judge.",
@@ -12,10 +38,12 @@ const SHOW_WISHBONE = {
     "Terrence is studying for the bar at night. The judge has not noticed. The judge has definitely noticed.",
     "The only court in the Chicken where the gavel is used sparingly and the tissues are used often.",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     judge: { name: "Judge Marla Kettering", accent: "american", pitch: 0.95, rate: 1.06 },
     terrence: { name: "Bailiff Terrence Oduya", accent: "southafrican", pitch: 0.88, rate: 0.95 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     // 1
     { title: "The Porch Light",

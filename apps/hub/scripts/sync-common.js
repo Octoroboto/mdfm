@@ -1,4 +1,5 @@
 // Copies the shared live-data, Slack and network code (apps/common) into src/common, which ships inside the app.
+// Runs in Node from the command line before a build. Edit apps/common, never src/common (it's replaced each time).
 const fs = require("fs"), path = require("path");
 const dst = path.join(__dirname, "../src/common");
 fs.rmSync(dst, { recursive: true, force: true });

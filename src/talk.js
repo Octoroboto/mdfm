@@ -8,19 +8,38 @@
    Rules (same as MDFM 99.9): real headlines are read straight first; the jokes are about the situation and the words,
    never claims about real named people or invented facts about real companies. Nobody's accent marks a villain.
    Voices: clear, everyday voices for everyone; novelty voices (the forklift's beeps) only where the joke is the voice. */
+// ===== File overview =====
+// Where it fits: scripts/build.mjs pastes this file, as is, into dist/mdfm.mjs, dist/mdfm.iife.js and dist/radio.html
+// (no imports or exports here: it is a plain function in the bundle's shared scope). src/engine.js calls
+// createTalk(R) once at load (const TALK) and, if it exists, turns on the PTLK 108.0 station; without this file PTLK is skipped.
+// The engine reads TALK.shows (the switches in "What plays" and the hub/apps settings), calls TALK.episode(id, data, state)
+// for each show (ptlkShow), TALK.next(id) for the announcer's lead-in and TALK.id() for station IDs, and voices each line
+// with talkCast(), wrapping the episode in its own running order (ptlkRunOrder: ID, theme, bed, stingers, outro).
+// Episode result: { title, lines, hosts, cast, usedLive? } where cast maps each speaker key used in lines to a voice
+// { name, accent, pitch (about 1 = natural), rate (about 1 = natural speed), novelty? }.
+// Every random choice goes through R, the engine's random stream, so a seeded run writes the same episodes.
+// createTalk(R): R is a function returning 0..1 (the engine's R()). Returns { shows, animals, episode, id, next }.
+// Per-show state (the `st` argument of each show writer) is an object the engine keeps per show id (ptlkState[id]) and
+// passes back every episode, so serials and running gags (Sheila, Ron's mailbox, the ticking box) carry on between episodes.
 function createTalk(R) {
+  // ===== Random helpers (all draw from R) =====
+  // pick(a): one random element. rr(a, b): a float in [a, b). ri(a, b): an integer from a to b inclusive.
   const pick = a => a[Math.floor(R() * a.length)], rr = (a, b) => a + R() * (b - a), ri = (a, b) => Math.floor(rr(a, b + 1));
-  const chance = p => R() < p;
+  const chance = p => R() < p;   // true with probability p (0..1)
   // [a|b|c] picks one (nested ok), {name} fills from vars (a function is called each time)
+  // X(s, v): expands a template string. Innermost [..|..] groups are resolved first, so nesting works;
+  // the 400-pass guard stops a malformed bracket from looping forever. Unknown {keys} are left as written.
   function X(s, v) {
     let out = String(s), g = 0;
     while (/\[[^\[\]]*\]/.test(out) && g++ < 400) out = out.replace(/\[([^\[\]]*)\]/g, (m, a) => pick(a.split("|")));
     return out.replace(/\{(\w+)\}/g, (m, k) => v && v[k] != null ? String(typeof v[k] === "function" ? v[k]() : v[k]) : m);
   }
+  // deck(a): returns a function that deals the items of a in a shuffled order and reshuffles when empty.
   const deck = a => { let bag = []; return () => { if (!bag.length) bag = a.slice().sort(() => R() - .5); return bag.pop(); }; };   // no repeats until the list runs out
   // a show's format: never the same one twice in a row
-  const format = (st, names) => { const c = names.filter(n => n !== st.fmt); const f = pick(c.length ? c : names); st.fmt = f; return f; };
-  const SEG = ["seg"];
+  const format = (st, names) => { const c = names.filter(n => n !== st.fmt); const f = pick(c.length ? c : names); st.fmt = f; return f; };   // st.fmt remembers the last format for this show
+  const SEG = ["seg"];   // a segment break: the engine turns it into a stinger (["music","sting"])
+  // Made-up people and places shared by every show (no real names).
   const FIRST = ["Darlene", "Ray", "Tammy", "Lyle", "Marcy", "Dwayne", "Pam", "Gus", "Rhonda", "Earl", "Bev", "Chuck", "Wendy", "Nate", "Trish", "Hal", "Joelle", "Vince", "Shirley", "Todd",
     "Gloria", "Mitch", "Opal", "Rusty", "Nadine", "Burt", "Lorraine", "Kip", "Deb", "Walt", "Priya", "Marco", "Yvonne", "Desmond", "Ingrid", "Abe", "Rosalind", "Felix", "Connie", "Omar"];
   const LAST = ["Pickering", "Lumm", "Hargrove", "Bixby", "Duquette", "Fenstermacher", "Kowalczyk", "Plover", "Truax", "Quimby", "Stroud", "Ogletree", "Wendt", "Szabo", "Pruitt", "Vandermeer",
@@ -29,16 +48,19 @@ function createTalk(R) {
     "Upper Dimsdale", "Brisket Falls", "New Cardigan", "Willow Bend", "Fort Noodle"];
   const STREET = ["Maple", "Larkspur", "Old Mill", "Gristle", "Plover", "Badger Hollow", "Sunnyvale", "Quarry", "Juniper", "Lantern", "Cobbler", "Thistle", "Wobble Creek", "Pheasant Run"];
   const STREET_T = ["Lane", "Court", "Drive", "Way", "Circle", "Terrace", "Place"];
+  // fullName(): "First Last" from the pools above. first(n): the first word of a full name.
   const fullName = () => `${pick(FIRST)} ${pick(LAST)}`;
   const first = n => n.split(" ")[0];
   // Clear, everyday voices only. Pitch and speed stay close to natural so every caller is easy to follow.
+  // American is listed four times so most callers sound local. The accents are names talkCast() in the engine maps to system voices.
   const CALLER_ACCENTS = ["american", "american", "american", "american", "british", "australian", "irish", "indian", "southafrican"];
-  const callerVoice = (name) => ({ name, accent: pick(CALLER_ACCENTS), pitch: rr(.94, 1.08), rate: rr(.96, 1.05) });
-  const clock = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const n2w = n => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][n] || String(n);
-  const cap = s => s[0].toUpperCase() + s.slice(1);
+  const callerVoice = (name) => ({ name, accent: pick(CALLER_ACCENTS), pitch: rr(.94, 1.08), rate: rr(.96, 1.05) });   // a caller's voice: a random clear accent, pitch and rate kept within a few percent of natural
+  const clock = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });   // the listener's local clock time, e.g. "3:05 PM", for the time-check IDs
+  const n2w = n => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][n] || String(n);   // small numbers as words so the speech engine reads them naturally; 13 and up stay digits
+  const cap = s => s[0].toUpperCase() + s.slice(1);   // capitalize the first letter
 
   /* ---------- Station imaging ---------- */
+  // IDS: station IDs read by the announcer (TALK.id()). A function entry is called each time so it can say the current time.
   const IDS = ["P T L K, one oh eight point oh. All talk. No exceptions.",
     "You're listening to P T L K. Talk radio, made fresh, every single time.",
     "P T L K, one oh eight. Nobody here has read the script, because there isn't one.",
@@ -51,6 +73,7 @@ function createTalk(R) {
     () => `${clock()}. You're on P T L K. Stay right there.`];
   const idDeck = deck(IDS);
   const id = () => { const x = idDeck(); return typeof x === "function" ? x() : x; };
+  // INTRO: the announcer's lead-in before a show's name. tagDecks: one deck of show.tags per show id, made on first use.
   const INTRO = ["Now on P T L K:", "Right now on P T L K:", "This is P T L K, and this is", "On the air at one oh eight:", "P T L K presents", "Up now:", "You're tuned to P T L K. Here's"];
   const introDeck = deck(INTRO), tagDecks = {};
   // The announcer names the show, and only sometimes adds a line about it: never the same line twice running.
@@ -58,11 +81,19 @@ function createTalk(R) {
     return `${introDeck()} ${show.name}.${chance(.55) ? " " + t() : ""}`; };
 
   /* ---------- Shared bits for headline shows ---------- */
+  // clean(t): one headline cleaned up: collapses whitespace and drops a trailing " - Site Name" style suffix (2..40 chars after a dash or bar).
   const clean = t => String(t || "").replace(/\s+/g, " ").replace(/\s*[-|–—]\s*[^-|–—]{2,40}$/, "").trim();   // drop " - Site Name" tails
+  // keyword(title, words): the first key of `words` that appears in the title as a whole word (or with an "s"), else null.
+  // The shows use it to pick a joke about the headline's subject, never about the people in it.
   const keyword = (title, words) => { const low = " " + String(title).toLowerCase().replace(/[^a-z0-9 ]/g, " ") + " "; for (const w of Object.keys(words)) if (low.includes(" " + w + " ") || low.includes(" " + w + "s ")) return w; return null; };
+  // ordinal(i, n): how a host leads into headline i of n ("First", "Last", or a random "Next").
   const ordinal = (i, n) => i === 0 ? "First" : i === n - 1 ? "Last" : pick(["Next", "Next up", "Moving on"]);
 
   /* ===================== 1. Clap Attack with Doug ===================== */
+  // Doug's pools. DOUG_FEATURE: a selling point. DOUG_FLAW: [short name used in questions, the full disclosure].
+  // DOUG_WANT: what a caller is looking for. DOUG_OBJ / DOUG_REBUT: a caller's objection and Doug's comeback.
+  // TRENT_DID / TRENT_SAY: cousin Trent's latest mistake and his excuse. SHEILA: the rival's escalating moves, read in order
+  // (one per episode via st.sheila). DOUG_OPEN / DOUG_CLOSE: the host's opening and sign-off templates.
   const DOUG_FEATURE = ["a koi pond with one koi named Gary", "a sunroom that is mostly a moonroom", "a three-car garage for a two-car family", "a basement that's technically a cave",
     "an original nineteen seventy-four conversation pit", "a walk-in closet you can also drive into", "a kitchen island with its own zip code", "heated floors in exactly one hallway",
     "a laundry chute that goes to the neighbors'", "a wine cellar currently holding one box of wine", "a bonus room that's mostly bonus, very little room", "a porch swing with a past",
@@ -89,13 +120,17 @@ function createTalk(R) {
     "Sheila Vance renamed her company Crestmark Homes and Also Doug Is Bad. That's defamation, and also very long."];
   const DOUG_OPEN = ["[This is|You're listening to|Welcome back to|Live and under contract, it's] Clap Attack. I'm Doug. [I don't do small talk. I do square footage.|My mother's here, my cousin's here, and my patience is not.|Let's sell some dirt.|If you're calling to be friends, hang up.|Phones are hot and so is the market.]"];
   const DOUG_CLOSE = ["[Another deal closed, another friendship declined.|That's the show. I didn't make a single friend, and I sold a house.|Ma, wave goodbye. She's waving. Nobody can see it.|Buy a house. Not from Sheila.] This has been Clap Attack."];
+  // mkHouse(): a random listing: house number, street name and type, town, bedrooms and a spoken price.
   const mkHouse = () => ({ num: ri(12, 9890), street: pick(STREET), st: pick(STREET_T), town: pick(TOWNS), beds: ri(2, 6),
     price: `${pick(["two", "three", "four", "five", "six", "seven", "eight"])} hundred ${pick(["forty", "ninety", "twenty five", "seventy five", "sixty"])} thousand` });
+  // doug(st): writes one Clap Attack episode. st.sheila counts episodes so the Sheila Vance feud moves forward each time.
+  // Formats: "listing" (one house and callers, then a twist), "openhouse", "family" (the family meeting), "lightning" (three quick sales).
   function doug(st) {
     st.sheila = (st.sheila || 0) + 1;
     const fmt = format(st, ["listing", "openhouse", "family", "lightning"]);
     const house = mkHouse(), f = deck(DOUG_FEATURE), fl = pick(DOUG_FLAW), c1 = fullName(), c2 = fullName(), c3 = fullName();
     const v = { ...house, feature: f(), feature2: f(), feature3: f(), flawshort: fl[0], flaw: fl[1], c1: first(c1), c2: first(c2), c3: first(c3) };
+    // Sheila's next move, in order, wrapping around after the last one.
     const sheila = SHEILA[(st.sheila - 1) % SHEILA.length];
     const L = [["doug", X(pick(DOUG_OPEN), v)], ["sfx", "claps"]];
     let title;
@@ -112,6 +147,7 @@ function createTalk(R) {
         ["doug", "That's a verbal yes on the radio, which in this state is basically ink."], SEG,
         ["barb", X(`Douglas, while we're live: your cousin Trent [${TRENT_DID.join("|")}].`, v)], ["doug", "Ma! On air!"], ["trent", pick(TRENT_SAY)],
         ["doug", "You can't fire family. I've tried. There's a form, and Ma hid the form."]);
+      // the listing format ends with one of three twists: Sheila calls in disguised, the owner discloses more, or the caller moves in.
       const twist = pick(["sheila", "owner", "callback"]);
       if (twist === "sheila") L.push(["doug", sheila], ["doug", "Next caller."], ["c2", "Hello, yes. I am a normal buyer. My name is, uh, Shmeila. I'd like to know your commission. For no reason."], ["doug", "Sheila?"], ["c2", "Who? I'm Shmeila. Bye."], ["doug", "She hung up. She's scared. Good."]);
       else if (twist === "owner") L.push(["doug", "Next caller."], ["c2", X("Doug, it's {c2}. I own {num} {street}. I forgot to mention [the house is also a church on Sundays|there's a second smell, and it's Glen's brother|the koi is the one who really owns it].", v)], ["doug", "Disclosed on air. Legally that's a gift."]);
@@ -149,6 +185,7 @@ function createTalk(R) {
       L.push(SEG, ["doug", sheila], ["trent", "Should I get us a jingle, Doug?"], ["doug", "No jingles. We have the clap. The clap is our jingle."], ["sfx", "claps"]);
     }
     L.push(["doug", X(pick(DOUG_CLOSE), v)], ["sfx", "claps"]);
+    // cast keys match the speaker keys used in L. Keys "c<n>", "owner" and "ph_..." are heard through the phone-line filter (talkCast in the engine); ph_barb is Barb calling in.
     return { title, lines: L, hosts: "Doug, Barb and Trent",
       cast: { doug: { name: "Doug", accent: "american", pitch: .95, rate: 1.06 }, barb: { name: "Barb", accent: "american", pitch: 1.08, rate: .97 }, trent: { name: "Trent", accent: "american", pitch: 1.04, rate: 1.03 },
         ph_barb: { name: "Barb, on the phone", accent: "american", pitch: 1.08, rate: .97 },
@@ -156,6 +193,7 @@ function createTalk(R) {
   }
 
   /* ===================== 2. Analyze Biz ===================== */
+  // BIZ_WORDS: a headline keyword (matched by keyword()) -> jokes about that word. They roast the vocabulary, not the companies.
   const BIZ_WORDS = {
     merger: ["A merger. That's when two companies hold hands in the parking lot, and then one of them gets the car.", "Mergers are like weddings, but the cake is lawyers."],
     acquisition: ["An acquisition. That's a merger where one side didn't get a vote.", "Acquisition. Sounds like a craft store. A very expensive craft store."],
@@ -183,6 +221,8 @@ function createTalk(R) {
     economy: ["The economy. It's like the weather, but you can't put on a sweater.", "Economists say a lot of things. Usually twice. Once up, once down."],
     housing: ["Housing. I know a guy named Doug who'd like a word.", "The housing market. A market where the tomatoes are houses."],
   };
+  // BIZ_GENERIC: reactions when no keyword matches. BIZ_ONEWORD: Gregg's one-word lightning-round answers.
+  // BIZ_METRIC: made-up metrics for "analysis". BIZ_DEF: [business word, Gregg's wrong definition].
   const BIZ_GENERIC = ["I read that three times and I still think it's about soup.", "That's a lot of words for: a company did a thing.", "Bold. Brave. I don't know what any of it means.",
     "Somewhere a press release is very proud of itself.", "I'm going to need a chart. And a nap. Chart first.", "That headline has the energy of a man in a lanyard."];
   const BIZ_ONEWORD = ["Yikes.", "Neat.", "Huh.", "Bold.", "Soup?", "Big if true. It is true. It's the news.", "Spicy.", "Ugh, numbers.", "Love that for them.", "Pass."];
@@ -190,29 +230,40 @@ function createTalk(R) {
   const BIZ_DEF = [["synergy", "when two people in a meeting both say yes at the same time"], ["liquidity", "how many drinks a company has on hand"], ["pivot", "when a company spins around in its chair and pretends that was the plan"],
     ["runway", "the amount of time before the startup has to get a real job"], ["headwinds", "when the economy is blowing in your face, like a big fan, but sad"], ["bandwidth", "how much nonsense you can hold before you need a nap"],
     ["deliverables", "things that were promised, and are now, technically, somewhere"], ["stakeholders", "people holding steaks, waiting for a decision"]];
+  // PORTFOLIO: what a caller's "portfolio" really is. FAKECO / PRODUCT: invented company and product names for made-up headlines.
   const PORTFOLIO = ["a jar of buttons I've been saving since nineteen ninety-eight", "a timeshare in a dream I keep having", "fourteen gift cards with about three dollars on each", "a very good stapler",
     "my cousin's food truck, which is currently a regular truck", "a garage full of exercise bikes I plan to sell, eventually, to exercisers", "one share of a company I picked because the logo is a duck"];
   const FAKECO = ["Blandwell Industries", "Quorvex Holdings", "NimbleCart", "Pantry Dynamics", "Gusto Freight", "Cloudish Incorporated", "Tendril Bancorp", "Moxie Mattress Company", "Brightfold Logistics",
     "Sprocket and Sons", "Lumen Lettuce", "Hollyhock Insurance", "Fizzwick Beverages", "Glimmer Optics", "Ploddington Rail"];
   const PRODUCT = ["smart toasters", "frozen waffles", "office chairs", "self-folding umbrellas", "artisanal ice", "cloud storage", "sleep apps", "decorative geese", "electric scooters", "spreadsheet software"];
+  // fakeBizHeadline(): a made-up business headline about an invented company (used when there are no live headlines).
   function fakeBizHeadline() {
     return X(`[{co} reports record quarter on strong {product} sales|{co} announces plan to merge with {co2}|{co} pivots to artificial intelligence for {product}|{co} delays launch of {product} line|{co} raises prices on {product}, citing [demand|costs|vibes]|{co} opens flagship store in {town}|{co} shares [rise|fall|wobble] after {product} recall|Startup {co} raises funding to reinvent {product}]`,
       { co: pick(FAKECO), co2: pick(FAKECO), product: pick(PRODUCT), town: pick(TOWNS) });
   }
+  // headlineSet(data, n, fake, fakeSrc): n headlines { title, source, fake? }. Live ones (from the engine's ptlkData:
+  // [{ title, source }]) come first, cleaned, 13..159 chars long and de-duplicated; made-up ones fill the rest.
   const headlineSet = (data, n, fake, fakeSrc) => {
     const live = (data && data.length ? data : []).map(h => ({ title: clean(h.title), source: h.source || "the wires" })).filter(h => h.title.length > 12 && h.title.length < 160), H = [];
     for (const h of live) { if (H.length >= n) break; if (!H.some(x => x.title === h.title)) H.push(h); }
     while (H.length < n) H.push({ title: fake(), source: fakeSrc ? pick(fakeSrc) : null, fake: true });
     return H;
   };
+  // readHL(h, lead): the line that reads a headline straight; live ones name their source first.
   const readHL = (h, lead) => `${lead}${h.fake ? "" : `, from ${h.source}`}: ${h.title}.`;
+  // bizReact(h, L): pushes the hosts' reaction to headline h onto L: a joke about its keyword (said by Squirky, or misread by
+  // Gregg), a fake "analysis", or a generic reaction when there is no keyword.
   const bizReact = (h, L) => {
     const k = keyword(h.title, BIZ_WORDS), mode = pick(["roast", "misread", "analysis"]);
     if (k && mode !== "analysis") L.push([mode === "misread" ? "gregg" : "sq", pick(BIZ_WORDS[k])], [mode === "misread" ? "sq" : "gregg", X("[That's not what it means.|Gregg, no.|I'm writing that down. As a warning.|Honestly, that's how I'll remember it now.|Sure.]")]);
     else if (mode === "analysis") L.push(["sq", X(`Looking at the fundamentals, the ${pick(BIZ_METRIC)} is [up|down|sideways|emotionally unavailable].`)], ["gregg", X("[So, buy?|So, panic?|So we're fine?|So it's a hold. Like a hug.]")], ["sq", X("[No.|Nobody knows. That's the beauty of markets.|We don't give advice. We give vibes.]")]);
     else L.push(["gregg", pick(BIZ_GENERIC)], ["sq", X("[Fair.|Same, Gregg.|I've been in business twenty years and same.]")]);
   };
+  // gutCheck(): Gregg's Gut Check segment (a score out of ten fruit), as three lines.
   const gutCheck = () => [["gregg", X(`Gregg's Gut Check: I give this one ${n2w(ri(2, 11))} out of ten ${pick(["cantaloupes", "pears", "limes", "kumquats", "rotisserie chickens"])}.`)], ["sq", "The scale goes to ten, Gregg."], ["gregg", X("[Not in this economy.|The gut wants what it wants.|I've been told I have a very honest gut.]")]];
+  // biz(st, data): writes one Analyze Biz episode. data is the engine's list of live business headlines, or null.
+  // Formats: "rundown", "lightning" (plus Word of the Day), "callin" (portfolio call) and "debate" (bull vs bear).
+  // usedLive in the result tells the engine whether any real headline aired (it shows "live" on the now-playing card).
   function biz(st, data) {
     const fmt = format(st, ["rundown", "lightning", "callin", "debate"]), SRC = ["the Business Ledger", "The Morning Wrapper", "Market Mumble", "the newswire"];
     const L = [["sq", X("[Welcome to|It's time for|You found|Good morning, good afternoon, good whatever, it's] Analyze Biz. I'm Squirky Tallume.")],
@@ -257,8 +308,12 @@ function createTalk(R) {
   }
 
   /* ===================== 3. The Real USB Drives of Cleverly Spillz ===================== */
+  // USB_CAST: the reality-show cast as [name, accent, pitch]. Four are drawn each episode as speakers a, b, c, d.
   const USB_CAST = [["Tiffani Glass-Wexler", "american", 1.08], ["Monique LaFortune", "american", 1.04], ["Brenda Kastle", "australian", 1.05], ["Dawn-Marie Pruitt", "american", 1.1],
     ["Sloane Avery-Huff", "british", 1.02], ["Kiki Delmonte", "american", 1.08], ["Priya Castellanos", "indian", 1.04], ["Gwen O'Hare", "irish", 1.06]];
+  // Templates filled per episode: {a}..{d} are the drawn cast's first names. USB_EVENT / USB_TRIP: where it happens.
+  // USB_FOUND: where the drive turns up. USB_FILE: the file on it. USB_CLAIM: the accusation. USB_FORGED: how Rodney knows it's fake.
+  // USB_CONF: confessional lines.
   const USB_EVENT = ["{a}'s vow renewal at the aquarium", "a charity pickleball gala for retired horses", "{a}'s candle launch, Scent Number Four, which smells like a lawsuit",
     "a book club that has never discussed a book", "the grand opening of a smoothie bar called Juice Laundry", "{a}'s surprise party, which she planned herself", "a yacht brunch on a pontoon boat"];
   const USB_TRIP = ["a girls' trip to a wine country that is mostly one barn", "a wellness retreat where the wellness is a hot tub", "a ski weekend, though nobody skis", "a beach house rental with a strict no-sand policy"];
@@ -271,6 +326,8 @@ function createTalk(R) {
     "the drive holds four terabytes and the only thing on it is nine kilobytes of drama", "the photo of the evidence is a photo of a different USB drive", "the timestamps say every change happened at the same second, on a Tuesday that doesn't exist"];
   const USB_CONF = ["I'm not here to make enemies. I'm here to make content.", "I have never been more calm in my life. Look at my eyebrows. Calm.", "Do I trust her? I trust her like I trust a buffet. Cautiously, and with a plate ready.",
     "Some people bring a dish to a party. I bring receipts.", "I don't do drama. Drama does me.", "I read the file. I read it twice. I don't read things twice."];
+  // usb(st): writes one episode of The Real U S B Drives. st.ep counts episodes for the "Season N" tag (a new season every 6).
+  // Formats: "party", "reunion" and "trip". Every episode reveals the file is forged (the joke is never about a real person).
   function usb(st) {
     st.ep = (st.ep || 0) + 1;
     const fmt = format(st, ["party", "reunion", "trip"]);
@@ -279,6 +336,7 @@ function createTalk(R) {
     v.event = X(pick(USB_EVENT), v); v.trip = pick(USB_TRIP); v.found = pick(USB_FOUND); v.file = pick(USB_FILE); v.claim = X(pick(USB_CLAIM), v); v.forged = pick(USB_FORGED);
     const conf = deck(USB_CONF), season = st.ep > 1 ? "Season " + n2w(Math.min(12, 1 + Math.floor(st.ep / 6))) + ". " : "";
     const L = []; let title;
+    // rodney(onPhone): Rodney's two-line verdict on the drive, in person or on the phone.
     const rodney = (onPhone) => [[onPhone ? "ph_rodney" : "rodney", X("Hi. I looked at the drive. A few things. First, {forged}. Second, [the drive is from a promotional giveaway for a dentist|the label on it says Property of Nobody|it was formatted with a potato, I think].", v)],
       [onPhone ? "ph_rodney" : "rodney", X("[The drama is real. The data has been forged.|Your feelings are valid. Your files are fake.|I'd trust the drama. I would not trust the drive.]")]];
     if (fmt === "party") {
@@ -322,11 +380,13 @@ function createTalk(R) {
     L.push(["nar", X("Next time, on The Real U S B Drives of Cleverly Spillz: {d} finds a second drive. [It's shaped like a lipstick. It is also a lipstick.|It has a password. The password is her own name.|It's in her soup.|It's labeled, simply, Season Finale.]", v)]);
     const cast = { nar: { name: "Narrator", accent: "american", pitch: .92, rate: .95 }, rodney: { name: "Rodney from the help kiosk", accent: "american", pitch: 1, rate: 1.02 },
       ph_rodney: { name: "Rodney, on the phone", accent: "american", pitch: 1, rate: 1.02 }, host: { name: "Clement, reunion host", accent: "british", pitch: 1, rate: 1 } };
+    // cast voices for a..d come from the drawn USB_CAST entries; rate varies a little each episode.
     for (const [k, p] of [["a", A], ["b", B], ["c", C], ["d", D]]) cast[k] = { name: p[0], accent: p[1], pitch: p[2], rate: rr(1, 1.06) };
     return { title, lines: L, hosts: "the Real U S B Drives cast", cast };
   }
 
   /* ===================== 4. Button Mashers ===================== */
+  // GAME_WORDS: a headline keyword -> a short exchange [speaker, line] where Sal and Kev misunderstand the word.
   const GAME_WORDS = {
     patch: [["sal", "A patch. Like for a jacket?"], ["kev", "Like for a pirate, Sal. One eye. Very cool."]],
     dlc: [["kev", "D L C. That's the deli lunch counter, right?"], ["sal", "Downloadable lunch counter. Finally, technology I can respect."]],
@@ -350,21 +410,26 @@ function createTalk(R) {
     horror: [["kev", "A horror game. I don't need a horror game. I've seen my electric bill."], ["sal", "In Jersey, the horror game is the turnpike at five."]],
     nintendo: [["sal", "Nintendo. That's the plumber guys. I respect a plumber."], ["kev", "Every plumber's a hero to me, Sal. Especially the one in my basement right now."]],
   };
+  // GAME_TAN: [Sal's Jersey line, Kev's Boston line] for the regional tangent round. GSTUDIO: made-up game studios.
   const GAME_TAN = [["Jersey has jughandles. You want to turn left, you turn right first. It's philosophy.", "Boston has rotaries. You go in, you never come out. Also philosophy."],
     ["Down the shore, the pizza's thin, it's foldable, it's perfect.", "And here the pizza's fine, but the argument about it is better."],
     ["Winter in Jersey, it's a little cold, little gray, very dramatic.", "Winter in Boston, the snow has a mortgage. It lives with you."],
     ["Water. Wood-er. That's how you say it.", "Wahtah. Two syllables. Both of them important."],
     ["In Jersey we pump your gas for you. It's a service. It's a lifestyle.", "In Boston we'd fight the guy pumping the gas. Out of respect."]];
   const GSTUDIO = ["Pixelforge", "Gamma Raccoon", "Lucky Spoon Studios", "Nine Volt Games", "Bramble and Byte", "Overcast Interactive", "Tin Can Telescope"];
+  // gameTitle(): a made-up game title. fakeGameHeadline(): a made-up gaming headline. RATING(): a host's silly score line.
   const gameTitle = () => X("[Crimson|Hollow|Neon|Galactic|Feral|Infinite|Turbo|Paper|Iron Lunch] [Quest|Protocol|Kingdom|Racer|Siege|Legacy|Odyssey|Garden|Parade]: [Reckoning|Origins|The Lost Sock|Remastered Remix|Tax Season|Snack Edition|Second Breakfast]");
   const fakeGameHeadline = () => X(`[{g} gets surprise patch that fixes the horses|{g} delayed to [spring|next year|the heat death of the universe]|{s} announces sequel to {g}|Speedrunner beats {g} in ${ri(4, 59)} minutes|{g} update adds [fishing|a dog you can pet|a second dog]|Open world map for {g} revealed to be very big|{s} launches new controller with ${ri(19, 41)} buttons|{g} beta servers buckle under demand]`, { g: gameTitle(), s: pick(GSTUDIO) });
   const RATING = () => X(`Rating: [${n2w(ri(2, 10))} quarters out of a roll|${n2w(ri(2, 5))} slices out of a pie|wicked good|fuhgeddaboudit, and I mean that nicely|two cannolis and a parking ticket].`);
+  // gameReact(h, L, i): pushes the hosts' take on headline h, then a rating (Sal and Kev take turns by index i).
   const gameReact = (h, L, i) => {
     const k = keyword(h.title, Object.fromEntries(Object.keys(GAME_WORDS).map(x => [x, 1])));
     if (k) L.push(...GAME_WORDS[k].map(x => [x[0], x[1]]));
     else L.push(["kev", X("[Wicked exciting.|I watched a video about that. Or a different thing. Same energy.|That sounds like a lot of buttons.]")], ["sal", X("[Do they eat in it? I need to know if there's food.|Is there a dog? I don't play games without a dog. I don't play games.|I'd play that. I won't. But I would.]")]);
     L.push([i % 2 ? "sal" : "kev", RATING()]);
   };
+  // buttons(st, data): writes one Button Mashers episode. data is the engine's live gaming headlines or null.
+  // Formats: "headlines", "boxart", "callin" and "tournament".
   function buttons(st, data) {
     const fmt = format(st, ["headlines", "boxart", "callin", "tournament"]);
     const L = [["sal", X("Ayy, it's Button Mashers. I'm Sal, from Jersey. [Exit [nine|eleven|fourteen|one forty], don't ask which way.|I've got a garage full of controllers, all still in the plastic.|My nephew set up this microphone. I don't trust it.]")],
@@ -408,6 +473,7 @@ function createTalk(R) {
 
   /* ===================== 5. The Long Look (nature documentary) ===================== */
   // Built-in facts are short and true; with the app online the narrator reads the encyclopedia summary instead.
+  // ANIMALS: [Wikipedia page title (what the engine looks up), the spoken name, two short true built-in facts].
   const ANIMALS = [
     ["Barn owl", "barn owl", ["Barn owls can find prey in complete darkness, by sound alone.", "They swallow small prey whole."]],
     ["Sea otter", "sea otter", ["The sea otter has the densest fur of any animal.", "It often floats on its back and uses stones as tools."]],
@@ -430,12 +496,17 @@ function createTalk(R) {
     ["American crow", "crow", ["Crows can recognize individual human faces.", "They often gather in large groups at night."]],
     ["Hedgehog", "hedgehog", ["A hedgehog's back is covered in thousands of spines.", "Many hedgehogs hibernate through the winter."]],
   ];
+  // LETTER_*: templates for the letters the animals "write" to each other ({to}, {from} are ANIMAL_NAMES).
   const LETTER_OPEN = ["My dearest {to},", "Dear {to},", "To {to}, if this finds you,", "{to}, my friend,"];
   const LETTER_BODY = ["The weather here has been [mild|unkind|the same as yesterday]. I have eaten. I intend to eat again.", "I think of you often, and of the [pond|tree|warm rock|place by the fence].",
     "A human stood near me today for a long time. I did not explain myself.", "The young ones are well. They have learned nothing from me, which is how I learned everything.",
     "I have been [busy|patient|very still], which, I am told, is the same thing.", "Tell the others I am fine, and that I was right about the [river|wind|bucket]."];
   const LETTER_CLOSE = ["Yours, in no particular hurry, {from}.", "Ever yours, {from}.", "With what passes for love among us, {from}.", "Until the season turns, {from}."];
   const ANIMAL_NAMES = ["Margaret", "Thomas", "Eliza", "Samuel", "Clara", "Josiah", "Hattie", "Amos", "Prudence", "Silas"];
+  // nature(st, data): writes one episode of The Long Look. data is { animal, wiki } from the engine (wiki is the
+  // encyclopedia summary { title, extract } when the app is online, else null). With a wiki extract the narrator reads up to
+  // three of its sentences (parenthetical asides stripped, 26..219 chars) instead of the built-in facts, and credits Wikipedia.
+  // Formats: "letters", "day" and "hide".
   function nature(st, data) {
     const fmt = format(st, ["letters", "day", "hide"]);
     const a = data && data.animal ? ANIMALS.find(x => x[0] === data.animal) || pick(ANIMALS) : pick(ANIMALS);
@@ -486,6 +557,8 @@ function createTalk(R) {
   }
 
   /* ===================== 6. Lost & Found Live ===================== */
+  // Lost & Found Live pools. LF_ITEM / LF_PLACE / LF_DETAIL: what was lost, where, and one detail.
+  // LF_BOX: the running gag about the ticking box, one step per episode (st.box). LF_ITEMVOICE: [item, the item's own call-in line].
   const LF_ITEM = ["a left mitten shaped like a lobster", "a ring of keys with no keys on it, just the ring", "a retainer in a sandwich bag labeled NOT A SANDWICH", "a parrot named Professor",
     "a framed photo of somebody else's grandma", "one rollerblade", "a bowling trophy for Most Improved", "a garden gnome with a mustache drawn on", "a laptop full of recipes for one specific soup",
     "a cat that isn't technically mine", "an entire wedding cake, top tier only", "a tuba, small", "a library book from nineteen ninety-one", "my sense of direction, apparently",
@@ -496,6 +569,7 @@ function createTalk(R) {
   const LF_BOX = ["the box at the front desk is still ticking", "the box at the front desk has started ticking faster", "the box at the front desk now hums when you walk past", "the box at the front desk moved six inches to the left overnight"];
   const LF_ITEMVOICE = [["the umbrella", "I've been in the bus station for three days. I've seen every kind of weather but the kind I'm for."], ["the left mitten", "I miss the right one. We were a pair. Now I'm just a hand thing."],
     ["the bowling trophy", "Most Improved. I don't know what I improved. Nobody tells you."], ["the casserole dish", "I came with a casserole. The casserole is gone. I don't want to talk about it."]];
+  // lost(st): writes one Lost & Found Live episode. Formats: "callers", "desk" and "items" (the lost things call in).
   function lost(st) {
     st.box = (st.box || 0) + 1;
     const fmt = format(st, ["callers", "desk", "items"]);
@@ -537,6 +611,8 @@ function createTalk(R) {
   }
 
   /* ===================== 7. The Committee ===================== */
+  // HOA_ITEM: agenda items. RON: Ron's mailbox, one escalation per episode (st.ron). RON_DEF: Ron's defenses.
+  // HOA_CRISIS: what the emergency meeting is about.
   const HOA_ITEM = ["the color of the community bench", "whether geese count as residents", "a request to rename Pine Court to Pine Court, Respectfully", "the pool's new rule about splashing with intent",
     "the leaf blower curfew", "someone's inflatable dragon, which is still up, and it's March", "the speed bump that residents describe as a wall", "the community garden's zucchini surplus",
     "a proposal to replace the welcome sign with a slightly more welcoming sign", "the dog that keeps attending meetings"];
@@ -544,6 +620,7 @@ function createTalk(R) {
     "Ron installed a doorbell on his mailbox. It plays the first four notes of a song. Nobody can name it.", "Ron's mailbox has a flag. Not the mail flag. A flag. With a crest.", "Ron's mailbox is running for the board."];
   const RON_DEF = ["It's a mailbox, Patricia. It's for mail. It's thriving.", "The code doesn't say anything about porches.", "I'm expressing myself through infrastructure.", "Every mailbox deserves a mailbox.", "I have a permit. It's laminated."];
   const HOA_CRISIS = ["the geese have unionized", "the pool has been drained, and nobody knows by whom", "someone replaced every street sign with a slightly different street sign", "Ron's mailbox has started receiving Ron's neighbors' mail. On purpose. It's redirecting it.", "the inflatable dragon came down, and the neighborhood misses it"];
+  // hoa(st): writes one episode of The Committee. Formats: "meeting", "emergency" and "election".
   function hoa(st) {
     st.ron = (st.ron || 0) + 1;
     const fmt = format(st, ["meeting", "emergency", "election"]);
@@ -590,11 +667,14 @@ function createTalk(R) {
   }
 
   /* ===================== 8. Overnight Shipping (a serial) ===================== */
+  // Overnight Shipping is a serial: one chapter per episode, six chapters per case.
+  // PKG_LABEL: the package's label. PKG_END: what's inside, revealed in the last chapter. NOIR_OPEN: Vic's opening line.
   const PKG_LABEL = ["FRAGILE, EMOTIONALLY", "THIS SIDE UP. OTHER SIDE ALSO UP.", "DO NOT X-RAY. PLEASE.", "PERISHABLE, MAYBE", "HANDLE WITH CARE AND A LITTLE RESPECT", "OPEN ONLY IN CASE OF TUESDAY"];
   const PKG_END = ["a smaller package, and inside that, a note that says thank you for being careful", "a single sock, the left one, finally home", "a snow globe of the sorting facility itself, with a tiny forklift in it",
     "a cassette tape labeled Vic, from the future", "forty pounds of packing peanuts and one very nice pen", "a mug that says World's Okayest Courier"];
   const NOIR_OPEN = ["The night was long, and shrink-wrapped.", "Rain on the loading dock. Rain on my hat. Rain on my heart, if I still had one, and the union says I do.",
     "Three A M at the sorting hub. Too late for coffee. Too early for a better job.", "The conveyor belt hummed like it knew something. Conveyors always know something."];
+  // STAGES: one function per chapter, in order. Each takes the case v = { code, label, time, end } and returns its scene lines.
   const STAGES = [
     v => [["vic", `${pick(NOIR_OPEN)} Package ${v.code} came in at ${v.time}. The label said ${v.label}. I didn't like it. I didn't like it at all.`], ["dolores", "It's your problem now, Tally. Get it to Dock C by sunrise."], ["vic", "Sunrise. Always sunrise. Never a nice brunch."]],
     v => [["vic", `Conveyor nine. That's where I last saw ${v.code}. Now? Nothing. An empty tray. A tray that's seen too much.`], ["sfx", "steps"], ["dolores", "Did you lose it, Tally?"], ["vic", "Packages don't get lost, Dolores. They get taken."]],
@@ -603,9 +683,12 @@ function createTalk(R) {
     v => [["vic", "Returns. Where things go when they disappoint somebody. I know the feeling."], ["mole", "You came to the right place, detective. I'm the mole. Technically I'm an air fryer. Somebody sent me back. I've seen things."], ["vic", `Where's ${v.code}, appliance?`], ["mole", "Check the lost-label bin. And detective? Nobody ever reads the warranty."]],
     v => [["vic", `There it was. ${v.code}. Under a pallet of returned exercise bikes nobody will ever ride.`], ["dolores", "Open it, Tally. You've earned that much."], ["vic", `Inside was ${v.end}.`], ["vic", "Case closed. I delivered it to Dock C at sunrise, like they asked. Nobody said thank you. The package did, sort of."]],
   ];
+  // SUSPECT_*: the middle chapters' suspect: their job, alibi, and the tell Vic notices.
   const SUSPECT_JOB = ["the night janitor", "a temp from the label printer department", "the vending machine guy", "a driver on route nine", "the security guard who mostly guards a TV", "an intern nobody remembers hiring"];
   const SUSPECT_ALIBI = ["the vending machine, all night, choosing", "my car, listening to a podcast about other crimes", "the break room, defrosting a lasagna that will not defrost", "the roof. Looking at the moon. Normal stuff"];
   const SUSPECT_TELL = ["You've got packing peanuts in your cuffs.", "Your badge photo is a drawing of you.", "The vending machine's been broken since June.", "You keep saying the package's name and I never told you the package's name."];
+  // ship(st): writes the next chapter. st.case is the case number, st.stage the chapter (0..5) and st.v the case's details;
+  // a new case starts when the last one finished. A middle chapter adds a suspect interview and sometimes a call from Dolores.
   function ship(st) {
     if (!st.case || st.stage >= STAGES.length) { st.case = (st.case || 0) + 1; st.stage = 0; st.v = { code: `${pick(["K", "R", "Z", "M", "Q"])} ${ri(10, 99)} dash ${pick(["Alpha", "Delta", "Juniper", "Walrus", "Seven"])}`, label: pick(PKG_LABEL), time: `${ri(1, 4)} ${pick(["twelve", "thirty", "forty-four", "oh nine"])} A M`, end: pick(PKG_END) }; }
     const v = st.v, ch = st.stage, L = []; let susName = null;
@@ -632,16 +715,20 @@ function createTalk(R) {
   }
 
   /* ===================== 9. Ask a Retired Wizard ===================== */
+  // WIZ_PROB: [short name, the caller's problem]. SYL: syllables for made-up spells.
   const WIZ_PROB = [["my wifi", "my wifi drops every time the microwave runs"], ["my roommate", "my roommate labels his food with threats"], ["the group chat", "the group chat went quiet and I think it's my fault"],
     ["my printer", "my printer only prints the word no"], ["my neighbor's dog", "my neighbor's dog stares at me through the fence, every day, with judgment"], ["my car", "I keep losing my car in parking lots"],
     ["my sourdough", "my sourdough starter has stopped believing in me"], ["my calendar", "every meeting I schedule turns into two meetings"], ["my houseplant", "my houseplant is thriving, and it's making me look bad"]];
   const SYL = ["Gor", "ble", "flax", "um", "zan", "thra", "mox", "pell", "quin", "dor", "vex", "ia", "noo", "brack"];
+  // spell(): a made-up incantation of three words built from SYL.
   const spell = () => { const w = () => pick(SYL) + pick(SYL) + (chance(.5) ? pick(SYL).toLowerCase() : ""); return `${w()} ${w()}, ${w()}!`; };
+  // INGR: spell ingredients. WIZ_RETIRE: Aldric's retirement asides. WIZ_THING: [modern thing, how a wizard describes it].
   const INGR = ["a thimble of lukewarm tea", "the receipt from something you regret", "one bay leaf, dried with intention", "a whisper of cinnamon", "a single shoelace, untied", "a spoon you trust", "a sticky note that says sorry"];
   const WIZ_RETIRE = ["Retirement is lovely. I play shuffleboard. I cheat, a little. Telekinetically.", "My old staff is a curtain rod now. It still glows when I'm sad.", "The condo board fined me for my tower. I told them it's a balcony. It's a tower.",
     "I used to fight dragons. Now I fight the thermostat in the clubhouse. The dragons were more reasonable.", "I've taken up watercolors. Everything I paint comes slightly alive. It's a problem at the art fair."];
   const WIZ_THING = [["the microwave", "a box that heats soup with invisible bees"], ["the escalator", "a staircase that has given up on you, and carries you anyway"], ["the self-checkout", "a machine that suspects you of crimes, loudly, in a calm voice"],
     ["the smart speaker", "a small oracle that hears everything and only ever plays the wrong song"], ["the group chat", "a scrying pool where everyone is screaming in tiny letters"]];
+  // wizard(st): writes one Ask a Retired Wizard episode. Formats: "callers", "spell", "apprentice" and "review".
   function wizard(st) {
     const fmt = format(st, ["callers", "spell", "apprentice", "review"]);
     const P = WIZ_PROB.slice().sort(() => R() - .5), c = [fullName(), fullName(), fullName()], nm = i => first(c[i]), s1 = spell(), ing = deck(INGR);
@@ -690,6 +777,10 @@ function createTalk(R) {
     return { title, lines: L, hosts: "Aldric Fennimore", cast };
   }
 
+  // ===== The show list =====
+  // One entry per show: id (the key in settings, ptlkState and the engine's PT_STYLE music map), name (spoken), label
+  // (shown in "What plays"), style (which theme music the engine plays), make (the writer above) and needs (what live data
+  // the engine fetches first: "business" or "gaming" headlines or an "animal" encyclopedia page; none means the show writes everything).
   // tags: what the announcer may say about a show (sometimes nothing). Never the same line twice in a row, and the shows
   // themselves never repeat them.
   const SHOWS = [
@@ -712,6 +803,9 @@ function createTalk(R) {
     { id: "wizard", name: "Ask a Retired Wizard", label: "Ask a Retired Wizard", style: "wizard", make: wizard,
       tags: ["Aldric Fennimore answers your problems, magically.", "Ancient wisdom for modern problems.", "Spells, advice, and shuffleboard.", "He's retired. He's still very powerful."] },
   ];
+  // ===== The public face of createTalk =====
+  // shows: the list without the writers. animals(): the animal page titles the engine can look up.
+  // episode(id, data, state): writes one episode of show id. id(): a station ID. next(id): the announcer's lead-in for show id.
   return {
     shows: SHOWS.map(s => ({ id: s.id, name: s.name, label: s.label, style: s.style, needs: s.needs || null })),
     animals: () => ANIMALS.map(a => a[0]),

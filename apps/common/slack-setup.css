@@ -1,3 +1,4 @@
+/* Setup wizard styles (slack-setup.html). Same dark plate look as the radio; LEDs: green ok, amber busy, red bad. */
 :root{color-scheme:dark;--bg:#15161c;--plate:#24252e;--line:#3c3e4c;--ink:#e4e4ec;--muted:#a3a6b4;--led:#ff3b2a;--ok:#44e044;--warn:#ffd23f;--gold:#e2c86b}
 *{box-sizing:border-box}
 body{margin:0;background:linear-gradient(180deg,#2a2b36,#15161c);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}

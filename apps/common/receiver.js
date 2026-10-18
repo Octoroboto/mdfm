@@ -11,19 +11,25 @@
 //
 // getJSON(url, { text: true }) must be the app's own Bouncer-guarded fetch. Allow only
 //   raw.githubusercontent.com  /Octoroboto/meddev-receiver/main/dist/*   (GET)
+// Process: Electron main (radio and hub). Security: every download is size-capped, sha256-checked against the manifest,
+// scanned for tags that could break out of the page, and parsed with vm.Script (never run) before it is kept.
 const fs = require("fs"), path = require("path"), vm = require("vm"), crypto = require("crypto");
 const RAW = "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/";
-const MAX = { css: 1e6, js: 2e6, skins: 12e6 };
-const skinsTag = text => String(text).replace(/</g, "\\u003c");
+const MAX = { css: 1e6, js: 2e6, skins: 12e6 };   // byte caps per file
+const skinsTag = text => String(text).replace(/</g, "\\u003c");   // skins JSON goes inside a <script> tag: escape "<" so "</script>" in the data can't close it
 
+// Compares two "x.y.z" versions numerically (any prefix ignored): negative, 0 or positive, for Array.sort.
 function cmp(a, b) {
   const p = v => String(v || "").replace(/^[^\d]*/, "").split(/[.+-]/).slice(0, 3).map(n => parseInt(n, 10) || 0);
   const x = p(a), y = p(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0;
 }
+// Hex sha256 of a string (matched against the manifest's per-file hashes).
 const sha = s => crypto.createHash("sha256").update(s).digest("hex");
 // The version a CSS or JS file says it is (its first-line banner).
 function versionOf(text) { const m = /MedDev Receiver (\d+\.\d+\.\d+)/.exec(String(text || "").slice(0, 400)); return m ? m[1] : null; }
 
+// Checks the skins.json text for this version: valid JSON, matching version, each skin { id, name, css } well formed,
+// no CSS that could close the <style> tag or run script, and a default that exists.
 // Checks a downloaded pair before it is ever used. Returns null when good, or the reason it was refused.
 function validateSkins(text, version) {
   if (typeof text !== "string" || text.length > MAX.skins) return "skins.json has an unexpected size";
@@ -72,9 +78,14 @@ function applyToPage(html, rx) {
   return out;
 }
 
+// ===== Updater =====
+// dir: where downloaded versions are kept (one folder per version). getJSON: the app's Bouncer-guarded fetch.
+// bundled: the copy shipped in the app (or a function returning it). enabled(): the Settings switch. onChange(status):
+// called after a new version is kept. base: download root (tests point it elsewhere). timeoutMs: per-request limit.
 function createReceiverUpdater({ dir, getJSON, bundled, enabled = () => true, onChange, base = RAW, timeoutMs = 60000 }) {
   const status = { version: null, source: "bundled", lastCheck: null, result: "not checked yet" };
   const b = () => (typeof bundled === "function" ? bundled() : bundled);
+  // Kept version folders that have a receiver.js, newest first.
   function cached() {
     try { return fs.readdirSync(dir).filter(v => /^\d+\.\d+\.\d+$/.test(v) && fs.existsSync(path.join(dir, v, "receiver.js"))).sort(cmp).reverse(); } catch { return []; }
   }
@@ -84,11 +95,13 @@ function createReceiverUpdater({ dir, getJSON, bundled, enabled = () => true, on
     const inUse = status.source === "updated" ? status.version : null;
     for (const v of cached().slice(keep)) if (v !== inUse) { try { fs.rmSync(path.join(dir, v), { recursive: true, force: true }); seen.delete(v); } catch {} }
   }
+  // A kept version's files, cached in `seen` until any of its files changes size or mtime. null when unusable.
   function load(v) {
     let stamp; try { stamp = ["receiver.css", "receiver.js", "skins.json", "manifest.json"].map(n => { try { const st = fs.statSync(path.join(dir, v, n)); return st.size + ":" + st.mtimeMs; } catch { return "-"; } }).join("|"); } catch { stamp = null; }
     const hit = seen.get(v); if (hit && hit.stamp === stamp) return hit.copy;
     const copy = read(v); seen.set(v, { stamp, copy }); return copy;
   }
+  // Reads and re-validates a kept version from disk. Returns { version, css, js, skins, skinsText, source: "updated" } or null.
   function read(v) {
     try { const css = fs.readFileSync(path.join(dir, v, "receiver.css"), "utf8"), js = fs.readFileSync(path.join(dir, v, "receiver.js"), "utf8");
       let skinsText = null, skins = null; try { skinsText = fs.readFileSync(path.join(dir, v, "skins.json"), "utf8"); skins = JSON.parse(skinsText); } catch {}
@@ -99,6 +112,8 @@ function createReceiverUpdater({ dir, getJSON, bundled, enabled = () => true, on
       if (m && validate({ manifest: m, css, js, skins: m.files && m.files["skins.json"] ? (skinsText == null ? "" : skinsText) : undefined })) return null;
       return { version: v, css, js, skins, skinsText, source: "updated" }; } catch { return null; }
   }
+  // The copy to use: the newest kept version that is newer than the bundled one and still valid, else the bundled copy.
+  // Also updates status.version/source.
   function active() {
     const bb = { ...b(), source: "bundled" };
     if (enabled()) for (const v of cached()) { if (cmp(v, bb.version) <= 0) break; const c = load(v); if (c) { Object.assign(status, { version: c.version, source: c.source }); return c; } }
@@ -108,7 +123,9 @@ function createReceiverUpdater({ dir, getJSON, bundled, enabled = () => true, on
   let running = null;
   const fetchOne = (url, o) => { let t; return Promise.race([Promise.resolve().then(() => getJSON(url, o)),
     new Promise((_, no) => { t = setTimeout(() => no(new Error(`timed out after ${timeoutMs / 1000}s`)), timeoutMs); })]).finally(() => clearTimeout(t)); };
+  // Starts a check unless one is running; resolves the status.
   function check() { if (!running) running = doCheck().finally(() => { running = null; }); return running; }
+  // Fetches the manifest; if it names a newer version, downloads, validates and keeps it (see the side-folder note below).
   async function doCheck() {
     if (!enabled()) { status.result = "off"; return status; }
     status.lastCheck = new Date().toISOString();

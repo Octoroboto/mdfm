@@ -1,5 +1,6 @@
 // Big-league metro areas: centre point and the "location" names ESPN uses for their teams.
 // Used to turn "where the Mac is" into "which teams are local". Nearest metro within 160 km wins.
+// One entry: [display name, centre latitude, centre longitude, ESPN team "location" names for that metro].
 const METROS = [
   ["Atlanta", 33.75, -84.39, ["Atlanta"]], ["Baltimore", 39.29, -76.61, ["Baltimore"]], ["Boston", 42.36, -71.06, ["Boston", "New England"]],
   ["Buffalo", 42.89, -78.88, ["Buffalo"]], ["Charlotte", 35.23, -80.84, ["Charlotte", "Carolina"]], ["Chicago", 41.88, -87.63, ["Chicago"]],
@@ -19,7 +20,9 @@ const METROS = [
   ["Montreal", 45.50, -73.57, ["Montreal", "CF Montréal"]], ["Vancouver", 49.28, -123.12, ["Vancouver"]], ["Calgary", 51.05, -114.07, ["Calgary"]],
   ["Edmonton", 53.55, -113.49, ["Edmonton"]], ["Winnipeg", 49.90, -97.14, ["Winnipeg"]], ["Ottawa", 45.42, -75.70, ["Ottawa"]],
 ];
+// Great-circle distance in km between (a, b) and (c, d), all in degrees (haversine, Earth radius 6371 km).
 function km(a, b, c, d) { const r = x => x * Math.PI / 180, R = 6371; const h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); }
+// The nearest metro to lat/lon within maxKm: { name, km, locations }, or null (no local pro teams).
 function nearestMetro(lat, lon, maxKm = 160) {
   let best = null; for (const [name, a, b, locs] of METROS) { const d = km(lat, lon, a, b); if (!best || d < best.km) best = { name, km: d, locations: locs }; }
   return best && best.km <= maxKm ? best : null;

@@ -1,12 +1,17 @@
 // Browser smoke test (needs Playwright: npx playwright install chromium). Builds, then checks the engine runs,
 // the spectrum moves, spots generate, packs merge, and an offline render produces sound without clipping.
+// Run: npm test (builds, then runs this) or node test/smoke.mjs after a build. Serves the repo on a random localhost port,
+// opens demo/index.html and dist/radio.html in headless Chromium, collects results in one object and prints PASSED/FAILED.
+// Exits 0 when Playwright isn't installed (skipped), else 0 or 1.
 import { createServer } from "node:http"; import { readFile } from "node:fs/promises"; import { join } from "node:path";
 let chromium; try { ({ chromium } = await import("playwright")); } catch { console.log("Playwright not installed: skipping browser smoke test."); process.exit(0); }
 const root = new URL("../", import.meta.url).pathname;
+// A static file server for the repo root (only .html/.css/.js/.mjs/.json types matter).
 const srv = createServer(async (q, r) => { let body; try { body = await readFile(join(root, q.url)); } catch { r.writeHead(404); r.end(); return; } r.writeHead(200, { "content-type": q.url.endsWith(".html") ? "text/html" : q.url.endsWith(".css") ? "text/css" : "text/javascript" }); r.end(body); }).listen(0);
 const port = srv.address().port, b = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] }), p = await b.newPage(), errs = [];
 p.on("pageerror", e => errs.push(e.message));
 await p.goto(`http://localhost:${port}/demo/index.html`); await p.waitForTimeout(500);
+// Everything below up to "return out" runs inside the demo page (window.radio is the demo's engine).
 const r = await p.evaluate(async () => {
   const out = { version: radio.version };
   const spots = []; for (let i = 0; i < 300; i++) spots.push(radio.nextSpotText());
@@ -99,7 +104,7 @@ const r = await p.evaluate(async () => {
   out.rms = Math.sqrt(s / d.length); out.peak = pk; return out;
 });
 // 1.25: settings stored as something other than an object (a stray "null", a number) never stop the radio page from wiring up
-const p2 = await b.newPage(), errs2 = []; p2.on("pageerror", e => errs2.push(e.message));
+const p2 = await b.newPage(), errs2 = []; p2.on("pageerror", e => errs2.push(e.message));   // a separate page, so its localStorage can be seeded before the radio page loads
 await p2.addInitScript(() => { try { for (const k of ["wybcTypes", "hearyeTypes", "ptrnTypes", "clukTypes", "ptlkTypes", "mdfmInstruments", "mdfmSound"]) localStorage.setItem(k, "null"); localStorage.setItem("mdfmStyleMix", "5"); localStorage.setItem("mdfmGroove", "\"x\""); localStorage.setItem("mdfmFx", "7"); } catch (e) {} });
 await p2.goto(`http://localhost:${port}/dist/radio.html`); await p2.waitForTimeout(1200);
 r.wired = await p2.evaluate(() => { const s = document.querySelector("#stLive"), t = document.querySelector("#tunePop"); return !!(window.__radio && s && s.textContent.length > 10 && t && t.children.length); });
@@ -131,6 +136,8 @@ await p3.waitForFunction(() => document.querySelector("#tunePop").hidden, null, 
 r.mixClosed = await p3.evaluate(() => document.querySelector("#tunePop").hidden && document.activeElement === document.querySelector("#tuneOn"));
 r.mixErrs = errs3;
 console.log(r); await b.close(); srv.close();
+// The verdict: every check from above in one expression. Thresholds: spectrum > .05 means it moved; RMS > .02 means sound;
+// peak < 1.2-1.5 means no clipping.
 const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 && r.kinds.includes("ad") && r.kinds.includes("id") && r.kinds.includes("interview") && r.examplePackUsed && r.np && r.fb.length > 4 && r.pod > 5 && r.cook > 5 && r.sp > 10 && r.hr > 5 && r.ga > 5 && r.stations.join() === "wybc,cluk,hearye,mdfm,ptrn,ptlk" && r.wybcSpectrum > 0.05 && r.wybcNp === "wybc" && r.backNp > 0
   && r.ptlkSpectrum > 0.05 && r.ptlkNp && r.ptlkNp.station === "ptlk" && r.ptlkNp.style === "Button Mashers" && r.ptlkLive && r.ptlkWho.includes("Sal") && r.ptlkAir && r.ptlkAir.saveable && r.ptlkSkip === "ptlk" && r.backNp2 > 0
   && r.hearyeSpectrum > 0.05 && r.hearyeNp && r.hearyeNp.station === "hearye" && r.hearyeNp.artist && r.hearyeWho.some(w => /Crier/.test(w)) && r.hearyeJoust && r.hearyeAir && r.hearyeAir.saveable && r.backNp3 > 0 && r.hearyeSave[0] > 0.01 && r.hearyeSave[1] < 1.2

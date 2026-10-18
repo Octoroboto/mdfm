@@ -1,7 +1,10 @@
 // Writes build/dependency-report.json (shipped inside the app; Futureproofer's "Build check" reads it):
 // npm audit for everything and for shipped packages only, plus npm outdated. Run by build-mac.sh.
+// Runs in Node at build time (not shipped as code; only its JSON output is).
 const { execFileSync } = require("child_process"), fs = require("fs"), path = require("path");
 const root = path.join(__dirname, "..");
+// Runs `npm <args>` in the app folder and parses its JSON. npm audit/outdated exit non-zero when they find something, so
+// the JSON is taken from the error's stdout too. Never throws.
 const npm = args => { try { return JSON.parse(execFileSync("npm", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }) || "{}"); }
   catch (e) { try { return JSON.parse(e.stdout || "{}"); } catch { return { error: e.message }; } } };
 const all = npm(["audit", "--json"]), shipped = npm(["audit", "--json", "--omit=dev"]), outdated = npm(["outdated", "--json"]);

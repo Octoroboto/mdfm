@@ -1,7 +1,12 @@
 // Location fallbacks: Mac location, then ipwho.is, then geojs; a city in Settings wins. Network is faked.
+// Tests common/live.js with net.getJSON replaced by a fake.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const test = require("node:test"), assert = require("node:assert");
 const net = require("../src/common/net");
-let answers = {};
+let answers = {};   // substring of a URL -> the answer (an Error is thrown instead); set by each test
+// The fake network: the first key contained in the URL answers; no key means "offline".
+// Must be installed before live.js is required, since live.js takes getJSON from net at load time.
 net.getJSON = async url => { const k = Object.keys(answers).find(k => url.includes(k)); if (!k) throw new Error("offline"); const v = answers[k]; if (v instanceof Error) throw v; return v; };
 const { createLive } = require("../src/common/live");
 const forecast = { current: { temperature_2m: 58, weather_code: 3, wind_speed_10m: 9 } };

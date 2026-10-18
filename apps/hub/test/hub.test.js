@@ -1,6 +1,9 @@
 // MD Hub pieces that don't need a window: picking the right release, and which frames get the radio bridge.
+// Run: cd apps/hub && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test). No window: "electron" is faked below.
 const test = require("node:test"), assert = require("node:assert"), Module = require("module"), fs = require("fs"), path = require("path");
 const realLoad = Module._load;
+// Any require("electron") gets a tiny fake (app.getAppPath, dialog, shell), so main-process modules load in plain Node.
 Module._load = function (req, ...rest) { return req === "electron" ? { app: { getAppPath: () => __dirname }, dialog: {}, shell: {} } : realLoad.call(this, req, ...rest); };
 const net = require("../src/common/net");
 

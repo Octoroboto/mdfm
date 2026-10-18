@@ -1,6 +1,8 @@
 // Futureproofer for MDFM Radio, in the background: it checks that the app, its engine (Electron), Bouncer's rule
 // engine, the Mac and the MDFM content are current, and says so on the Station screen and in Settings.
 // It never forces anything: no pop-ups, no automatic installs. New content still applies on the next launch.
+// Process: Electron main. Started by main.js after the window opens. Uses the app kit's futureproofer (kit/futureproofer,
+// synced from another repo); each check below returns checks.result(id, title, "ok"|"warn"|"bad", summary, extras).
 const { app } = require("electron");
 const fs = require("fs"), os = require("os"), path = require("path"), { execFileSync } = require("child_process");
 const { getJSON, postJSON } = require("../common/net");
@@ -9,9 +11,13 @@ const { createFutureproofer, checks } = require("../../kit/futureproofer");
 const MIN_MACOS = 13;      // Electron 44 needs macOS 13 or newer
 const TESTED_MACOS = 26;   // newest macOS the app has been used on
 
+// True when this (Intel) build runs under Rosetta on Apple Silicon: sysctl.proc_translated is 1.
 function underRosetta() { try { return execFileSync("sysctl", ["-in", "sysctl.proc_translated"], { encoding: "utf8" }).trim() === "1"; } catch { return false; } }
+// The build-time dependency report shipped in the app (scripts/dependency-report.js), or null.
 function buildReport() { try { return JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "build", "dependency-report.json"), "utf8")); } catch { return null; } }
 
+// updater: src/main/updater.js; look: the MedDev Receiver updater (common/receiver.js); enginePackageVersion: the installed
+// cedar-wasm version (from Bouncer); onChange(): called when any result changes. Returns the futureproofer (status(), run()).
 function startFutureproofer({ updater, look, enginePackageVersion, onChange }) {
   const translated = process.platform === "darwin" && underRosetta();
   const fp = createFutureproofer({
@@ -40,7 +46,7 @@ function startFutureproofer({ updater, look, enginePackageVersion, onChange }) {
       { id: "build", title: "Build check", everyHours: 24, run: async () => checks.checkBuildReport({ report: buildReport() }) },
     ],
   });
-  fp.start({ firstDelayMs: 25e3, everyMs: 3600e3 });
+  fp.start({ firstDelayMs: 25e3, everyMs: 3600e3 });   // first run 25 s after launch, then hourly (each check keeps its own everyHours)
   return fp;
 }
 module.exports = { startFutureproofer };

@@ -1,4 +1,6 @@
 // AXMOD settings: only small, plain values reach settings.json.
+// Tests common/axmod-settings.js cleanAxmod(). Requires apps/common directly, so it runs without the sync.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
 const test = require("node:test"), assert = require("node:assert");
 const { cleanAxmod } = require("../../common/axmod-settings");
 test("keeps real AXMOD choices", () => {

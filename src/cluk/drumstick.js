@@ -1,3 +1,28 @@
+// ===== CLUK 92.3 show: Down the Drumstick =====
+// A travel show: Wendell Rooke and Kai Mendoza tour the regions of the Chicken (arc notes below).
+// How it airs: scripts/build.mjs concatenates every src/cluk/*.js file in front of src/cluk.js, so SHOW_DRUMSTICK is a plain
+// global const (no imports or exports). createCluk() in src/cluk.js lists it in SHOWS. show("drumstick") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js clukSegment() picks a show for a talk break when its "drumstick" switch is on,
+// and clukShowLines() wraps the episode: Clark's open and the episode title around the style's theme, the bed under the
+// first and last spoken lines, the lines in order, then the outro and Clark's close.
+//
+// Shape of SHOW_DRUMSTICK:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a CLUK_GENRES key (engine.js); that genre's song gives the show its theme, stingers and bed ("funkbreaks")
+//   tags      loglines; one is dealt per airing and read after the open ("It's time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two non-ph_ ids are credited as hosts.
+//             An id starting ph_ is heard through the telephone filter (a caller, or someone on the phone).
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned ("CLUK" is said "cluck", captions keep the letters)
+//   ["sfx", name]        a sound effect from OT in engine.js (door, gavel, clock...); an unknown name is skipped
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
 // Down the Drumstick: a travel show touring the regions of the Chicken.
 // Arc: Wendell sends a postcard from every stop "to a friend" and keeps dodging his hometown,
 // Thimble Court in Drumstick Heights, where his dad ran a visitor center out of the garage for thirty years.
@@ -7,6 +32,7 @@ const SHOW_DRUMSTICK = {
   name: "Down the Drumstick",
   label: "Down the Drumstick",
   style: "funkbreaks",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "Wendell Rooke tours every corner of the Chicken and finds a wonder in each one, whether it is there or not.",
     "A gentle host, a deadpan producer, and a van full of postcards nobody has seen him mail.",
@@ -16,10 +42,12 @@ const SHOW_DRUMSTICK = {
     "Pack a snack and a sense of wonder. Kai says only the snack is required.",
     "Travel the Chicken with a man who has seen everything and is still amazed by a bus stop.",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     wendell: { name: "Wendell Rooke", accent: "american", pitch: 1.08, rate: 1.02 },
     kai: { name: "Kai Mendoza", accent: "american", pitch: 0.88, rate: 0.95 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     // 1
     { title: "The Comb: Altitude Is a Lifestyle",

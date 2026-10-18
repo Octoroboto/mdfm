@@ -1,8 +1,35 @@
-const SHOW_ONESTAR = {
+const SHOW_ONESTAR = {   // ===== HEARYE 95.5 show: One Star Quest =====
+// Sir Reginald Twostars and Moira the Scribe read the realm's pettiest reviews of quests, inns and dragons.
+// How it airs: scripts/build.mjs concatenates every src/faire/*.js file in front of src/faire.js, so SHOW_ONESTAR is a plain
+// global const (no imports or exports). createFaire() in src/faire.js lists it in SHOWS. show("onestar") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js fairSegment() picks a show for a talk break when its "onestar" switch is on (shows that
+// aired recently wait their turn), and fairShowLines() wraps the episode: the crier's open and the episode title around
+// the style's theme, the bed under the first and last spoken lines, the lines in order, then the outro and the crier's close.
+// test/faire.test.mjs checks every show: 15+ episodes, unique titles, a known style, a voice for every speaker, known sfx.
+//
+// Shape of SHOW_ONESTAR:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a HEARYE music style (F_STYLE_STINGS in engine.js) for the theme, stingers and bed ("orders")
+//   tags      loglines; one is dealt per airing and read after the open ("It is time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two cast entries are credited as hosts
+//             unless they are ph_ ids. An id starting ph_ is heard through the telephone filter (the "speaking shell").
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned
+//   ["sfx", name]        a sound effect from OT in engine.js; the test allows rain knock door steps claps thunder clock
+//                        horse wind teacup page applause hammer crash gallery
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
   id: "onestar",
   name: "One Star Quest",
   label: "One Star Quest (quest reviews)",
   style: "orders",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "Sir Reginald Twostars reads the realm's pettiest reviews of quests, inns and dragons",
     "Every review gets a reply: the reviewer calls in, and so does the very hurt dragon",
@@ -10,10 +37,12 @@ const SHOW_ONESTAR = {
     "Somebody keeps leaving one-star reviews of Sir Reginald, and he will find them",
     "Both sides of every grievance, heard in full, judged without mercy or proportion",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     reginald: { name: "Sir Reginald Twostars", accent: "british", pitch: 0.98, rate: 1.0 },
     moira: { name: "Moira the Scribe", accent: "irish", pitch: 1.08, rate: 1.02 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     { title: "Smaller Than Advertised",
       cast: {

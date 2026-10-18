@@ -9,22 +9,31 @@ const { writeAtomic } = require("./write-atomic");
 const { personFromProfile, toItems, parseFixes, KIND_BY_NAME, parseChannelList } = require("./slack-parse");
 const DEFAULT_CHANNELS = ["general", "littlevisionaries", "animal-pics"];
 
+// ===== Slack client =====
+// dataDir: userData folder (slack.token lives there). safeStorage: Electron's keychain-backed encryption. openExternal(url):
+// opens the browser. openSignIn(url, onClosed): opens a sign-in window (signin.js) and returns it. getSettings(): the
+// app's settings (slackNews, slackChannels, nameFixes). now(): clock, faked in tests.
+// Returns { fetchNews, connect, disconnect, status, connected, ready }.
 function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl, getSettings, now = () => Date.now() }) {
   const relay = () => String((typeof relayUrl === "function" ? relayUrl() : relayUrl) || "");
   const tokenFile = path.join(dataDir, "slack.token");
-  let token = null, channels = null, channelsAt = 0, users = {}, usersAt = {}, news = null, newsAt = 0, readIds = new Set();
+  let token = null, channels = null, channelsAt = 0, users = {}, usersAt = {}, news = null, newsAt = 0, readIds = new Set();   // caches: channel name -> id, user id -> person, the week's news; readIds: posts already read on air (this run only)
   const status = { connected: false, team: null, news: "off", note: null };
+  // Reads and decrypts the stored token (null if missing, undecryptable or no keychain).
   function loadToken() {
     try { if (safeStorage.isEncryptionAvailable() && fs.existsSync(tokenFile)) token = safeStorage.decryptString(fs.readFileSync(tokenFile)); } catch { token = null; }
     status.connected = !!token; return token;
   }
+  // Encrypts the token with the keychain and writes it owner-only (0600).
   function saveToken(t) { writeAtomic(tokenFile, safeStorage.encryptString(t), 0o600); token = t; status.connected = true; }
+  // Calls one read-only Slack Web API method (GET). A revoked or invalid token disconnects quietly; any error throws.
   async function api(method, params = {}) {
     const q = new URLSearchParams(params).toString();
     const j = await getJSON(`https://slack.com/api/${method}${q ? "?" + q : ""}`, { token });
     if (!j.ok) { if (/invalid_auth|token_revoked|account_inactive|not_authed/.test(j.error)) { disconnect(true); } throw new Error(j.error || "slack error"); }
     return j;
   }
+  // Public channel name -> id, paged up to 10 x 1000, cached 6 hours.
   async function channelIds() {
     if (channels && now() - channelsAt < 6 * 3600e3) return channels;
     const map = {}; let cursor = "";
@@ -35,6 +44,7 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
     }
     channels = map; channelsAt = now(); return map;
   }
+  // One person's spoken name, cached a day. null if Slack won't say.
   async function user(id) {
     if (users[id] && now() - (usersAt[id] || 0) < 24 * 3600e3) return users[id];
     try { const j = await api("users.info", { user: id }); users[id] = personFromProfile(j.user); usersAt[id] = now(); } catch { users[id] = users[id] || null; }
@@ -69,6 +79,10 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
     return items.length ? { items } : null;
   }
   let pending = null;   // only one sign-in at a time
+  // ===== Connect Slack (OAuth through the relay) =====
+  // Starts a one-shot HTTP server on 127.0.0.1 (random port) and opens <relay>/start?port&nonce. The relay does the Slack
+  // OAuth (it holds the client secret) and has the person's browser POST { nonce, token, team } to 127.0.0.1:<port>/slack.
+  // The token is accepted only with our random nonce and the xoxp- (user token) prefix. Times out after 5 minutes.
   function connect() {
     if (pending) { if (pending.win && pending.win.focus) pending.win.focus(); return pending.promise; }
     // Checked before a sign-in is "pending": a refusal here must not stick once the helper's address arrives.
@@ -94,7 +108,7 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
       });
       const timer = setTimeout(() => finish(new Error("Slack sign-in timed out.")), 5 * 60e3);
       srv.on("error", e => finish(e));
-      srv.listen(0, "127.0.0.1", () => {
+      srv.listen(0, "127.0.0.1", () => {   // port 0 = any free port; 127.0.0.1 only, so nothing on the network can reach it
         const url = `${relayBase}/start?port=${srv.address().port}&nonce=${nonce}`;
         try { if (openSignIn) { p.win = openSignIn(url, () => finish(new Error("Slack sign-in was closed before it finished."))); }
         else openExternal(url); } catch (e) { finish(e); }
@@ -102,6 +116,7 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
     });
     pending = p; return p.promise;
   }
+  // Forgets the token (and revokes it at Slack unless silent, e.g. because Slack already said it's invalid) and clears caches.
   async function disconnect(silent) {
     if (token && !silent) { try { await getJSON(`https://slack.com/api/auth.revoke`, { token }); } catch {} }
     token = null; news = null; users = {}; channels = null; try { fs.rmSync(tokenFile, { force: true }); } catch {}
@@ -111,4 +126,4 @@ function createSlack({ dataDir, safeStorage, openExternal, openSignIn, relayUrl,
   return { fetchNews, connect, disconnect, status, get connected() { return !!token; }, get ready() { return !!relay(); } };
 }
 module.exports = { createSlack, DEFAULT_CHANNELS };
-const { budgetPick } = require("./slack-parse");
+const { budgetPick } = require("./slack-parse");   // declared last; pickFresh only reads it at run time, after this module has finished loading

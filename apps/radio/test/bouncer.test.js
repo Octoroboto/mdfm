@@ -1,10 +1,14 @@
 // Bouncer for MDFM Radio: the real Cedar rules, checked against every request the app makes and a set it must never make.
+// Tests src/main/bouncer/policy.cedar through the app kit's Bouncer (kit/bouncer) with the real Cedar engine.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path");
 const { createBouncer, fingerprint } = require("../kit/bouncer");
 const DIR = path.join(__dirname, "../src/main/bouncer");
 const policyText = fs.readFileSync(path.join(DIR, "policy.cedar"), "utf8");
 const config = JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.config.json"), "utf8"));
 const lock = JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.lock.json"), "utf8"));
+// A fresh Bouncer over the reviewed rules, logging to a temp folder.
 const make = () => createBouncer({ appName: "MDFM Radio", policyText, config, lock, logDir: fs.mkdtempSync(path.join(os.tmpdir(), "mdfm-b-")), enginePackageVersion: "4.13.0" });
 
 test("rules are locked, enforcing and healthy", () => {
@@ -13,6 +17,7 @@ test("rules are locked, enforcing and healthy", () => {
   const st = make().status(); assert.strictEqual(st.healthy, true, st.problems.join("; ")); assert.strictEqual(st.mode, "enforce");
 });
 
+// Requests the app really makes: [caller, url] (GET unless a method is given). Each must be allowed.
 const ALLOW = [
   ["app", "https://api.open-meteo.com/v1/forecast?latitude=41.9&longitude=-87.6&current=temperature_2m"],
   ["app", "https://geocoding-api.open-meteo.com/v1/search?count=1&name=Chicago"],
@@ -37,6 +42,7 @@ const ALLOW = [
   ["radio", "https://fonts.googleapis.com/css2?family=VT323&display=swap"],
   ["radio", "https://fonts.gstatic.com/s/vt323/v17/abc.woff2"],
 ];
+// Requests that must never leave: [caller, method, url, why].
 const BLOCK = [
   ["app", "POST", "https://slack.com/api/chat.postMessage", "posting to Slack"],
   ["app", "GET", "https://slack.com/api/chat.postMessage?channel=C1&text=hi", "posting to Slack via GET"],

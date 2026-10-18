@@ -3,6 +3,7 @@
 //   2. the app's package.json (mdfm.slackRelay),
 //   3. the mdfm repo's config/slack.json, fetched from GitHub and kept, so pushing that one file switches Slack on for every
 //      installed app without an app release.
+// Process: Electron main (radio and hub). The relay address is where "Connect Slack" sends the person (see slack.js).
 const fs = require("fs"), path = require("path");
 const { writeAtomic } = require("./write-atomic");
 const CONFIG_URL = "https://raw.githubusercontent.com/Octoroboto/mdfm/main/config/slack.json";
@@ -13,18 +14,23 @@ function validRelay(v) {
   let u; try { u = new URL(v); } catch { return false; }
   return u.protocol === "https:" && !u.username && !u.password && (u.pathname === "/" || u.pathname === "") && !u.search && !u.hash && /\.workers\.dev$|\.[a-z]{2,}$/.test(u.hostname);
 }
+// The origin of a validated address (drops any trailing slash).
 const origin = v => new URL(v).origin;
 
+// dataDir: the app's userData folder (slack-config.json is kept there). getJSON: the Bouncer-guarded fetch.
+// packaged: package.json's mdfm.slackRelay. getOverride(): this Mac's own setting. Returns { relay, refresh, status }.
 function createSlackConfig({ dataDir, getJSON, packaged = "", getOverride = () => "" }) {
   const file = path.join(dataDir, "slack-config.json");
-  let remote = ""; try { const j = JSON.parse(fs.readFileSync(file, "utf8")); if (validRelay(j.relay)) remote = origin(j.relay); } catch {}
+  let remote = ""; try { const j = JSON.parse(fs.readFileSync(file, "utf8")); if (validRelay(j.relay)) remote = origin(j.relay); } catch {}   // the last address fetched from GitHub, kept on disk so Slack works offline at launch
   const status = { source: null, lastCheck: null, result: "not checked yet" };
+  // The address to use right now, by the order in the header ("" when Slack isn't switched on). Sets status.source.
   function relay() {
     const o = getOverride(); if (validRelay(o)) { status.source = "this Mac"; return origin(o); }
     if (validRelay(packaged)) { status.source = "the app"; return origin(packaged); }
     if (remote) { status.source = "MedDev"; return remote; }
     status.source = null; return "";
   }
+  // Fetches config/slack.json from the mdfm repo and keeps a valid relay address. Resolves the address relay() now returns.
   async function refresh() {
     status.lastCheck = new Date().toISOString();
     try {

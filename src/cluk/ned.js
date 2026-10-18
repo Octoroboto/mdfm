@@ -1,8 +1,35 @@
-const SHOW_NED = {
+const SHOW_NED = {   // ===== CLUK 92.3 show: Lazer Hour with Ned =====
+// Ned Pellworth's late-night hour from the back room of Ned's Lazer Emporium and Repair in Lower Wing: lazer talk,
+// friends dropping by with soup, callers, the President's special line, the Beamz chain store, and now and then a rave.
+// How it airs: scripts/build.mjs concatenates every src/cluk/*.js file in front of src/cluk.js, so SHOW_NED is a plain
+// global const (no imports or exports). createCluk() in src/cluk.js lists it in SHOWS. show("ned") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js clukSegment() picks a show for a talk break when its "ned" switch is on (and Lazer Hour gets a 22% head start over the others),
+// and clukShowLines() wraps the episode: Clark's open and the episode title around the style's theme, the bed under the
+// first and last spoken lines, the lines in order, then the outro and Clark's close.
+//
+// Shape of SHOW_NED:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a CLUK_GENRES key (engine.js); that genre's song gives the show its theme, stingers and bed ("electro")
+//   tags      loglines; one is dealt per airing and read after the open ("It's time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two non-ph_ ids are credited as hosts.
+//             An id starting ph_ is heard through the telephone filter (a caller, or someone on the phone).
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned ("CLUK" is said "cluck", captions keep the letters)
+//   ["sfx", name]        a sound effect from OT in engine.js (door, gavel, clock...); an unknown name is skipped
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//   ["rave", seconds]    Lazer Hour only: the lights go down and Ned does a rave; the show waits for it (30..120 s, default 75)
+//
   id: "ned",
   name: "Lazer Hour with Ned",
   label: "Lazer Hour with Ned",
   style: "electro",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "Live from the back room of Ned's Lazer Emporium and Repair in Lower Wing, it's the man who loves lazers more than anyone in the Chicken.",
     "Ned knows every wavelength, every lens and every lazer he has ever owned, and tonight he wants to tell you about all of them.",
@@ -13,6 +40,7 @@ const SHOW_NED = {
     "Call in with your lazer problem and Ned will treat it like the most important problem in the Chicken, because to him it is.",
     "Ned's Rule Number One: never point a lazer at anybody's eyes. It isn't a rule about lazers. It's a rule about people."
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     ned: { name: "Ned Pellworth", accent: "american", pitch: 1.0, rate: 1.05 },
     tobin: { name: "Tobin Mackery", accent: "scottish", pitch: 1.18, rate: 1.08 },
@@ -23,6 +51,7 @@ const SHOW_NED = {
     kelsey: { name: "Kelsey Doyle", accent: "british", pitch: 1.1, rate: 1.04 },
     ph_kelsey: { name: "Kelsey Doyle", accent: "british", pitch: 1.1, rate: 1.04 }
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     // 1. Ned alone at the mic, first calls, Gus drops in
     { title: "Rule Number One",

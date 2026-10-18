@@ -245,3 +245,4 @@ This repo is the **one copy** of MDFM. Neither app keeps its own edited copy.
 - `npm run build`: rebuilds `dist/` from `src/` (no dependencies).
 - `npm run demo`: opens a test page at http://localhost:5179/demo/
 - `npm test`: build + browser smoke test.
+- **Comments:** every file is commented for someone opening it cold (`docs/COMMENTING.md` has the rules), and every change keeps it that way: new code arrives with its comments, changed code has its comments updated. A comment-only pass is checked with `node scripts/comment-check.mjs <before dir> <after dir>` (needs `npm i --no-save acorn`), which fails if anything but comments changed.

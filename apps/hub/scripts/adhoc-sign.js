@@ -6,15 +6,17 @@
 //  2. Ad-hoc signature ("Sign to Run Locally"). Without an Apple Developer ID the app can't be
 //     notarized, but Apple Silicon refuses unsigned code. Recipients allow it once (install guide).
 // When RentVision has a Developer ID: keep the fuses, replace step 2 with real signing + notarization.
+// Runs in Node at build time (electron-builder calls it after packing, before the .dmg is made). Not shipped in the app.
 const { execFileSync } = require('child_process');
 const path = require('path');
 
+// context: electron-builder's afterPack context (platform, output folder, app info). Throws (failing the build) if signing fails.
 exports.default = async function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
   const app = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
   const plist = path.join(app, 'Contents', 'Info.plist');
   let asarHashRecorded = false;
-  try { execFileSync('plutil', ['-extract', 'ElectronAsarIntegrity', 'xml1', '-o', '-', plist], { stdio: 'ignore' }); asarHashRecorded = true; } catch {}
+  try { execFileSync('plutil', ['-extract', 'ElectronAsarIntegrity', 'xml1', '-o', '-', plist], { stdio: 'ignore' }); asarHashRecorded = true; } catch {}   // plutil exits non-zero when the key is missing; that just means no integrity hash
 
   const { flipFuses, FuseVersion, FuseV1Options } = require('@electron/fuses');
   const fuses = {
@@ -29,6 +31,6 @@ exports.default = async function afterPack(context) {
   await flipFuses(app, fuses);
 
   console.log(`  • ad-hoc signing ${app}`);
-  execFileSync('codesign', ['--force', '--deep', '--sign', '-', app], { stdio: 'inherit' });
+  execFileSync('codesign', ['--force', '--deep', '--sign', '-', app], { stdio: 'inherit' });   // --deep signs the nested helper apps and frameworks too
   execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
 };

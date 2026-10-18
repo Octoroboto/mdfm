@@ -1,4 +1,17 @@
-const FAIRE_ADS = [
+const FAIRE_ADS = [   // ===== HEARYE 95.5 text pools: ads, callers, IDs, artists and piece titles =====
+// Concatenated by scripts/build.mjs in front of src/faire.js, so these are plain global consts read by createFaire():
+//   FAIRE_ADS        scripted ads; ad() deals one (no repeats until all have aired) 70% of the time
+//   FAIRE_AD_PARTS   word pools for the quick ads ad() assembles the other 30% of the time
+//   FAIRE_CALLERS    caller(): one call-in to the bard, built from parts in a fixed order
+//   FAIRE_IDS        ids() (the crier), bardIntro(np) / bardBack(np) with {title} and {artist}, heraldOpen() / heraldClose()
+//   FAIRE_ARTISTS    artist(): a made-up player or ensemble for each generated piece
+//   FAIRE_PIECE      piece(): a made-up piece title (retries until no word repeats)
+// Most lists are dealt from shuffled decks (every line once before repeats); name parts are picked at random.
+//
+// ===== Scripted ads (FAIRE_ADS) =====
+// One ad: { title, cast, lines }. title shows in now-playing; cast is speaker id -> voice { name, accent, pitch, rate };
+// lines are [speakerId, "text"] plus ["sfx", name] and ["pause", ms]. engine.js fairAdLines() plays an ad block after
+// the crier's ad intro: per ad, a stinger in a random style, a bed under the lines.
   { title: "Grimsby's Discount Potions",
     cast: { v1: { name: "Grimsby Fenwhistle", accent: "american", pitch: 1.04, rate: 1.08 } },
     lines: [
@@ -659,7 +672,11 @@ const FAIRE_ADS = [
     ] },
 ];
 
+// ===== Parts for assembled ads (FAIRE_AD_PARTS) =====
+// ad() fills one of four AD_FORM templates in src/faire.js, read by two random voices (v1 announcer, v2 customer).
+// product, claim, side and slogan are dealt (no repeats until each is used); maker and price are picked at random.
 const FAIRE_AD_PARTS = {
+  // product name; used as "the {product}" and lowercased in "the same old ..."
   product: [
     "Elixir of Moderate Courage", "Self-Stirring Cauldron", "Enchanted Saddle Cushion", "Goblin-Proof Pantry Lock",
     "Dragonhide Oven Mitts", "Wizard Hat Stiffener", "Everlasting Candle", "Moat-Scented Cologne", "Pocket Trebuchet",
@@ -671,6 +688,7 @@ const FAIRE_AD_PARTS = {
     "Ghost-Proof Curtains", "Gargoyle Bird Bath", "Self-Writing Diary", "Chainmail Pajamas", "Iron Maiden Shaped Pillow",
     "Enchanted Turnip Seeds", "Bard Silencing Charm", "Mimic Chest Training Kit", "Heroic Chin Strap", "Torch Extension Pole",
   ],
+  // merchant who sells it; also opens "{maker} presents" and the sign-off
   maker: [
     "Grimsby's Discount Potions", "Hollowmead Brewery", "Old Gorbo's", "Pellingham and Sons", "Thornwood and Daughters",
     "The Brass Gryphon Company", "Fenwick Wondergoods", "Halberd and Hearth", "Mudbury Merchants Guild", "Dunmore Arcane Supply",
@@ -680,6 +698,7 @@ const FAIRE_AD_PARTS = {
     "Featherstone Provisions", "Grindlewald Forge", "Tumblekettle and Sons", "Marrowgate Merchants", "Sludgeworth Goods",
     "Gorse and Gable", "Saltmarsh Sundries",
   ],
+  // one full sentence of sales claim
   claim: [
     "It works on most days of the week.",
     "Our wizards tested it on themselves, and two of them are fine.",
@@ -724,6 +743,7 @@ const FAIRE_AD_PARTS = {
     "It works best if you believe in it, and also if you read the instructions.",
     "It has been sold in the realm since before the realm had a name.",
   ],
+  // side effect, a noun phrase: "Side effects may include {side}."
   side: [
     "mild hiccups that rhyme", "a sudden fondness for geese", "speaking only in questions until sundown",
     "faint glowing of the elbows", "an urge to knight a stranger", "dreams about a very tall bishop", "temporary purple ears",
@@ -739,6 +759,7 @@ const FAIRE_AD_PARTS = {
     "a brief friendship with a ghost", "your shadow leaving early", "a strong desire to start a band",
     "becoming the main character in a minstrel's song you did not approve", "waking up holding a goat",
   ],
+  // price phrase
   price: [
     "three silver and a goat", "four copper and a sincere apology", "one gold piece, or two if you ask questions",
     "seven copper and a firm handshake", "a single silver and the name of your enemy", "two gold and your second best boot",
@@ -749,6 +770,7 @@ const FAIRE_AD_PARTS = {
     "one gold and a portrait of your horse", "twelve copper and a sack of flour", "a bag of buttons, if they are good buttons",
     "two silver and an honest compliment", "eight copper and your attendance at a bake sale", "one gold piece and a solemn oath",
   ],
+  // closing slogan, a full sentence
   slogan: [
     "It probably works.", "Because you deserve something.", "Ask for it by name.", "Now with less screaming.",
     "The realm's second favorite.", "Built to outlast your enemies.", "It is not a curse if you paid for it.",
@@ -764,7 +786,11 @@ const FAIRE_AD_PARTS = {
   ],
 };
 
+// ===== Call-ins to the bard (FAIRE_CALLERS) =====
+// caller() plays: the bard's open, open, gripe, the bard's reply, then 70% of the time followup and a second reply,
+// then bye and the bard's sign-off. Caller lines are spoken by ph_caller (a random accent, through the phone filter).
 const FAIRE_CALLERS = {
+  // caller's first line
   open: [
     "Aye, long time listener, first time crier.",
     "Hello? Is this the radio? Am I in the radio?",
@@ -809,6 +835,7 @@ const FAIRE_CALLERS = {
     "Hello, I am a ghost, but I am still very much in the community.",
     "Greetings, I am a minstrel, and before you say anything, I know.",
   ],
+  // caller's problem
   gripe: [
     "The bard at my inn only knows one song, and it is about his horse.",
     "My neighbor built a tower slightly taller than mine, and he waves at me from the top every morning.",
@@ -874,6 +901,7 @@ const FAIRE_CALLERS = {
     "Every time I sneeze, a nearby door opens, and I think it is my fault.",
     "My knight is afraid of horses, so he rides a large dog, and the other knights have started barking at us.",
   ],
+  // the bard's advice
   reply: [
     "Oh, my friend. That is a great deal to carry, and you have carried it beautifully.",
     "Mmm. Let us sit with that for a moment, like a candle in a quiet hall.",
@@ -918,6 +946,7 @@ const FAIRE_CALLERS = {
     "Forgive yourself. Then forgive the goat. Then let the goat forgive you.",
     "You are going to be fine. I know this the way I know the tide, which is, I do not, but I feel good about it.",
   ],
+  // caller's answer to the advice
   followup: [
     "But what if they already know?",
     "I did try that. It made it worse. Much worse.",
@@ -953,6 +982,7 @@ const FAIRE_CALLERS = {
     "I suppose I could try being honest. That would be new.",
     "Is it normal that I am standing on a chair right now?",
   ],
+  // caller's goodbye
   bye: [
     "Thank you, bard. I am turning you off now. Gently.",
     "Farewell, and may your lute stay in tune.",
@@ -989,7 +1019,10 @@ const FAIRE_CALLERS = {
   ],
 };
 
+// ===== Station IDs and the bard's links (FAIRE_IDS) =====
+// engine.js fairAfterPiece() strings these between pieces; the herald lines frame the realm news.
 const FAIRE_IDS = {
+  // Bartholomew Bellweather, the Royal Crier: station IDs
   crier: [
     "Hear ye! Hear ye! You are listening to Hear Ye, ninety five point five!",
     "Hear ye, hear ye! Renn Faire Radio, the Home of High Drama!",
@@ -1024,6 +1057,7 @@ const FAIRE_IDS = {
     "Hear ye! Stay thy hand from the dial, good citizen! This is Hear Ye, ninety five point five!",
     "Hear ye, hear ye! The town square is closed! The radio is open! Ninety five point five!",
   ],
+  // Merriweather the Bard introduces the next piece; {title} and {artist} are filled in
   bardIntro: [
     "Settle in, good folk. Here is {title}, from {artist}.",
     "Pour yourself something warm. This is {artist}, with {title}.",
@@ -1058,6 +1092,7 @@ const FAIRE_IDS = {
     "For the lonely, the brave, and the slightly cursed, here is {artist}, with {title}.",
     "Gather round the hearth, friends. It is time for {title}, by {artist}.",
   ],
+  // the bard back-announces the piece that just played; {title} and {artist}
   bardBack: [
     "That was {title}, by {artist}. Beautiful. I had to sit down.",
     "Ah. {artist}, with {title}. I have heard it a hundred times, and I still get a lump in my throat.",
@@ -1092,6 +1127,7 @@ const FAIRE_IDS = {
     "Ah. {title}, by {artist}. Sublime. Truly sublime. Now, back to the drama.",
     "That was {title}, by {artist}. Somebody please check on the flute player. He seemed very emotional.",
   ],
+  // Osgood Trumpington opens the realm news
   herald: [
     "Hear now the news of the realm, gathered by raven and rumor.",
     "Good people, the herald brings tidings from across the land. Some of them are true.",
@@ -1116,6 +1152,7 @@ const FAIRE_IDS = {
     "Good folk, the bells have rung and the ravens have landed. It is time for the news.",
     "This is the realm report. The herald reminds you that he is only the messenger, and he would like to keep his head.",
   ],
+  // and closes it
   heraldClose: [
     "And that is the news of the realm. Go about your business. Mind the moat.",
     "Those were the tidings. The herald will return when there is more, or when he is bored.",
@@ -1136,13 +1173,17 @@ const FAIRE_IDS = {
   ],
 };
 
+// ===== Player names (FAIRE_ARTISTS) =====
+// artist(): "first last" 50%, "first of <place>" 20% (places are in src/faire.js), ensemble 30%.
 const FAIRE_ARTISTS = {
+  // first names
   first: [
     "Aldric", "Brisa", "Corvin", "Delphine", "Elowen", "Fenwick", "Gwendolyn", "Hollis", "Isolde", "Jory", "Kestrel",
     "Lisette", "Merrick", "Nyssa", "Osric", "Perrin", "Quenby", "Rosalind", "Soren", "Tamsin", "Ulric", "Vesper",
     "Wren", "Yarrow", "Zephyrine", "Alaric", "Briony", "Cedric", "Daria", "Emeric", "Fiora", "Gideon", "Hespera",
     "Ivo", "Juniper", "Leander", "Maelis", "Niall", "Oriel", "Peregrine", "Rowena", "Silas", "Thessaly", "Valen",
   ],
+  // surnames
   last: [
     "Ashgrove", "Brightwater", "Calloway", "Dunmore", "Elderbrook", "Fairweather", "Greythorn", "Hollowell", "Ivywood",
     "Juniperhall", "Kettleburn", "Larkspur", "Merriweather", "Nightingale", "Oakhurst", "Pennyroyal", "Quillfeather",
@@ -1150,6 +1191,7 @@ const FAIRE_ARTISTS = {
     "Briarwood", "Coldharbor", "Dovecote", "Emberlane", "Foxglove", "Goldcrest", "Hartwell", "Lindenmoor",
     "Mossbridge", "Northwind", "Ormsby", "Pemberly", "Rookwood", "Starling", "Tallowmere", "Wexford", "Wintermere",
   ],
+  // group names, used as-is
   ensemble: [
     "The Mossbridge Consort", "The Lanternlight Players", "The Greythorn Waits", "The Hollow Oak Ensemble",
     "The Brightwater Minstrels", "The Kettleburn Fiddlers", "The Silver Lute Society", "The Ravenscroft Choir",
@@ -1162,14 +1204,17 @@ const FAIRE_ARTISTS = {
   ],
 };
 
+// ===== Piece titles (FAIRE_PIECE) =====
 // Piece titles are built by the engine as "a b", "The a b", or "b of the a b".
 const FAIRE_PIECE = {
+  // adjective
   a: [
     "Golden", "Weeping", "Silver", "Hidden", "Merry", "Lonely", "Crimson", "Wandering", "Dancing", "Midnight", "Ancient",
     "Gentle", "Broken", "Laughing", "Misty", "Iron", "Velvet", "Burning", "Faithful", "Sleeping", "Frozen", "Hollow",
     "Shining", "Distant", "Forgotten", "Restless", "Northern", "Emerald", "Drowsy", "Tender", "Galloping", "Starlit",
     "Mournful", "Jolly", "Quiet", "Royal", "Secret", "Stormy", "Twilight", "Wild", "Amber", "Humble", "Lantern",
   ],
+  // noun (also the form word: Galliard, Pavane, Jig...)
   b: [
     "Galliard", "Lament", "Pavane", "Rose", "Meadow", "Knight", "Maiden", "Tower", "Lantern", "Harvest", "River",
     "Falcon", "Garden", "Ballad", "Jig", "Reel", "Shepherd", "Castle", "Banner", "Feast", "Forest", "Candle", "Crown",

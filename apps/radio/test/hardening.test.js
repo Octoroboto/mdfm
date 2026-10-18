@@ -1,5 +1,8 @@
 // The Oct 15 audit fixes that don't need a window: atomic writes, capped answers, kept-copy pruning, one content check
 // at a time, no pre-releases, and a Slack token that can't be stored fails the sign-in instead of the app.
+// Tests common/write-atomic.js, common/net.js size caps, src/main/updater.js, common/receiver.js pruning and common/slack.js.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path"), http = require("http");
 const { writeAtomic } = require("../src/common/write-atomic");
 
@@ -26,6 +29,7 @@ test("network: an answer over the size cap is refused (by its length header or a
 });
 
 // An updater over a temporary userData and bundled folder, with the network faked.
+// Returns { u: the updater, engines: its kept-copies folder, done(): restore the network and module cache }.
 function updaterWith(fake) {
   const net = require("../src/common/net"), real = net.getJSON;
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "mdfm-upd-")), ud = path.join(home, "userData"), bundledDir = path.join(home, "vendor");

@@ -1,13 +1,17 @@
 // Sign-in windows for Slack (and, in the builder's setup, Cloudflare). A small, locked-down browser window: no Node, sandboxed,
 // its own cookie jar, a normal Chrome user agent (Google sign-in refuses unknown browsers), and it can only go to the sign-in
 // sites it needs. Anything else opens in the person's own browser. The window closes itself when the flow is done.
+// Process: Electron main (radio and hub, and slack-setup.js). Security: the window has no preload and no Node, its own
+// session partition (cookies never mix with the app's), all permission requests denied, every navigation and redirect
+// checked by allowed(), and every request checked by the sign-in Bouncer (signin-policy.cedar) when one is passed in.
+// SLACK_HOSTS / CLOUDFLARE_HOSTS: host patterns each flow may navigate to.
 const SLACK_HOSTS = [/^slack\.com$/, /\.slack\.com$/, /\.slack-edge\.com$/, /\.slackb\.com$/, /^accounts\.google\.com$/, /\.gstatic\.com$/,
   /^apis\.google\.com$/, /^ssl\.gstatic\.com$/, /\.googleusercontent\.com$/, /^appleid\.apple\.com$/, /\.okta\.com$/];
 const CLOUDFLARE_HOSTS = [/^dash\.cloudflare\.com$/, /\.cloudflare\.com$/, /^cloudflare\.com$/, /^accounts\.google\.com$/, /\.gstatic\.com$/, /^appleid\.apple\.com$/,
   /^challenges\.cloudflare\.com$/];
 
 // Is this address one the sign-in window may open? (pure; tested)
-function allowed(url, { hosts = SLACK_HOSTS, extraHosts = [], localPorts = [], anyHttps = false } = {}) {
+function allowed(url, { hosts = SLACK_HOSTS, extraHosts = [], localPorts = [], anyHttps = false } = {}) {   // localPorts: 127.0.0.1 ports allowed (wrangler's login callback); anyHttps: the builder's Cloudflare flow only
   let u; try { u = new URL(url); } catch { return false; }
   if (anyHttps && u.protocol === "https:") return true;
   if (u.protocol === "about:" && url === "about:blank") return true;
@@ -16,6 +20,7 @@ function allowed(url, { hosts = SLACK_HOSTS, extraHosts = [], localPorts = [], a
   return [...hosts, ...extraHosts].some(h => typeof h === "string" ? h === u.hostname : h.test(u.hostname));
 }
 
+// Sets a normal Chrome user agent on the session (Electron's default contains "Electron", which Google sign-in refuses).
 function chromeUA(ses) {
   try { const v = process.versions.chrome; ses.setUserAgent(`Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${v} Safari/537.36`); } catch {}
 }
@@ -25,19 +30,19 @@ function openSignInWindow(url, { parent, title = "Sign in", hosts = SLACK_HOSTS,
   const { BrowserWindow, session, shell } = require("electron");
   const ses = session.fromPartition(partition); chromeUA(ses);
   if (bouncer) bouncer.attachSession(ses);   // the sign-in windows' own Bouncer (signin-policy.cedar)
-  ses.setPermissionRequestHandler((wc, perm, cb) => cb(false));
+  ses.setPermissionRequestHandler((wc, perm, cb) => cb(false));   // camera, notifications, etc. are never granted to a sign-in page
   const opts = { hosts, extraHosts, localPorts, anyHttps };
   const win = new BrowserWindow({ width, height, title, parent: parent && !parent.isDestroyed() ? parent : undefined, modal: false, show: false,
     backgroundColor: "#15161c", autoHideMenuBar: true, webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false } });
   if (bouncer) bouncer.tag(win.webContents, caller);
   // Newer Electron passes the address on the event (e.url); older ones as the second argument.
-  const guard = (e, u) => { const to = (e && e.url) || u; if (allowed(to, opts)) { onNavigate && onNavigate(to, win); return; }
+  const guard = (e, u) => { const to = (e && e.url) || u; if (allowed(to, opts)) { onNavigate && onNavigate(to, win); return; }   // a blocked address isn't lost: https ones open in the person's browser
     e.preventDefault(); onBlocked && onBlocked(to); if (/^https:/.test(String(to))) shell.openExternal(to); };
   win.webContents.on("will-navigate", guard);
   win.webContents.on("will-redirect", guard);
   win.webContents.on("did-navigate", (e, u) => onNavigate && onNavigate((e && e.url) || u, win));
   win.webContents.on("did-navigate-in-page", (e, u) => onNavigate && onNavigate((e && e.url) || u, win));
-  win.webContents.on("did-fail-load", (e, code, desc, u, isMain) => { if (isMain !== false && code !== -3) onFail && onFail(`${desc || "load failed"} (${code}) ${u || ""}`); });
+  win.webContents.on("did-fail-load", (e, code, desc, u, isMain) => { if (isMain !== false && code !== -3) onFail && onFail(`${desc || "load failed"} (${code}) ${u || ""}`); });   // -3 is ERR_ABORTED (our own preventDefault), not a real failure
   // Single sign-on sometimes opens a popup: allow it for the same sites, with the same rules.
   win.webContents.setWindowOpenHandler(({ url: u }) => allowed(u, opts)
     ? { action: "allow", overrideBrowserWindowOptions: { parent: win, width: 520, height: 700, autoHideMenuBar: true, webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false } } }
@@ -49,7 +54,7 @@ function openSignInWindow(url, { parent, title = "Sign in", hosts = SLACK_HOSTS,
     w.webContents.setWindowOpenHandler(({ url: u }) => { if (/^https:/.test(u)) shell.openExternal(u); return { action: "deny" }; }); });
   let closedByUs = false;
   win.on("closed", () => { if (!closedByUs && onClosed) onClosed(); });
-  const close = win.close.bind(win); win.close = () => { closedByUs = true; if (!win.isDestroyed()) close(); if (parent && !parent.isDestroyed()) parent.focus(); };
+  const close = win.close.bind(win); win.close = () => { closedByUs = true; if (!win.isDestroyed()) close(); if (parent && !parent.isDestroyed()) parent.focus(); };   // close() through us marks it as ours, so onClosed (person gave up) isn't fired for a finished sign-in
   win.once("ready-to-show", () => win.show());
   win.loadURL(url);
   return win;

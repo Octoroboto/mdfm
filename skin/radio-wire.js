@@ -1,9 +1,23 @@
 /* MDFM Radio page wiring. Works in a plain browser (canned weather/sports) and in the MDFM Radio app,
    which provides window.mdfmApp for live weather, local sports, settings and update status. */
+// ===== File overview =====
+// Where it fits: scripts/build.mjs inlines this file last in dist/radio.html (the mdfm-radio-wire script), after the library
+// (window.MDFM from dist/mdfm.iife.js), the MedDev Receiver (window.MDFM_receiver, vendor/meddev-receiver/receiver.js) and
+// skin/types.js. It also ships in dist/manifest.json, so the apps' live updater can replace it without an app release.
+// It finds its elements by id in skin/radio-body.html (#np, #cap, #stName, #skipBtn, #settings...), so ids changed there
+// must change here too. The hub page has its own wiring and doesn't use this file.
+// What it does: makes one radio (MDFM.createMDFM, src/engine.js), connects the app bridge (window.mdfmApp, the Electron
+// preload: window controls, live data, voices, settings, update status), builds each station's "What plays" switches and
+// the instrument list, wires Save, MIX and the receiver, and (in an app) the settings and status lines.
+// Everything it keeps lives in localStorage on this device (keys: mdfmStation, wybcTypes, hearyeTypes, ptrnTypes, clukTypes,
+// ptlkTypes, mdfmInstruments, mdfmInstHeard, mdfmSetOpen), always inside try/catch so a blocked storage still plays.
 (()=>{
+  // $(s): the first element matching s. app: the Electron app's bridge, or null in a plain browser.
   const $=s=>document.querySelector(s), app=window.mdfmApp||null;
   const radio=MDFM.createMDFM();
+  // Hooks other scripts use: __radio (debugging and tests), __vizSource (the receiver's visualizer reads levels), __thwack (the fly swatter's hit sound).
   window.__radio=radio; window.__vizSource=()=>radio.getSpectrum(); window.__thwack=()=>radio.thwack();
+  // ===== App window (only inside the apps) =====
   // Frameless app window: the receiver is the window. POWER closes, MIN minimizes, FULL toggles full screen.
   if(app&&app.win){ document.documentElement.classList.add("appwin"); $("#wctl").hidden=false;
     $("#wClose").addEventListener("click",()=>app.win.close()); $("#wMin").addEventListener("click",()=>app.win.minimize());
@@ -31,26 +45,34 @@
     // If the whole receiver fits, it is never left scrolled part-way (which looked like the top being cut off).
     const unscroll=()=>{ const se=document.scrollingElement; if(se&&se.scrollTop>0&&se.scrollHeight<=innerHeight+1) se.scrollTop=0; };
     addEventListener("resize",unscroll); addEventListener("focus",unscroll); document.addEventListener("visibilitychange",unscroll); }
+  // ===== Live data from the app =====
   if(app&&typeof app.live==="function") radio.setProviders({weather:()=>app.live("weather"),sports:()=>app.live("sports"),news:()=>app.live("news"),cannedFallback:false});   // live data from the app (MDFM Radio, or a kit app with mdfm-live); without it, the station's own made-up reports
   // PTLK 108.0: newer apps fetch live business and gaming headlines and encyclopedia pages; without them the shows write their own.
   // (Through app.live, so older apps simply answer null.)
   if(app&&typeof app.live==="function") radio.setProviders({headlines:(kind,arg)=>app.live(kind==="wiki"?"wiki:"+arg:"headlines:"+kind)});
   // Newer apps render the robot voices as audio, so the volume and LOW/MID/HIGH EQ apply to them too.
   if(app&&typeof app.tts==="function") radio.setProviders({tts:spec=>app.tts(spec)});
+  // ===== Now playing and the station dial =====
+  // npText(s): the now-playing line for a "nowplaying" event s ({ station, title, artist, style, bpm, time, talk... }), worded per station.
   const np=$("#np"), cap=$("#cap"); let capT=0;
   const npText=s=>s.station==="cluk"?(s.talk?`${s.style} · “${s.title}” · ${s.artist}`:`“${s.title}” · ${s.artist} · ${String(s.style).toLowerCase()} · ${s.bpm} BPM`):s.station==="ptrn"?`“${s.title}” · ${s.artist} · ${String(s.style).toLowerCase()} · ${s.bpm} BPM${s.time&&s.time!=="4/4"?" · "+s.time:""}`:s.station==="ptlk"||(s.station==="hearye"&&s.talk)?`${s.style} · “${s.title}” · ${s.artist}`:s.station==="hearye"?`“${s.title}” · ${s.artist} · ${s.style.toLowerCase()}`:s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
   radio.on("nowplaying",s=>{ np.textContent=`Now playing: ${npText(s)}`; });
   // Stations: WYBC 88.1 (Collin's ambient piano), HEARYE 95.5 (Renn Faire Radio), MDFM 99.9 HD and PTLK 108.0 (talk). The arrows switch; the choice is remembered on this device.
-  const stLS="mdfmStation", showStation=st=>{ if(!st) return; $("#stName").textContent=st.name; document.documentElement.dataset.station=st.id;
+  const stLS="mdfmStation", showStation=st=>{ if(!st) return; $("#stName").textContent=st.name; document.documentElement.dataset.station=st.id;   // showStation(st): puts the station name on the display and words the Next and Station ID buttons for it; data-station lets the CSS and skins react
     const w=st.id==="wybc"||st.id==="hearye", t=st.id==="ptlk", pt=st.id==="ptrn"; $("#skipBtn").textContent=t?"Next show":w?"Next piece":pt?"Next track":"Next song"; $("#spotBtn").textContent=pt?"Drop a tag":w||t?"Station ID":"Station break";
     $("#skipBtn").title=st.id==="cluk"?"Skip to the next song":t?"Skip to a new show":st.id==="hearye"?"On to the next piece":w?"A new piece":pt?"Mix into the next track on the next bar":"Skip to the next song"; $("#spotBtn").title=pt?"A station tag on the beat":""; };
-  if(radio.setStation){ try{ const k=localStorage.getItem(stLS); if(k) radio.setStation(k); }catch(e){}
+  if(radio.setStation){ try{ const k=localStorage.getItem(stLS); if(k) radio.setStation(k); }catch(e){}   // the last station picked on this device, if the engine still has it
     showStation(radio.getStation());
     radio.on("station",st=>{ showStation(st); try{ localStorage.setItem(stLS,st.id); }catch(e){}
       if(!radio.isOn()) np.textContent=`Tuned to ${st.name}. Press the SOUND button to tune in.`; else if(st.id==="mdfm"&&window.AXMOD) window.AXMOD.sound("MDFM 99.9 HD"); });
+    // step(d): the arrows; d is +1 (up the dial) or -1 (down)
     const step=d=>()=>{ d>0?radio.nextStation():radio.prevStation(); };
     $("#stPrev").addEventListener("click",step(-1)); $("#stNext").addEventListener("click",step(1));
-    if(!radio.stations().some(s=>s.id!=="mdfm"&&s.available)) $("#stBtns").hidden=true;
+    if(!radio.stations().some(s=>s.id!=="mdfm"&&s.available)) $("#stBtns").hidden=true;   // hide the arrows when MDFM 99.9 is the only station this build can play
+    // ===== Per-station "What plays" lists (this device) =====
+    // Each list follows one pattern: radio.stationTypeList(id) gives [key, label, group?] rows, a checkbox per row (on unless saved
+    // off), the whole set sent with radio.setStationTypes(id, {key: on}) at start and on every change, and saved to localStorage.
+    // The section stays hidden when the station isn't available in this build.
     // WYBC's own "what plays" switches (this device)
     const wl=$("#wybcList"), list=radio.stationTypeList("wybc");
     if(wl&&list.length&&radio.stations().some(s=>s.id==="wybc"&&s.available)){ let wt={}; try{ wt=JSON.parse(localStorage.getItem("wybcTypes")||"{}"); }catch(e){} if(!wt||typeof wt!=="object"||Array.isArray(wt)) wt={};
@@ -72,6 +94,7 @@
     if(rl&&rlist.length&&radio.stations().some(s=>s.id==="ptrn"&&s.available)){ let rt={}; try{ rt=JSON.parse(localStorage.getItem("ptrnTypes")||"{}"); }catch(e){} if(!rt||typeof rt!=="object"||Array.isArray(rt)) rt={};
       const fams=[...new Set(rlist.map(x=>x[2]))];
       for(const f of fams){ const box=document.createElement("div"); box.className="ptrnfam"; const hd=document.createElement("div"); hd.className="ptrnfamhd"; const nm=document.createElement("span"); nm.textContent=f; hd.append(nm);
+        // All / None buttons tick a whole family, then fire "change" on the list so the normal handler saves it
         const items=rlist.filter(x=>x[2]===f); if(items.length>1) for(const [lab,v] of [["All",true],["None",false]]){ const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent=lab; b.setAttribute("aria-label",`${lab} of ${f}`); b.addEventListener("click",()=>{ box.querySelectorAll("input").forEach(cb=>cb.checked=v); rl.dispatchEvent(new Event("change")); }); hd.append(b); }
         const g=document.createElement("div"); g.className="types";
         for(const [k,label] of items){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-rtype="${k}"> <span></span>`; l.querySelector("span").textContent=label; l.querySelector("input").checked=rt[k]!==false; g.appendChild(l); }
@@ -93,11 +116,12 @@
     // Instruments on MDFM and PTRN (1.23): kits, bass, keys, leads and pads, in groups with All / None (this device)
     const il=$("#instList"), ilist=radio.instrumentList?radio.instrumentList():[];
     if(il&&ilist.length){ let it={}; try{ it=JSON.parse(localStorage.getItem("mdfmInstruments")||"{}"); }catch(e){} if(!it||typeof it!=="object"||Array.isArray(it)) it={};
+      // CAT: the instrument groups (by category); TAG: the small "since" tag shown beside an instrument; ROLE: the role names used in the list
       const CAT={kit:"Drum kits",bass:"Bass",keys:"Keys and guitars",lead:"Leads",pad:"Pads",highend:"High-end pack"}, TAG={classic:"classic","1.22":"PTRN","1.23":"new","1.24":"CLUK"}, ROLE={keys:"keys",lead:"lead",bass:"bass"};   // 1.30: the high-end instruments have a box of their own
       for(const c of Object.keys(CAT)){ const items=c==="highend"?ilist.filter(x=>x[4]==="highend"):ilist.filter(x=>x[2]===c&&x[4]!=="highend"); if(!items.length) continue; const box=document.createElement("div"); box.className="ptrnfam"; const hd=document.createElement("div"); hd.className="ptrnfamhd"; const nm=document.createElement("span"); nm.textContent=CAT[c]; hd.append(nm);
         for(const [lab,v] of [["All",true],["None",false]]){ const b=document.createElement("button"); b.type="button"; b.className="btn"; b.textContent=lab; b.setAttribute("aria-label",`${lab} of ${CAT[c]}`); b.addEventListener("click",()=>{ box.querySelectorAll("input").forEach(cb=>cb.checked=v); il.dispatchEvent(new Event("change")); }); hd.append(b); }
         const g=document.createElement("div"); g.className="types";
-        for(const [k,label,cat,since,pk] of items){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-itype="${k}" data-since="${since}"> <span></span> <small></small><em class="inow" hidden>▶ NOW</em><em class="iheard" hidden></em>`; l.querySelector("span").textContent=label; l.querySelector("small").textContent=pk==="highend"?ROLE[cat]||"":TAG[since]||""; l.querySelector("input").checked=it[k]!==false; g.appendChild(l); }
+        for(const [k,label,cat,since,pk] of items){ const l=document.createElement("label"); l.className="opt"; l.innerHTML=`<input type="checkbox" data-itype="${k}" data-since="${since}"> <span></span> <small></small><em class="inow" hidden>▶ NOW</em><em class="iheard" hidden></em>`; l.querySelector("span").textContent=label; l.querySelector("small").textContent=pk==="highend"?ROLE[cat]||"":TAG[since]||""; l.querySelector("input").checked=it[k]!==false; g.appendChild(l); }   // rows: [key, label, category, since (the version it arrived in, or "classic"), pack]
         const note=c==="highend"?Object.assign(document.createElement("p"),{className:"packnote",textContent:"Marimba, kalimba, celesta, harp, koto, suitcase electric piano, felt and upright pianos, and a plucked upright bass. All and None switch the whole pack."}):null;
         if(note) box.append(hd,note,g); else box.append(hd,g); il.appendChild(box); }
       const is=()=>{ const t={}; il.querySelectorAll("input[data-itype]").forEach(cb=>t[cb.dataset.itype]=cb.checked); return t; };
@@ -106,8 +130,11 @@
       $("#instClassic").addEventListener("click",()=>{ il.querySelectorAll("input[data-itype]").forEach(cb=>cb.checked=cb.dataset.since==="classic"); saveI(); });
       $("#instAll").addEventListener("click",()=>{ il.querySelectorAll("input[data-itype]").forEach(cb=>cb.checked=true); saveI(); });
       // 1.28: what's playing. A "Playing now" card (each part with Switch off) and NOW / HEARD marks on the list.
+      // heard: the instruments of the last 12 songs (an array of key lists), for the HEARD ×n marks. Kept in mdfmInstHeard.
       const nowBox=$("#instNow"), HK="mdfmInstHeard"; let heard=[]; try{ heard=JSON.parse(localStorage.getItem(HK)||"[]"); }catch(e){} if(!Array.isArray(heard)) heard=[];
       const cbOf=k=>il.querySelector(`input[data-itype="${k}"]`);
+      // paintNow(np): marks NOW on the instruments in the song on air and HEARD on recent ones, and rebuilds the "Playing now" card.
+      // radio.instrumentsNow(np) gives [{ key, label, role, on }]; a part with no key is the genre's own sound and can't be switched off.
       const paintNow=np=>{ const L=radio.instrumentsNow?radio.instrumentsNow(np):[], keys=new Set(L.map(x=>x.key).filter(Boolean)), cnt={};
         for(const song of heard) for(const k of song) cnt[k]=(cnt[k]||0)+1;
         il.querySelectorAll("label.opt").forEach(l=>{ const k=l.querySelector("input").dataset.itype, n=l.querySelector(".inow"), h=l.querySelector(".iheard"); n.hidden=!keys.has(k); l.classList.toggle("isnow",keys.has(k));
@@ -123,6 +150,7 @@
           else { const o=document.createElement("em"); o.textContent="this genre's own"; row.append(o); }
           g.append(row); }
         nowBox.append(g); };
+      // a new song title adds its instruments to the heard list; talk breaks are ignored
       let lastT=null; radio.on("nowplaying",np=>{ if(!np||np.talk) return; const L=radio.instrumentsNow?radio.instrumentsNow(np):[]; if(!L.length) return;
         if(np.title!==lastT){ lastT=np.title; heard.push([...new Set(L.map(x=>x.key).filter(Boolean))]); while(heard.length>12) heard.shift(); try{ localStorage.setItem(HK,JSON.stringify(heard)); }catch(e){} }
         paintNow(np); });
@@ -136,41 +164,46 @@
       const ps=()=>{ const t={}; pl.querySelectorAll("input[data-ptype]").forEach(cb=>t[cb.dataset.ptype]=cb.checked); return t; };
       radio.setStationTypes("ptlk",ps()); pl.addEventListener("change",()=>{ const t=ps(); radio.setStationTypes("ptlk",t); try{ localStorage.setItem("ptlkTypes",JSON.stringify(t)); }catch(e){} });
       $("#ptlkSet").hidden=false; } }
-  else { const b=$("#stBtns"); if(b) b.hidden=true; }
+  else { const b=$("#stBtns"); if(b) b.hidden=true; }   // an engine without stations: no dial
+  // ===== Captions, play controls and Save =====
+  // Captions (every spoken line) show under the display for 14 s.
   radio.on("caption",c=>{ cap.textContent=`${c.who}: ${c.text}`; clearTimeout(capT); capT=setTimeout(()=>{ cap.textContent=""; },14000); });
-  const box=$("#sndOn"); box.checked=false;
+  const box=$("#sndOn"); box.checked=false;   // the SOUND switch: always starts off, because browsers need a click before audio can start
   box.addEventListener("change",()=>{ box.checked?radio.start():radio.stop(); if(!box.checked) np.textContent="Press the SOUND button to tune in."; });
   $("#skipBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); } else radio.skip(); });
-  $("#spotBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); setTimeout(()=>radio.spotNow(),1200); } else radio.spotNow(); });
+  $("#spotBtn").addEventListener("click",()=>{ if(!radio.isOn()){ box.checked=true; radio.start(); setTimeout(()=>radio.spotNow(),1200); } else radio.spotNow(); });   // the first ID waits 1.2 s for the audio to start
   // Save song: renders the song on air again from the top (off the live audio, so it keeps playing) and saves it as an MP3.
   const saveBtn=$("#saveBtn");   // the floppy: saves the show/break on top (recorded from its start) or else the song on air, as an MP3
   if(saveBtn) saveBtn.addEventListener("click",async()=>{
-    if(saveBtn.getAttribute("aria-busy")==="true") return;
+    if(saveBtn.getAttribute("aria-busy")==="true") return;   // aria-busy marks a save in progress, so a second press does nothing
     if(!radio.isOn()||(!radio.nowPlaying()&&!(radio.onAir&&radio.onAir()))){ cap.textContent="Tune in first, then press the floppy to save what's playing."; return; }
     saveBtn.setAttribute("aria-busy","true"); clearTimeout(capT); const say=t=>{ cap.textContent=t; };
     try{ const r=await MDFM.saveSong(radio,{app,onStatus:say}); cap.textContent=MDFM.savedText?MDFM.savedText(r):`Saved “${r.title}”.`; }
     catch(e){ cap.textContent=e&&e.code==="declined"?"Not saved.":`Couldn't save it: ${(e&&e.message)||e}`; }
     finally{ saveBtn.removeAttribute("aria-busy"); capT=setTimeout(()=>{ cap.textContent=""; },9000); } });
+  // ===== MIX, version and the receiver =====
   // MIX (was TUNE): the mixing drawer under the deck: EQ and sound, style, groove and key, effects. Kept on this device.
   // It runs before MDFM_receiver: the receiver wires #uwBtn, which MIX puts in FX > COLOUR.
   const mountMix=MDFM.mountMix||MDFM.mountTune;
   if(mountMix&&radio.setSound&&$("#tunePop")) mountMix(radio,{panel:$("#tunePop"),toggle:$("#tuneOn")});
   else if($("#tuneOn")) $("#tuneOn").closest("label").hidden=true;
   $("#stEngine").textContent=`v${MDFM.VERSION}`;
-  window.MDFM_receiver(radio,{app});
+  window.MDFM_receiver(radio,{app});   // the MedDev Receiver wires the rest: power, volume, EQ display, meters, skins, MDFM 99.9's type list, the badges
   // AXMOD (accessibility, MedDev Receiver 1.7+): captions for voices and songs, text versions of the EQ and meters,
   // and Calm mode mutes the voice drops between songs. Skipped quietly on an older receiver.
+  // A is window.AXMOD (the receiver's accessibility module) or undefined on an older receiver.
   (A=>{ if(!A) return; A.hasSound=true;
     radio.on("caption",c=>A.caption(c.text,{who:c.who}));
     radio.on("nowplaying",s=>A.sound(s.station==="cluk"?(s.talk?`CLUK 92.3: ${s.style}, “${s.title}”, with ${s.artist}`:`CLUK 92.3: “${s.title}” by ${s.artist}, ${String(s.style).toLowerCase()}, ${s.bpm} BPM`):s.station==="ptrn"?`PTRN 101.1: “${s.title}” by ${s.artist}, ${String(s.style).toLowerCase()}, ${s.bpm} BPM`:s.station==="ptlk"?`PTLK 108.0: ${s.style}, “${s.title}”, with ${s.artist}`:s.station==="hearye"?(s.talk?`HEARYE 95.5: ${s.style}, “${s.title}”, with ${s.artist}`:`HEARYE 95.5: “${s.title}” by ${s.artist}, ${s.style.toLowerCase()}`):s.station==="wybc"?`WYBC 88.1: “${s.title}” by ${s.artist}, ambient piano`:`Music: “${s.title}”, ${s.style.toLowerCase()}, ${s.bpm} BPM`));
-    const band=(a,i,j)=>{ let m=0; for(let k=i;k<j;k++) m=Math.max(m,a[k]||0); return Math.round(m*100)+"%"; };
+    const band=(a,i,j)=>{ let m=0; for(let k=i;k<j;k++) m=Math.max(m,a[k]||0); return Math.round(m*100)+"%"; };   // band(a, i, j): the loudest of spectrum bars i..j-1, as a percentage
     A.describe($("header.top .lcd.viz"),()=>{ if(!radio.isOn()) return "off"; const s=radio.getSpectrum&&radio.getSpectrum(); return s?`bass ${band(s,0,6)}, mids ${band(s,6,13)}, treble ${band(s,13,19)}`:"on"; },{label:"EQ"});
     A.describe($(".vu"),()=>{ const l=radio.isOn()&&radio.getLevels?radio.getLevels():null; return l?`left ${Math.round(l[0]+14)} VU, right ${Math.round(l[1]+14)} VU`:"radio off"; },{label:"VU meters"});
-    const stingers=()=>{ const cb=document.querySelector('#typeList input[data-type="stingers"]'); return cb?cb.checked:true; };
+    const stingers=()=>{ const cb=document.querySelector('#typeList input[data-type="stingers"]'); return cb?cb.checked:true; };   // the "Voice drops between songs" switch; Calm mode overrides it without changing it
     A.on(v=>{ if(radio.setTypes) radio.setTypes({stingers:!v.calm&&stingers()}); });
     if(A.get().calm&&radio.setTypes) radio.setTypes({stingers:false});
     const tl=$("#typeList"); if(tl) tl.addEventListener("change",()=>{ if(A.get().calm&&radio.setTypes) radio.setTypes({stingers:false}); });
   })(window.AXMOD);
+  // ===== Settings panel =====
   // MDFM 99.9's list: "Songs in 3/4…" is music, the rest is talk and breaks; each gets a heading (same container, so the receiver's handler still reads it)
   { const tl=$("#typeList"), m=tl&&tl.querySelector('input[data-type="meters"]');
     if(m){ const h=t=>{ const d=document.createElement("div"); d.className="tsub"; d.textContent=t; return d; };
@@ -178,6 +211,8 @@
   $("#settings").hidden=false;
   document.querySelectorAll(".apponly").forEach(el=>el.hidden=!app);
   // Settings sections: the station on air opens by itself (ON AIR); the others remember being opened (mdfmSetOpen).
+  // mine: which sections the person opened or closed by hand. auto: the section opened automatically for the station on air
+  // (closed again when the station changes, unless the person opened it themselves). data-auto marks a toggle made by code.
   { const secs=[...document.querySelectorAll("#settings details.setsec")]; let mine={}; try{ mine=JSON.parse(localStorage.getItem("mdfmSetOpen")||"{}")||{}; }catch(e){} if(typeof mine!=="object"||Array.isArray(mine)) mine={};
     let auto=null;
     for(const d of secs){ const k=d.dataset.sec; if(k in mine) d.open=!!mine[k];
@@ -189,21 +224,24 @@
     // "9 of 11 on" beside each list
     const count=d=>{ const c=d.querySelector(".setcount"); if(!c) return; const all=[...d.querySelectorAll('input[type=checkbox]')].filter(x=>!x.disabled); c.textContent=all.length?`${all.filter(x=>x.checked).length} of ${all.length} on`:""; };
     for(const d of secs){ count(d); d.addEventListener("change",()=>count(d)); d.addEventListener("click",e=>{ if(e.target.closest("button")) setTimeout(()=>count(d),0); }); } }
-  if(!app) return;
+  if(!app) return;   // everything below is for the apps only
   // What this app can do. The MDFM Radio app has everything; another kit app may have only some of it (live data and
   // Slack come from the kit's mdfm-live module), and anything it can't do is hidden rather than left to fail silently.
+  // has(f): f is a function. LS: the kit's mdfm-live settings (when present), else the app's own settings (S). liveOK / slackOK: what this app supports.
   const has=f=>typeof f==="function", LS=app.liveSettings||null, S=LS||app.settings||null, liveOK=has(app.live), slackOK=!!(app.slack&&has(app.slack.connect));
-  const hideBox=sel=>{ const el=$(sel); if(el) (el.closest("label,fieldset")||el).hidden=true; };
+  const hideBox=sel=>{ const el=$(sel); if(el) (el.closest("label,fieldset")||el).hidden=true; };   // hideBox(sel): hides a setting's whole row
   if(!has(app.checkNow)){ hideBox("#setUpdates"); hideBox("#setBundled"); hideBox("#fpSet"); $("#checkNow").hidden=true; $("#appUpd").hidden=true; }
   if(!liveOK||!S){ hideBox("#setCity"); hideBox("#setUnits"); }
   if(!slackOK) hideBox("#slackSet");
   const logFn=has(app.showBouncerLog)?app.showBouncerLog:has(app.liveBouncerLog)?app.liveBouncerLog:null; if(!logFn) $("#bouncerLog").hidden=true;
-  for(const d of document.querySelectorAll("#settings details.setsec.apponly")) if(![...d.children].some(c=>c.tagName!=="SUMMARY"&&!c.hidden)) d.hidden=true;
-  if(app.autoplay) setTimeout(()=>{ box.checked=true; radio.start(); },600);
+  for(const d of document.querySelectorAll("#settings details.setsec.apponly")) if(![...d.children].some(c=>c.tagName!=="SUMMARY"&&!c.hidden)) d.hidden=true;   // hide any app-only section left with nothing in it
+  if(app.autoplay) setTimeout(()=>{ box.checked=true; radio.start(); },600);   // apps can start playing by themselves (they allow autoplay)
   // The Mac's own location (macOS asks once). If it's off or unavailable, the app uses a rough network location and says so.
   const geoWhy=e=>e&&e.code===1?"not allowed (System Settings → Privacy & Security → Location Services → this app)":e&&e.code===3?"timed out":"unavailable";
   if(liveOK&&has(app.coords)){ if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>app.coords(p.coords.latitude,p.coords.longitude),e=>{ if(has(app.geoError)) app.geoError(geoWhy(e)); }, {timeout:15000,maximumAge:3600e3,enableHighAccuracy:false});
     else if(has(app.geoError)) app.geoError("unavailable"); }
+  // fill(s): puts saved settings into the fields. save(): writes them back: live data settings to LS when the kit has it,
+  // update settings to the app's own store.
   const fill=s=>{ s=s||{}; $("#setSlackChannels").value=s.slackChannels||""; $("#setNameFixes").value=s.nameFixes||""; $("#setCity").value=s.city||""; $("#setUnits").value=s.units||"f"; };
   if(S&&has(S.get)) Promise.resolve(S.get()).then(fill).catch(()=>{});
   if(app.settings&&has(app.settings.get)&&has(app.checkNow)) Promise.resolve(app.settings.get()).then(s=>{ s=s||{}; $("#setUpdates").checked=!!s.contentUpdates; $("#setBundled").checked=!!s.useBundled; }).catch(()=>{});
@@ -219,6 +257,8 @@
     if($("#slackSetup")&&has(app.slack.setup)) $("#slackSetup").addEventListener("click",()=>app.slack.setup()); }
   if(has(app.checkNow)) $("#checkNow").addEventListener("click",()=>app.checkNow());
   if(logFn) $("#bouncerLog").addEventListener("click",()=>logFn());
+  // paint(st): the app's status object -> the version line (bundled or updated engine), live data and Bouncer/Futureproofer
+  // status, the Futureproofer's results list, the Slack buttons, and content/app update lines. Called on every status push.
   const paint=st=>{ if(!st) return;
     const e=st.engine; if(e) $("#stEngine").textContent=`v${MDFM.VERSION} (${e.source==="updated"?"updated from the repo":"came with the app"})`;
     const bz=st.bouncer; if(st.live) $("#stLive").textContent=`Location: ${st.live.location} · Weather: ${st.live.weather} · Sports: ${st.live.sports}`+(bz?` · Bouncer: ${bz.label}${bz.blocked?` (${bz.blocked} blocked)`:""}${bz.problem?` · ${bz.problem}`:""}`:"");
@@ -233,6 +273,7 @@
     if("result" in st) $("#stUpd").textContent=`New content: ${st.result}${st.lastCheck?` · checked ${new Date(st.lastCheck).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}`:""}`+(st.appUpdate?` · App ${st.appUpdate.version} is available`:"");
     if(has(app.checkNow)){ const b=$("#appUpd"); b.hidden=!st.appUpdate; b.onclick=()=>st.appUpdate&&app.open(st.appUpdate.download||st.appUpdate.url); }
   };
+  // Status arrives two ways: the MDFM Radio app's onStatus/getStatus, and the kit's mdfm-live onLiveStatus/liveStatus.
   if(has(app.onStatus)) app.onStatus(paint); if(has(app.getStatus)) Promise.resolve(app.getStatus()).then(paint).catch(()=>{});
   if(has(app.onLiveStatus)) app.onLiveStatus(paint); if(has(app.liveStatus)) Promise.resolve(app.liveStatus()).then(paint).catch(()=>{});
   if(liveOK&&!has(app.getStatus)) $("#stLive").textContent="Live weather and sports: finding where you are…";

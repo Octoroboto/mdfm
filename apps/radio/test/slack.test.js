@@ -1,6 +1,9 @@
-const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path");
+const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path");   // Tests common/slack-parse.js (speech, summaries, filters, budget) and slack.js token storage.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const P = require("../src/common/slack-parse");
 const { createSlack } = require("../src/common/slack");
+// Fake people (as personFromProfile() would return) and a message builder.
 const users = { U1: { first: "Siobhan", initial: "K", pron: null }, U2: { first: "Jorge", initial: "M", pron: "HOR-hay" }, UB: { first: "Bot", initial: "", bot: true } };
 const msg = (o) => ({ type: "message", ts: "1760000000.0001", text: "", ...o });
 

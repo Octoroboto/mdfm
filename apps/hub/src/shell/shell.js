@@ -1,15 +1,18 @@
 /* MD Hub frame wiring: window controls, drag by the metal, Bouncer + Futureproofer badges, settings. */
+// Process: renderer (the steel frame page, shell.html over mdhub://). Talks to main only through window.mdhub
+// (shell-preload.js). Also uses window.MDFM_TYPES (types.js) and window.AXMOD (receiver.js), both loaded before it.
 (()=>{
   const $=id=>document.getElementById(id), h=window.mdhub; if(!h) return;
   $("wClose").onclick=()=>h.win.close(); $("wMin").onclick=()=>h.win.minimize(); $("wFull").onclick=()=>h.win.toggleFullScreen();
   $("strip").addEventListener("dblclick",e=>{ if(!e.target.closest("button")) h.win.zoom(); });
   h.win.onFullScreen(v=>document.documentElement.classList.toggle("fullscreen",v));
-  let dragging=false; const end=()=>{ if(dragging){ dragging=false; h.win.dragEnd(); document.documentElement.classList.remove("dragging"); } };
+  let dragging=false; const end=()=>{ if(dragging){ dragging=false; h.win.dragEnd(); document.documentElement.classList.remove("dragging"); } };   // mouse drag on the strip: main moves the window (win:dragStart / win:dragEnd)
   $("strip").addEventListener("mousedown",e=>{ if(e.button!==0||e.detail>1||e.target.closest("button")||document.documentElement.classList.contains("fullscreen")) return;
     dragging=true; document.documentElement.classList.add("dragging"); h.win.dragStart(); e.preventDefault(); });
   addEventListener("mouseup",end); addEventListener("blur",end);
   // settings
   const panel=$("settings"), setBtn=$("setBtn");
+  // Opens or closes the Settings panel; main hides the hub view while it is open (shell:settings).
   const show=open=>{ panel.hidden=!open; setBtn.setAttribute("aria-pressed",String(open)); h.showSettings(open); if(open) details(); };
   setBtn.onclick=()=>show(panel.hidden);
   // the two badges on the strip open settings at their own section
@@ -27,6 +30,7 @@
   tbox.addEventListener("change",()=>{ const t={}; tbox.querySelectorAll("input").forEach(cb=>t[cb.dataset.type]=cb.checked); h.settings.set({types:t}); });
   // skin: the frame's own look follows the same choice as the hub page
   const skinSel=$("setSkin");
+  // Fills the skin picker from main's list and points the theme stylesheet at the chosen skin (cache-busted).
   async function skins(){ const l=await h.skins(); if(!l) return; const house=l.skins.find(k=>k.id===l.houseDefault);
     skinSel.textContent=""; const o=document.createElement("option"); o.value=""; o.textContent=`House default (${house?house.name:"Default"})`; skinSel.append(o);
     for(const k of l.skins){ const op=document.createElement("option"); op.value=k.id; op.textContent=k.name; op.title=k.description||""; skinSel.append(op); }
@@ -49,10 +53,13 @@
   $("slackDisconnect").onclick=()=>h.slack.disconnect();
   $("checkNow").onclick=()=>h.checkNow().then(paint);
   $("logApp").onclick=()=>h.showBouncerLog("app"); $("logHub").onclick=()=>h.showBouncerLog("hub"); $("reloadHub").onclick=()=>{ h.reloadHub(); show(false); };
+  // LV: a status level, only if it's one the CSS knows. badge(): sets a strip badge's light, LCD text and tooltip.
   const LV=l=>l==="green"||l==="amber"||l==="red"?l:"";
   const badge=(id,level,text,title)=>{ const el=$(id); el.className="kbadge "+LV(level); $(id+"Txt").textContent=String(text||"").toUpperCase(); el.title=title; el.setAttribute("aria-label",title); };
+  // mk(): small element builder. when(): an ISO time as local text.
   const mk=(tag,cls,text)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; };
   const when=iso=>iso?new Date(iso).toLocaleString():"never";
+  // One Bouncer's card in Settings: mode, rules version and lock state, engine, counts, log state, its rules and recent decisions.
   function card(name,d){ const st=d.status, c=mk("div","bcard"), h=mk("h4"); h.append(mk("i","led "+LV(st.level)),document.createTextNode(`${name}: ${st.label}`)); c.append(h);
     c.append(mk("p","hint",st.mode==="enforce"?"Enforcing: anything not on the list is stopped before it leaves this Mac.":"Observing: nothing is blocked. Anything the rules would block is logged as \"would block\"."));
     const dl=mk("dl"), kv=(k,v)=>dl.append(mk("dt",null,k),mk("dd",null,v));
@@ -67,7 +74,10 @@
     for(const e of d.recent){ const li=mk("li"), w=mk("div"); w.append(mk("code",null,`${e.method||""} ${e.host||""}${e.path||e.url||""}`),mk("div","hint",`${when(e.t)} · ${e.caller} · ${e.why||(e.rules||[]).join(", ")}`)); li.append(mk("span","tag "+String(e.d||""),String(e.d||"").replace("-"," ")),w); ul2.append(li); }
     if(!d.recent.length) ul2.append(mk("li","hint","Nothing yet. Reads aren't listed; changes and blocks are."));
     ev.append(ul2); c.append(ev); return c; }
+  // Fetches both Bouncers' details from main and redraws the cards.
   async function details(){ try{ const d=await h.bouncerDetails(); const box=$("bouncerDetail"); box.textContent=""; box.append(card("App's own requests",d.app),card("Hub page",d.hub)); }catch{} }
+  // Draws a status push from main: live data, Bouncer badge (red unhealthy, amber something blocked or to review), the
+  // Futureproofer badge and list (with action buttons), and the Slack section.
   function paint(st){ if(!st) return;
     $("liveStatus").textContent=`Location: ${st.live.location}\nWeather: ${st.live.weather}\nSports: ${st.live.sports}`;
     const b=st.bouncer, v=st.hubBouncer;

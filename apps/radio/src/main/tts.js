@@ -2,10 +2,14 @@
 // VU meters and visualizer like everything else. Local only: no network. Falls back (in the page) to system speech if this fails.
 // At most 2 `say` runs at a time with up to 24 waiting (more answers "busy", so the page uses system speech); the same line
 // asked for twice at once is rendered once; the cache of recent lines is capped by size as well as count.
+// Process: Electron main (main.js's "tts:render" handler). Returns WAV bytes (16-bit, 22050 Hz mono) to the page.
 const { execFile } = require("child_process"), fs = require("fs"), os = require("os"), path = require("path"), crypto = require("crypto");
 const SAY = "/usr/bin/say";
+// Limits: total cache bytes, one cached line's bytes, cached lines, concurrent `say` runs, queued requests.
 const MAX_BYTES = 40 * 1024 * 1024, MAX_ENTRY = 4 * 1024 * 1024, MAX_COUNT = 80, MAX_RUNNING = 2, MAX_QUEUE = 24;
 
+// Command-line arguments for `say`: input file, WAV output, optional voice, rate in words per minute (175 x spec.rate,
+// clamped to 90..360).
 function args(spec, inFile, outFile, voice) {
   const a = ["-f", inFile, "-o", outFile, "--file-format=WAVE", "--data-format=LEI16@22050"];
   if (voice) a.push("-v", voice);
@@ -16,15 +20,18 @@ function args(spec, inFile, outFile, voice) {
 function createTts({ exec = execFile, available = () => process.platform === "darwin" && fs.existsSync(SAY) } = {}) {
   const cache = new Map();   // recent lines (station IDs repeat), newest last
   let cacheBytes = 0, running = 0; const waiters = [], inflight = new Map();
+  // Runs `say` once (20 s limit). Rejects with stderr text; timedOut is true when it was killed for taking too long.
   const run = a => new Promise((res, rej) => exec(SAY, a, { timeout: 20000 }, (e, out, err) => e ? rej(Object.assign(new Error(String(err || e.message).slice(0, 200)), { timedOut: !!e.killed })) : res()));
   const acquire = () => running < MAX_RUNNING ? (running++, Promise.resolve())
     : waiters.length >= MAX_QUEUE ? Promise.reject(new Error("busy")) : new Promise(r => waiters.push(r));   // a waiter is handed the slot by release()
   const release = () => { const w = waiters.shift(); if (w) w(); else running--; };
+  // Caches a rendered line (skipped if one line is over MAX_ENTRY), dropping the oldest until under both limits.
   function keep(key, buf) {
     if (buf.length > MAX_ENTRY) return;
     cache.set(key, buf); cacheBytes += buf.length;
     while (cacheBytes > MAX_BYTES || cache.size > MAX_COUNT) { const k = cache.keys().next().value; cacheBytes -= cache.get(k).length; cache.delete(k); }
   }
+  // Renders text to a WAV Buffer. Tries the asked-for voice, then its name without "(...)", then the default voice.
   async function renderNow(spec, text, key) {
     // Pitch: speech-synthesis pitch (0..2, 1 = normal) becomes a relative pitch shift for the voices that support it.
     const st = Math.max(-24, Math.min(24, Math.round(12 * Math.log2(Math.max(.1, +spec.pitch || 1)))));
@@ -40,12 +47,13 @@ function createTts({ exec = execFile, available = () => process.platform === "da
       return buf;
     } finally { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} }
   }
+  // spec: { text, voice, rate (1 = normal), pitch (1 = normal) }. Resolves a WAV Buffer; rejects "no local voice" or "busy".
   async function render(spec) {
     // [[...]] are `say`'s own commands (silence, rate, voice): text from Slack or headlines never gets to use them.
     const text = String(spec && spec.text || "").replace(/\[\[|\]\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 1500);
     if (!text || !available()) throw new Error("no local voice");
     const key = crypto.createHash("sha1").update(JSON.stringify([text, spec.voice, spec.rate, spec.pitch])).digest("hex");
-    if (cache.has(key)) { const b = cache.get(key); cache.delete(key); cache.set(key, b); return b; }
+    if (cache.has(key)) { const b = cache.get(key); cache.delete(key); cache.set(key, b); return b; }   // cache hit: move it to the end (most recently used)
     if (inflight.has(key)) return inflight.get(key);
     const p = (async () => { await acquire(); try { return await renderNow(spec, text, key); } finally { release(); } })();
     inflight.set(key, p); p.then(() => inflight.delete(key), () => inflight.delete(key));

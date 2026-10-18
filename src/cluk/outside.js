@@ -1,9 +1,35 @@
+// ===== CLUK 92.3 show: Outside =====
+// A serialized documentary: Gary Tesk, a grinding-mill worker, sets out to prove there is a world beyond the Chicken.
+// How it airs: scripts/build.mjs concatenates every src/cluk/*.js file in front of src/cluk.js, so SHOW_OUTSIDE is a plain
+// global const (no imports or exports). createCluk() in src/cluk.js lists it in SHOWS. show("outside") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js clukSegment() picks a show for a talk break when its "outside" switch is on,
+// and clukShowLines() wraps the episode: Clark's open and the episode title around the style's theme, the bed under the
+// first and last spoken lines, the lines in order, then the outro and Clark's close.
+//
+// Shape of SHOW_OUTSIDE:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a CLUK_GENRES key (engine.js); that genre's song gives the show its theme, stingers and bed ("breaks")
+//   tags      loglines; one is dealt per airing and read after the open ("It's time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two non-ph_ ids are credited as hosts.
+//             An id starting ph_ is heard through the telephone filter (a caller, or someone on the phone).
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned ("CLUK" is said "cluck", captions keep the letters)
+//   ["sfx", name]        a sound effect from OT in engine.js (door, gavel, clock...); an unknown name is skipped
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
 // Outside: a serialized documentary-style audio series for CLUK 92.3
 const SHOW_OUTSIDE = {
   id: "outside",
   name: "Outside",
   label: "Outside",
   style: "breaks",
+  // ===== Loglines: one is read after the announcer's open =====
   // loglines used when the announcer introduces the show
   tags: [
     "A grinding-mill worker from the Gizzard sets out with a hand recorder to prove there is a world beyond the Chicken.",
@@ -14,11 +40,13 @@ const SHOW_OUTSIDE = {
     "A careful, earnest, slightly too detailed investigation into whatever the Chicken is inside of.",
     "It started with a hole in the back of locker forty-one. It did not end there.",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     gary: { name: "Gary Tesk", accent: "american", pitch: 1.0, rate: 0.95 },
     dale: { name: "Dale Pruitt", accent: "scottish", pitch: 0.88, rate: 1.0 },
     carol: { name: "Carol Tesk", accent: "irish", pitch: 1.1, rate: 1.03 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     // 1
     { title: "Locker Forty-One",

@@ -1,20 +1,25 @@
 // Starts Bouncer for MDFM Radio: loads the reviewed rules (src/main/bouncer/policy.cedar), checks them
 // against the lock, puts the gate on every browser session, and hands it to common/net.js, the one
 // file that sends the app's own requests.
+// Process: Electron main, required by main.js before app "ready". Two Bouncers (app kit, kit/bouncer): the app's own, and
+// one for the sign-in windows. A rules file that doesn't match its lock makes Bouncer block everything.
 const { app, session } = require("electron");
 const fs = require("fs"), path = require("path");
 const { createBouncer } = require("../../kit/bouncer");
 const net = require("../common/net");
 const DIR = path.join(__dirname, "bouncer");
-let bouncer = null, signinBouncer = null;
+let bouncer = null, signinBouncer = null;   // both set by startBouncer(); read through get() and signin()
 
+// The installed @cedar-policy/cedar-wasm version (Futureproofer compares it with npm's latest), or null.
 function enginePackageVersion() {
   try { return JSON.parse(fs.readFileSync(path.join(path.dirname(require.resolve("@cedar-policy/cedar-wasm/nodejs")), "..", "package.json"), "utf8")).version; }
   catch { return null; }
 }
+// Reads a JSON file, or returns d when it's missing or broken (Bouncer then reports the problem rather than crashing).
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return d; } };
 
 // Call before app "ready" so every session (including later ones) gets the gate.
+// notify(problem): called when Bouncer blocks a request (main.js shows it on the Station screen). Returns the app's Bouncer.
 function startBouncer({ notify }) {
   bouncer = createBouncer({
     appName: "MDFM Radio",
@@ -39,9 +44,10 @@ function startBouncer({ notify }) {
     notify: () => {}, enginePackageVersion: enginePackageVersion(),
     modeOverride: !app.isPackaged && process.env.MDFM_BOUNCER_OBSERVE === "1" ? "observe" : null,
   });
-  app.on("session-created", s => bouncer.attachSession(s));
+  app.on("session-created", s => bouncer.attachSession(s));   // every session made later (e.g. by a library) is gated too; sign-in windows re-attach theirs to signinBouncer
   app.whenReady().then(() => {
     bouncer.attachSession(session.defaultSession);
+    // Daily check for a newer Cedar engine (Futureproofer shows it).
     const check = () => bouncer.checkForUpdates(url => net.getJSON(url));
     setTimeout(check, 8000); setInterval(check, 24 * 3600e3);
   });

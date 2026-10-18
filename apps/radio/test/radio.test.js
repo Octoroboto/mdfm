@@ -1,8 +1,11 @@
-const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), path = require("path");
+const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), path = require("path");   // Tests metros, live-parse, the updater's validation, net's host allowlist and receiver look swapping.
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const { nearestMetro } = require("../src/common/metros");
 const { parseWeather, parseScoreboard, rankGames, cmpVersion } = require("../src/common/live-parse");
 const { validateEngine } = require("../src/main/updater");
 const { getJSON } = require("../src/common/net");
+// A saved ESPN NFL scoreboard (fixtures/espn-nfl.json) for the parser.
 const espn = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/espn-nfl.json"), "utf8"));
 
 test("nearest metro: suburbs map to the big city, the middle of nowhere maps to nothing", () => {

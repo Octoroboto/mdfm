@@ -1,7 +1,10 @@
 // Voices: at most 2 `say` runs at once with a short queue, identical lines rendered once, say's own [[commands]] removed,
 // and the cache capped by size. `say` is faked (these run anywhere).
+// Tests src/main/tts.js createTts() (the hub's copy, identical to the radio's).
+// Run: cd apps/hub && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
 const test = require("node:test"), assert = require("node:assert"), fs = require("fs");
 const { createTts, MAX_RUNNING, MAX_QUEUE } = require("../src/main/tts");
+// A fake `say`: records concurrency (now/peak), runs and the text files it was given, and writes bytes-sized WAVs after ms.
 function fakeSay({ ms = 30, bytes = 1000 } = {}) {
   const st = { now: 0, peak: 0, runs: 0, texts: [] };
   const exec = (cmd, a, o, cb) => { st.now++; st.runs++; st.peak = Math.max(st.peak, st.now); st.texts.push(fs.readFileSync(a[a.indexOf("-f") + 1], "utf8"));

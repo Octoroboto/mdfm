@@ -1,7 +1,10 @@
+// Process: preload of the radio window (sandboxed, contextIsolation). Exposes window.mdfmApp; each call maps to one IPC
+// channel that main.js handles (and main.js again checks the message came from the radio window).
 // The only things the page can ask the app for. Nothing else crosses into the page.
 const { contextBridge, ipcRenderer } = require("electron");
-const listeners = [];
+const listeners = [];   // callbacks registered with onStatus()
 const n = v => (v == null || v === "" ? null : +v);   // a missing coordinate stays missing (not 0)
+// Status pushes from main fan out to every page listener; one listener throwing doesn't stop the others.
 ipcRenderer.on("status", (e, s) => listeners.forEach(f => { try { f(s); } catch {} }));
 contextBridge.exposeInMainWorld("mdfmApp", {
   live: kind => ipcRenderer.invoke("live:get", String(kind)),
@@ -21,5 +24,5 @@ contextBridge.exposeInMainWorld("mdfmApp", {
   },
   showBouncerLog: () => ipcRenderer.invoke("bouncer:showLog"),
   slack: { connect: () => ipcRenderer.invoke("slack:connect"), disconnect: () => ipcRenderer.invoke("slack:disconnect"), setup: () => ipcRenderer.invoke("slack:setup") },
-  autoplay: false,
+  autoplay: false,   // autoplay off: the page waits for a click before starting audio (matches the window's autoplayPolicy)
 });

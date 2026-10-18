@@ -1,6 +1,9 @@
+// Process: preload of the steel frame page (shell.html, mdhub://), sandboxed with contextIsolation. Exposes window.mdhub;
+// main.js answers these channels only when the sender is the frame (fromShell), never the hub view.
 // The steel frame's controls. Nothing else crosses into the frame page.
 const { contextBridge, ipcRenderer } = require("electron");
 const listeners = [];
+// Status pushes from main fan out to every frame listener; one listener throwing doesn't stop the others.
 ipcRenderer.on("status", (e, s) => listeners.forEach(f => { try { f(s); } catch {} }));
 contextBridge.exposeInMainWorld("mdhub", {
   win: { close: () => ipcRenderer.send("win:close"), minimize: () => ipcRenderer.send("win:min"), toggleFullScreen: () => ipcRenderer.send("win:full"),

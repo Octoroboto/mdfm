@@ -1,11 +1,15 @@
 // Every outbound request goes through here. Only these hosts, only GET, short timeouts. Nothing else leaves the app.
 // slack.com is only called when the person has connected Slack (read-only: channel history, channel list, user names).
+// Process: Electron main only (radio and hub). Renderers never fetch directly; they ask main over IPC and main calls here.
+// ALLOWED: the full host allowlist. Bouncer's Cedar policy (src/main/bouncer/policy.cedar) narrows it further per caller.
 const ALLOWED = new Set(["registry.npmjs.org", "api.osv.dev", "api.open-meteo.com", "geocoding-api.open-meteo.com", "api.bigdatacloud.net", "ipwho.is", "get.geojs.io", "site.api.espn.com",
   "raw.githubusercontent.com", "api.github.com", "slack.com",
   "api.gdeltproject.org", "en.wikipedia.org", "feeds.npr.org", "feeds.bbci.co.uk", "www.gamespot.com"]);   // PTLK 108.0: headlines and encyclopedia pages (common/headlines.js)
 // Bouncer (the app's Cedar rules) checks every request here first. Without it, nothing leaves (tests excepted).
 let bouncer = null;
+// Installs the app's Bouncer (called by main.js at startup, once the policy is loaded and its lock checked).
 function useBouncer(b) { bouncer = b; }
+// Asks Bouncer whether a GET to url may leave (throws a BOUNCED error if not). Without a Bouncer only tests may proceed.
 function gate(url) {
   if (bouncer) { bouncer.assert({ url: String(url), method: "GET" }, "app"); return; }
   if (process.env.MDFM_TEST === "1") return;
@@ -19,6 +23,8 @@ async function readCapped(r, maxBytes, host) {
   if (r.body) for await (const c of r.body) { got += c.length; if (got > maxBytes) throw big(); parts.push(c); }
   return new TextDecoder().decode(Buffer.concat(parts));
 }
+// Returns parsed JSON (or text when text: true). Refuses non-https, non-allowlisted hosts and any redirect (redirect: "error",
+// so a server can't bounce the request to a host the allowlist never saw). token adds a Bearer header (Slack only).
 // maxBytes: 2 MB by default; the content and look updates (radio.html, skins.json) pass 20 MB.
 async function getJSON(url, { timeout = 8000, text = false, token = null, ua = "MDFM-Radio", maxBytes = 2 * 1024 * 1024 } = {}) {
   const u = new URL(url);

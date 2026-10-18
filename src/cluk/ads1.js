@@ -1,4 +1,16 @@
+// ===== CLUK 92.3 scripted ads, batch one (CLUK_ADS_1) =====
+// Concatenated by scripts/build.mjs in front of src/cluk.js, so CLUK_ADS_1 is a plain global const. createCluk() joins it
+// with CLUK_ADS_2 (src/cluk/ads2.js) into ADS. ad() returns an assembled ad from CLUK_AD_PARTS 30% of the time and
+// otherwise deals one of these from a shuffled deck (each once before any repeats). engine.js clukAdLines() plays an
+// ad block after Clark's ad intro: per ad, a random style's stinger, a bed under the lines, then the next ad.
+// One ad: { title, cast, lines }.
+//   title  shown in now-playing and the recording log
+//   cast   speaker id -> voice { name, accent, pitch, rate } (pitch and rate are multipliers, clamped .88..1.12 and .9..1.1)
+//   lines  [speakerId, "text"] spoken lines, plus ["sfx", name] effects and ["pause", ms] silences. No ["seg"] in ads.
+// Advertisers recur across ads and shows (Ned's shop, Big Dougie's), so keep names consistent with the show files.
+//
 // CLUK 92.3 radio ads, batch one. Played between songs.
+// ===== Ads, grouped by advertiser =====
 const CLUK_ADS_1 = [
 
   // ---------- Ned's Lazer Emporium and Repair (4) ----------

@@ -1,7 +1,8 @@
-import test from "node:test"; import assert from "node:assert";
+import test from "node:test"; import assert from "node:assert";   // Tests worker.js handle() in plain Node (Request/Response/crypto.subtle are built in). Run: cd apps/slack-relay && npm test
 import { handle } from "../worker.js";
+// Fake Worker secrets.
 const env = { SLACK_CLIENT_ID: "123.456", SLACK_CLIENT_SECRET: "shh", STATE_KEY: "k".repeat(32), TEAM_ID: "T0RV" };
-const nonce = "abcdefghijklmnop1234";
+const nonce = "abcdefghijklmnop1234";   // a valid nonce (16..64 URL-safe characters)
 test("start redirects to Slack with user scopes and a signed state", async () => {
   const r = await handle(new Request(`https://relay.test/start?port=51234&nonce=${nonce}`), env);
   assert.equal(r.status, 302); const u = new URL(r.headers.get("location"));

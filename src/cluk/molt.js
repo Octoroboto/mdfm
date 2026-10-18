@@ -1,8 +1,35 @@
-const SHOW_MOLT = {
+const SHOW_MOLT = {   // ===== CLUK 92.3 show: Molt =====
+// A prestige family drama about Brandt Grain and Grit: Walt Brandt steps down after the molt, and his three
+// heirs, his wife Lorna and chief of staff Hugo fight over who takes over, while Victor Quill circles the company.
+// Episodes are serialized and numbered in comments.
+// How it airs: scripts/build.mjs concatenates every src/cluk/*.js file in front of src/cluk.js, so SHOW_MOLT is a plain
+// global const (no imports or exports). createCluk() in src/cluk.js lists it in SHOWS. show("molt") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js clukSegment() picks a show for a talk break when its "molt" switch is on,
+// and clukShowLines() wraps the episode: Clark's open and the episode title around the style's theme, the bed under the
+// first and last spoken lines, the lines in order, then the outro and Clark's close.
+//
+// Shape of SHOW_MOLT:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a CLUK_GENRES key (engine.js); that genre's song gives the show its theme, stingers and bed ("hardhouse")
+//   tags      loglines; one is dealt per airing and read after the open ("It's time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two non-ph_ ids are credited as hosts.
+//             An id starting ph_ is heard through the telephone filter (a caller, or someone on the phone).
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned ("CLUK" is said "cluck", captions keep the letters)
+//   ["sfx", name]        a sound effect from OT in engine.js (door, gavel, clock...); an unknown name is skipped
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
   id: "molt",
   name: "Molt",
   label: "Molt",
   style: "hardhouse",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "Walt Brandt built the largest feed concern in the Chicken, and he is stepping down after the molt, which everyone is treating like a grit storm with paperwork.",
     "Three heirs, one company, and a family that would rather survive a hostile takeover than say I love you at dinner.",
@@ -13,6 +40,7 @@ const SHOW_MOLT = {
     "A Wishbone conglomerate wants the company, the molt is coming, and the old mill is still turning in the Gizzard.",
     "Succession, siblings, and grain. The Brandts are falling apart, one feather at a time.",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     walt: { name: "Walt Brandt", accent: "american", pitch: 0.86, rate: 0.95 },
     lorna: { name: "Lorna Brandt", accent: "british", pitch: 1.08, rate: 0.97 },
@@ -22,6 +50,7 @@ const SHOW_MOLT = {
     hugo: { name: "Hugo Marsh", accent: "scottish", pitch: 0.87, rate: 0.92 },
     quill: { name: "Victor Quill", accent: "southafrican", pitch: 0.94, rate: 1.0 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     // 1
     {

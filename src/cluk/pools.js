@@ -1,6 +1,16 @@
+// ===== CLUK 92.3 text pools =====
+// Concatenated by scripts/build.mjs in front of src/cluk.js; createCluk() reads these globals:
+//   CLUK_IDS      ids() (Clark), djIntro(np) / djBack(np) with {title} and {artist} filled from the song, bridge(), raveOpen()
+//   CLUK_CALLERS  caller(): one Rhonda's Request Line call, built from these parts in a fixed order
+//   CLUK_ARTISTS  artist(): a made-up act for each generated song
+//   CLUK_TITLE    title(): a made-up song title (retries until no word repeats)
+// Most lists are dealt from shuffled decks (every line once before repeats); name parts are picked at random.
+// engine.js clukAfterSong() strings the ID, back-announce, intro and bridge lines between songs.
+//
 // CLUK 92.3 "Everything in the Chicken": text pools for station IDs, DJ links,
 // call-ins, artist names and song titles. Plain consts, no imports or exports.
 
+// ===== Station IDs and DJ links (CLUK_IDS) =====
 // Station IDs and DJ links.
 const CLUK_IDS = {
   // Clark Featherstone, the station voice: big, sincere, a little cosmic.
@@ -162,9 +172,13 @@ const CLUK_IDS = {
   ],
 };
 
+// ===== Rhonda's request line (CLUK_CALLERS) =====
+// caller() plays: Rhonda's open, open, story, Rhonda's reply, followup (60% of calls), request, Rhonda's play line, bye.
+// Caller lines are spoken by ph_caller (a random accent, through the phone filter).
 // Call-ins to Rhonda's request line, assembled from parts in any order:
 // open (caller), story (caller), reply (Rhonda), followup (caller), request (caller), bye (caller).
 const CLUK_CALLERS = {
+  // caller's first line, says hello
   open: [
     "Hi Rhonda, it's Denise, calling from my car on the Keel. I've been here a while.",
     "Rhonda! This is Marcus from the Gizzard. I'm on my break at the grit mill.",
@@ -198,6 +212,7 @@ const CLUK_CALLERS = {
     "Hey Rhonda, it's Ted in Left Wishbone, calling from the bleachers at my kid's Gristleball practice.",
   ],
 
+  // caller's problem or story
   story: [
     "So my girlfriend broke up with me at Feed Time. In front of the grain. Everybody saw.",
     "I just got promoted at the grit mill. I'm a shift lead now, and I don't know how to tell my friends I'm their boss.",
@@ -275,6 +290,7 @@ const CLUK_CALLERS = {
     "That's huge. Honestly, that's Egg Day huge. I'm putting you on my fridge.",
   ],
 
+  // caller's answer to Rhonda's reply
   followup: [
     "Thanks, Rhonda. I really needed that.",
     "Wow. That's the worst advice I've ever gotten, and I'm absolutely going to do it.",
@@ -330,6 +346,7 @@ const CLUK_CALLERS = {
     "I need a song that goes hard. Not for me. For my soul. Okay, it's for me.",
   ],
 
+  // caller's goodbye, after Rhonda says what she'll play
   bye: [
     "Okay, thanks Rhonda, love the show, bye!",
     "Alright, I gotta go. My break's over. Love you, Rhonda.",
@@ -354,18 +371,23 @@ const CLUK_CALLERS = {
   ],
 };
 
+// ===== Artist names (CLUK_ARTISTS) =====
+// artist(): handle 35%, "first last" 25%, ensemble 20%, "handle and first last" 20%.
 // Made-up artist names: chicken flavored, but they sound like real big beat and electro acts.
 const CLUK_ARTISTS = {
+  // first names
   first: [
     "Dusty", "Clay", "Roxie", "Marlo", "Bram", "Penny", "Rook", "Juno",
     "Sly", "Vera", "Dash", "Kip", "Lola", "Ziggy", "Hatch", "Rhett",
     "Nova", "Cole", "Wren", "Skye", "Brooks", "Tilly", "Jett", "Mags",
   ],
+  // surnames
   last: [
     "Featherby", "Grainger", "Pecksworth", "Combs", "Yolkman", "Keeler", "Gristwood", "Hatcher",
     "Wattley", "Millward", "Roostman", "Scratch", "Coopersmith", "Plume", "Brood", "Talon",
     "Sifter", "Fletcher", "Wingate", "Downey", "Strut", "Molt", "Kernel", "Clutch",
   ],
+  // act names used alone or as a duo with a person
   handle: [
     "Grit Front", "The Keel Rollers", "Bawk Machine", "Gizzard Science", "Hard Crop", "Wattle Wire",
     "Yolk Theory", "Pecking Order", "Grain Shaker", "Egg Drop", "Molt Control", "Down Pressure",
@@ -373,6 +395,7 @@ const CLUK_ARTISTS = {
     "The Plume Brothers", "Talon Kick", "Wishbone Snap", "Clutch Theory", "Lower Wing Lift", "Silo Static",
     "Beak Rattle", "Strutwave", "The Brood Lords", "Oyster Riot", "Feather Fuzz", "Spur Circuit",
   ],
+  // group names, used as-is
   ensemble: [
     "The Wishbone Sound System", "The Gizzard Grind Orchestra", "The Comb Street Players", "The Feed Time Collective",
     "The Rib Cage Allstars", "The Lower Wing Liftoff Society", "The Keel Road Crew", "The Wattle Electric Club",
@@ -382,20 +405,25 @@ const CLUK_ARTISTS = {
   ],
 };
 
+// ===== Song titles (CLUK_TITLE) =====
+// title(): "a b" or "The a b" (30%), with " (mix)" added 18% of the time.
 // Song-title words, combined as "a b" or "The a b", plus optional mix suffixes.
 const CLUK_TITLE = {
+  // first word
   a: [
     "Grit", "Feed", "Gizzard", "Bawk", "Rib", "Yolk", "Comb", "Keel", "Wattle", "Heart",
     "Grain", "Egg", "Feather", "Wing", "Shell", "Molt", "Silo", "Crop", "Brood", "Scratch",
     "Talon", "Beak", "Spur", "Down", "Plume", "Kernel", "Coop", "Roost", "Hatch", "Flap",
     "Strut", "Wishbone", "Midnight", "Electric", "Heavy", "Hyper", "Hydraulic", "Atomic", "Turbo", "Velvet",
   ],
+  // second word
   b: [
     "Storm", "Engine", "Machine", "Pressure", "Theory", "Signal", "Riot", "Rocket", "Breaker", "Shuffle",
     "Funk", "Overdrive", "Circuit", "Stomp", "Rush", "Frequency", "Protocol", "Breakdown", "Uprising", "Static",
     "Run", "Drop", "Boogie", "Bounce", "Cannon", "Fever", "Thunder", "Alarm", "Dynamo", "Express",
     "Generator", "Workout", "Rumble", "Patrol", "Hustle", "Shakedown", "Voltage", "Fanfare", "Getaway", "Countdown",
   ],
+  // remix suffixes, shown in parentheses
   mix: [
     "Gizzard Grind Mix", "Feed Time Dub", "Keel Traffic Remix", "Grit Storm Edit", "Comb Club Mix", "Heartbeat Version",
     "Bawk Rework", "Lower Wing Flight Mix", "Egg Day Extended Mix", "Wattle Wobble Mix", "Night Shift Dub", "Coop Council Edit",

@@ -3,6 +3,7 @@
 // ones are debounced, so a drawer animating open becomes one resize, not a dozen. The height is always clamped to the
 // screen's work area and never goes below the deck (the receiver with MIX closed) or the window's minimum height.
 // Pure parts (fitBounds) are exported for the tests; no Electron here.
+// Process: Electron main (main.js's "win:fit" IPC handler makes one fitter per window).
 
 // want: the height the page asks for; deck: the receiver's height with MIX closed (0 if the page didn't say);
 // bounds: the window's {x, y, width, height}; workArea: the display's {x, y, width, height}; minHeight: the window's minimum.
@@ -18,8 +19,10 @@ function fitBounds({ want, deck = 0, bounds, workArea, minHeight = 0 }) {
 }
 
 // win: the BrowserWindow; screen: Electron's screen. request(h, deck) is called from the win:fit IPC.
+// delay: debounce in ms. timers: swappable for tests. Returns { request(h, deck), flush() }.
 function createFitter({ win, screen, delay = 120, timers = { setTimeout, clearTimeout } }) {
   let first = true, t = null, last = null;
+  // Applies the last request now. Skipped for fullscreen or maximized windows, which the person sized on purpose.
   const apply = () => { t = null; const r = last; last = null;
     if (!r || !win || win.isDestroyed() || win.isFullScreen() || win.isMaximized()) return;
     const b = win.getBounds(), wa = screen.getDisplayMatching(b).workArea, min = (win.getMinimumSize && win.getMinimumSize()[1]) || 0;

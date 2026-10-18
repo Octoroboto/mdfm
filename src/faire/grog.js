@@ -1,8 +1,35 @@
-const SHOW_GROG = {
+const SHOW_GROG = {   // ===== HEARYE 95.5 show: Hot Grog, Sticky Gruel =====
+// An orc cooking show: Chef Gorbag Ironpot and Mugwort make food nobody should eat.
+// How it airs: scripts/build.mjs concatenates every src/faire/*.js file in front of src/faire.js, so SHOW_GROG is a plain
+// global const (no imports or exports). createFaire() in src/faire.js lists it in SHOWS. show("grog") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js fairSegment() picks a show for a talk break when its "grog" switch is on (shows that
+// aired recently wait their turn), and fairShowLines() wraps the episode: the crier's open and the episode title around
+// the style's theme, the bed under the first and last spoken lines, the lines in order, then the outro and the crier's close.
+// test/faire.test.mjs checks every show: 15+ episodes, unique titles, a known style, a voice for every speaker, known sfx.
+//
+// Shape of SHOW_GROG:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a HEARYE music style (F_STYLE_STINGS in engine.js) for the theme, stingers and bed ("tavern")
+//   tags      loglines; one is dealt per airing and read after the open ("It is time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two cast entries are credited as hosts
+//             unless they are ph_ ids. An id starting ph_ is heard through the telephone filter (the "speaking shell").
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned
+//   ["sfx", name]        a sound effect from OT in engine.js; the test allows rain knock door steps claps thunder clock
+//                        horse wind teacup page applause hammer crash gallery
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
   id: "grog",
   name: "Hot Grog, Sticky Gruel",
   label: "Hot Grog, Sticky Gruel (orcs)",
   style: "tavern",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "An orc chef with exacting standards for food nobody should eat",
     "One recipe a week: gruel, grog, siege pie, and a stew with a boot in it",
@@ -10,10 +37,12 @@ const SHOW_GROG = {
     "A rival elven cooking show, and a secret that is getting harder to hide",
     "Lumps are load-bearing. Garnish is a crime. Feelings run high."
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     gorbag: { name: "Chef Gorbag Ironpot", accent: "scottish", pitch: 0.9, rate: 0.98 },
     mugwort: { name: "Mugwort", accent: "australian", pitch: 1.06, rate: 1.04 }
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     { title: "Lumps Are Load-Bearing",
       lines: [

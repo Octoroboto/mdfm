@@ -1,8 +1,34 @@
-const SHOW_PECKING = {
+const SHOW_PECKING = {   // ===== CLUK 92.3 show: Pecking Order =====
+// A Gristleball sports-talk show: Big Tom Varley (ex-lineman, loud takes) and Jess Navarro (stats) argue, with
+// Marcy Quill and callers like Gerald from the Gizzard, building to the championship called live.
+// How it airs: scripts/build.mjs concatenates every src/cluk/*.js file in front of src/cluk.js, so SHOW_PECKING is a plain
+// global const (no imports or exports). createCluk() in src/cluk.js lists it in SHOWS. show("pecking") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js clukSegment() picks a show for a talk break when its "pecking" switch is on,
+// and clukShowLines() wraps the episode: Clark's open and the episode title around the style's theme, the bed under the
+// first and last spoken lines, the lines in order, then the outro and Clark's close.
+//
+// Shape of SHOW_PECKING:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a CLUK_GENRES key (engine.js); that genre's song gives the show its theme, stingers and bed ("hardhouse")
+//   tags      loglines; one is dealt per airing and read after the open ("It's time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two non-ph_ ids are credited as hosts.
+//             An id starting ph_ is heard through the telephone filter (a caller, or someone on the phone).
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned ("CLUK" is said "cluck", captions keep the letters)
+//   ["sfx", name]        a sound effect from OT in engine.js (door, gavel, clock...); an unknown name is skipped
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
   id: "pecking",
   name: "Pecking Order",
   label: "Pecking Order",
   style: "hardhouse",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "Big Tom Varley and Jess Navarro argue about Gristleball, and one of them is always right.",
     "A former Gizzard Grinders lineman with loud takes and soft feelings, and a stats prodigy who has the numbers.",
@@ -12,6 +38,7 @@ const SHOW_PECKING = {
     "Hot takes, cold numbers and one old coach who belongs in the Hall of Fame.",
     "Sports talk from the Gizzard to the Comb. Hold onto something.",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     tom: { name: "Big Tom Varley", accent: "american", pitch: 0.88, rate: 1.05 },
     jess: { name: "Jess Navarro", accent: "american", pitch: 1.12, rate: 1.0 },
@@ -19,6 +46,7 @@ const SHOW_PECKING = {
     ph_gerald: { name: "Gerald from the Gizzard", accent: "scottish", pitch: 0.92, rate: 0.95 },
     ph_pip: { name: "Pip", accent: "australian", pitch: 1.2, rate: 1.05 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     { title: "Three Point One Percent",
       lines: [

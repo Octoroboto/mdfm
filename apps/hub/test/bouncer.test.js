@@ -1,13 +1,17 @@
 // Bouncer for MD Hub: both rule sets checked with real Cedar.
 //   app  (policy.cedar, enforced): the app's own requests.
 //   view (view-policy.cedar, observe): the hub page on claude.ai, which is logged, never blocked.
+// Run: cd apps/hub && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). No window.
 const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path");
 const { createBouncer, fingerprint } = require("../kit/bouncer");
 const DIR = path.join(__dirname, "../src/main/bouncer");
+// Reads one rules file, its config and lock from src/main/bouncer.
 const load = (p, c, l) => ({ policyText: fs.readFileSync(path.join(DIR, p), "utf8"), config: JSON.parse(fs.readFileSync(path.join(DIR, c), "utf8")), lock: JSON.parse(fs.readFileSync(path.join(DIR, l), "utf8")) });
 const APP = load("policy.cedar", "bouncer.config.json", "bouncer.lock.json");
 const VIEW = load("view-policy.cedar", "bouncer.view.config.json", "bouncer.view.lock.json");
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "mdhub-b-"));
+// fp: a rules set's current fingerprint, to compare with its lock.
 const make = (s, name = "MD Hub") => createBouncer({ appName: name, ...s, logDir: tmp(), enginePackageVersion: "4.13.0" });
 const fp = s => { const f = fingerprint(s.policyText, s.config); return { p: f.policySha256, c: f.configSha256 }; };
 
@@ -19,6 +23,7 @@ test("both rule sets are locked and healthy; app enforces, hub page observes", (
   }
 });
 
+// URLs the app's own code really fetches (caller "app", GET). Each must be allowed.
 const ALLOW = [
   "https://api.open-meteo.com/v1/forecast?latitude=41.2&longitude=-95.9&current=temperature_2m",
   "https://geocoding-api.open-meteo.com/v1/search?count=1&name=Omaha",
@@ -36,6 +41,7 @@ const ALLOW = [
   "https://registry.npmjs.org/@cedar-policy/cedar-wasm/latest",
   "https://registry.npmjs.org/-/package/electron/dist-tags",
 ];
+// Requests the app must never send: [method, url, why].
 const BLOCK = [
   ["POST", "https://slack.com/api/chat.postMessage", "posting to Slack"],
   ["GET", "https://slack.com/api/chat.postMessage?channel=C1&text=hi", "posting to Slack via GET"],
@@ -71,6 +77,7 @@ test("a changed rules file without a new lock blocks everything", () => {
 });
 
 // The hub page: what it normally does must be quiet; anything else is logged as "would block" (never blocked).
+// [caller, method, url]
 const VIEW_OK = [
   ["hub", "GET", "https://claude.ai/artifact/V9DKVsKPguVWjCGFacb5iM"],
   ["hub", "POST", "https://claude.ai/api/organizations/x/artifacts/y/data"],
@@ -81,6 +88,7 @@ const VIEW_OK = [
   ["login", "POST", "https://claude.ai/api/auth/send_magic_link"],
   ["background", "GET", "https://claude.ai/sw.js"],
 ];
+// [caller, method, url, why]
 const VIEW_ODD = [
   ["hub", "GET", "https://www.google-analytics.com/collect", "tracking"],
   ["hub", "POST", "https://cdnjs.cloudflare.com/x", "posting to a CDN"],

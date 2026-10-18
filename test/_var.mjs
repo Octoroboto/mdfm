@@ -1,4 +1,6 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright';   // Scratch check (not a test file, not run by npm test): Playwright, dist/radio.html.
+// Renders 20 s of every style offline and prints peak / RMS / NaN counts, then skips through songs live and prints the
+// styles that played and any page errors. The page path is hard-coded to /home/claude/mdfm. Run: node test/_var.mjs
 const b=await chromium.launch({args:['--autoplay-policy=no-user-gesture-required']});
 const p=await b.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{ if(m.type()==='error') errs.push(m.text()); });
 await p.goto('file:///home/claude/mdfm/dist/radio.html'); await p.waitForTimeout(300);

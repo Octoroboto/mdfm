@@ -1,4 +1,7 @@
 // PTLK 108.0's live material: headlines are checked and filtered; bad input and odd titles get nothing.
+// Tests common/headlines.js with net.getJSON replaced by fakes (no network).
+// Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
+// One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const test = require("node:test"), assert = require("node:assert");
 const { cleanHeadlines, createHeadlines } = require("../src/common/headlines");
 test("headlines: keeps clean English titles, drops tragedies, duplicates and junk", () => {

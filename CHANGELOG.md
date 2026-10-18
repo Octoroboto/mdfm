@@ -2,6 +2,13 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## Comments pass (2026-10-18, Rob; no version change, no behaviour change)
+- **Comments:** every file outside `vendor/`, `dist/` and `apps/*/kit/` is now commented for a reader opening it cold. That means file headers, section banners, every function and table, and the reasons behind non-obvious lines. `src/engine.js` gets an overview and a glossary of its short names at the top.
+- **Rules:** `docs/COMMENTING.md` has the rules, and `CLAUDE.md` makes them part of every future change.
+- **Cedar policies:** the Bouncer `.cedar` policies are left untouched, because they are hash-locked.
+- **Checker:** `scripts/comment-check.mjs` proves a comment-only change (token-for-token identical code, no new line breaks inside statements). The built bundles match 1.31.0 token for token.
+- **Known issue found while commenting (not changed here):** in `setOn` (SOUND off), an end-of-line comment swallows `speechSynthesis.cancel()`, the voice-source stop and `speaking=false`. Those three never run, so a voice that's mid-line may keep talking after SOUND is switched off.
+
 ## 1.31.0 (2026-10-18, Rob)
 Ships the 1.30 instruments work (previewed, never released on its own) together with BEAT.
 - **BEAT** (MIX › Groove & Key, a new full-width card after Drums; a BEAT tab on phones): a one-bar drum pattern that steers the song's drums.

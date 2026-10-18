@@ -1,7 +1,11 @@
 // AXMOD settings as the apps store them ("axmod" in settings.json). The page sends whatever the person changed; only
 // small, plain values get through: { schema: 1, values: { <option id>: true/false, a number or a short word }, channels: { <id>: 0..1 } }.
 // The option list itself lives in MedDev Receiver (dist/axmod.schema.json), so new options need no app release.
+// Process: Electron main (radio and hub), when the renderer saves settings over IPC. Untrusted input: the page can send anything.
+// ID: an option id (letters/digits, up to 24). CH: a channel id (lowercase, digits, dashes).
 const ID = /^[a-zA-Z][a-zA-Z0-9]{0,23}$/, CH = /^[a-z0-9][a-z0-9-]{0,23}$/;
+// Returns a clean copy of an "axmod" settings object: at most 60 values (boolean, a number within +-1000, or a string up
+// to 200 chars) and 16 channel levels clamped to 0..1. Anything else is dropped silently; never throws.
 function cleanAxmod(v) {
   const out = { schema: 1, values: {}, channels: {} };
   if (!v || typeof v !== "object") return out;

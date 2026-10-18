@@ -1,22 +1,29 @@
 /* Radio-page layout on top of the shared skin. Medium window that also works full screen. */
+/* Where it fits: scripts/build.mjs inlines this file in dist/radio.html (style#mdfm-radio) after the MedDev Receiver's CSS */
+/* (style#mdfm-skin, vendor/meddev-receiver/receiver.css), so these rules adjust the shared skin for this page; it is also in */
+/* dist/manifest.json for the apps' live updater. Selectors match skin/radio-body.html. The --variables (--lcd, --label, */
+/* --hint, --caption, --engrave, --f-mono, --btn-bezel...) come from the receiver and each skin; the fallbacks after the commas */
+/* are the default skin's values. html.appwin, .fullscreen and .dragging are set by skin/radio-wire.js inside the apps. */
 .wrap{max-width:1180px}
-header.top .hrow>.lcd{container-type:inline-size}
+header.top .hrow>.lcd{container-type:inline-size}   /* the display is a size container, so the station name below can size itself with cqi units */
 /* The station name always stays on one line and fills the screen, whatever font a skin uses. */
 header.top .lcd h1{font-size:clamp(1.5rem,min(6vw,10.5cqi),4.2rem);white-space:nowrap}
 header.top .lede.cap{color:var(--lcd);min-height:2.4em;font-size:1.05rem}
 header.top .lcd.viz{min-height:110px}
 @media (min-width:1100px){header.top .lcd.viz{min-height:160px}}
-.wrap>.grid{grid-template-columns:minmax(0,1fr)!important}
+.wrap>.grid{grid-template-columns:minmax(0,1fr)!important}   /* one column: the station panel spans the page (the receiver's grid has more) */
 .station{gap:12px}
 .strow{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-start}
 .strow .rdeck{margin-left:0}
 .lcd.status{flex:1 1 280px;min-width:0;font:1.05rem/1.35 var(--f-mono);padding:10px 12px}
 #skipBtn,#spotBtn{font-size:.85rem;padding-inline:clamp(10px,1.2vw,16px)}
+/* The Save button (the floppy), and its pulse while a save is running (aria-busy). */
 .savebtn{width:34px;min-width:34px;height:34px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
 .savebtn svg{width:19px;height:19px;display:block;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
 .savebtn[aria-busy=true]{cursor:progress;animation:mdfmSaving 1s ease-in-out infinite}
 @keyframes mdfmSaving{50%{opacity:.45}}
 @media (prefers-reduced-motion:reduce){.savebtn[aria-busy=true]{animation:none;opacity:.6}}
+/* Settings fieldsets (the class name is historical: the Slack box came first, the station lists reuse it). */
 .slackset{grid-column:1/-1;border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:10px 12px;display:grid;gap:8px;color:var(--label,#e6e6ee)}
 .slackset legend{font-weight:700;color:var(--label,#cfd2de);text-shadow:var(--engrave);padding:0 6px}
 .slackset .hint{margin:0;font-size:.85rem;color:var(--hint,#b9bdc9)}
@@ -24,8 +31,8 @@ header.top .lcd.viz{min-height:110px}
 
 /* ===== App mode: no macOS window frame. The receiver sits on the desktop with its own controls. ===== */
 html.appwin,html.appwin body{background:transparent!important}
-html.appwin body{padding:10px 74px 14px 10px;min-height:100vh;box-sizing:border-box}
-html.appwin .wrap{border-radius:14px;padding:14px;background:linear-gradient(180deg,#30323d,#17181e);border:2px solid;border-color:#6a6d80 #050507 #050507 #6a6d80;
+html.appwin body{padding:10px 74px 14px 10px;min-height:100vh;box-sizing:border-box}   /* right padding leaves room for the skins' spray can and swatter beside the receiver */
+html.appwin .wrap{border-radius:14px;padding:14px;background:linear-gradient(180deg,#30323d,#17181e);border:2px solid;border-color:#6a6d80 #050507 #050507 #6a6d80;   /* the receiver's own metal frame, since the app window has none */
   box-shadow:0 18px 40px rgba(0,0,0,.55),0 4px 10px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);-webkit-app-region:no-drag}
 html.appwin .wrap :is(button,input,select,textarea,label,a,summary,[role=slider],[tabindex],.rd-btn,.rd-k,.mx-k,.mx-ft,.vu-m,.settings[open] .setlist,.mixdrawer){-webkit-app-region:no-drag}
 /* No CSS drag regions, in any skin: macOS swallows scrolling (and sometimes the mouse-up) over them. The receiver is
@@ -35,6 +42,7 @@ html.appwin header.top .wtitle,html.appwin .lcd{-webkit-app-region:no-drag}
 html.appwin :is(#nozzle,.swatter){-webkit-app-region:no-drag}
 html.appwin.fullscreen,html.appwin.fullscreen body{background:var(--bg)!important}
 html.appwin.fullscreen body{padding:16px 74px 16px 16px}
+/* Window controls (POWER, MIN, FULL) drawn into the deck's title strip, apps only. */
 .wctl{display:inline-flex;align-items:center;gap:12px;margin-right:6px;letter-spacing:normal}
 .wctl[hidden]{display:none}
 .wbtn{display:inline-flex;align-items:center;gap:4px}
@@ -48,20 +56,22 @@ html.appwin.fullscreen body{padding:16px 74px 16px 16px}
 header.top .wtitle{position:relative}
 header.top .wctl{position:absolute;left:8px;top:50%;transform:translateY(-50%);margin:0;padding:0 10px 0 4px;height:16px;background:linear-gradient(180deg,#22232c,#14151b);z-index:1}
 .wbtn .rd-led{position:static;display:inline-block;margin:0 1px 0 0;transform:none}
+/* The Futureproofer's results list (one dot per check: ok green, warn yellow, bad red). */
 .fplist{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.88rem}
 .fplist li{display:flex;gap:8px;align-items:baseline}
 .fplist .dot{width:8px;height:8px;border-radius:50%;flex:none;background:#8a8f9c;animation:none;transform:translateY(-1px)}
 .fplist .ok .dot{background:#44e044}.fplist .warn .dot{background:#ffd23f}.fplist .bad .dot{background:#ff6a5f}
 .fplist b{color:var(--label,#e6e6ee);font-weight:700}.fplist span{color:var(--hint,#b9bdc9)}
 .fplist button{font-size:.8rem;padding:2px 8px}
-html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-select:none!important}
+html.appwin.dragging,html.appwin.dragging *{cursor:grabbing!important;user-select:none!important}   /* while radio-wire.js is moving the window */
 
 
 /* No scroll bar on the desktop receiver (it still scrolls with the trackpad or wheel when the window is short). */
 html.appwin,html.appwin body{scrollbar-width:none}
 html.appwin::-webkit-scrollbar,html.appwin body::-webkit-scrollbar{display:none;width:0;height:0}
-.btnrow{display:flex;flex:1 0 100%;flex-wrap:wrap;justify-content:flex-end;gap:8px;align-items:center}
+.btnrow{display:flex;flex:1 0 100%;flex-wrap:wrap;justify-content:flex-end;gap:8px;align-items:center}   /* the play buttons row under the display */
 @container hrow (max-width:830px){.btnrow{flex:0 1 auto}}
+/* The station arrows next to the station name. */
 .stbtns{display:inline-flex;gap:6px}
 .stbtns[hidden]{display:none}
 .stbtn{width:34px;min-width:34px;height:34px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}

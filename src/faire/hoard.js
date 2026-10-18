@@ -1,8 +1,35 @@
-const SHOW_HOARD = {
+const SHOW_HOARD = {   // ===== HEARYE 95.5 show: Hoard and Order =====
+// A stern personal-finance call-in show for dragons and other hoarders, from Ledgerwyrm and Barnaby Quill.
+// How it airs: scripts/build.mjs concatenates every src/faire/*.js file in front of src/faire.js, so SHOW_HOARD is a plain
+// global const (no imports or exports). createFaire() in src/faire.js lists it in SHOWS. show("hoard") deals one episode
+// from a shuffled deck (no repeats until every episode has aired), deals one tag for the open, and merges the show cast
+// with the episode cast. engine.js fairSegment() picks a show for a talk break when its "hoard" switch is on (shows that
+// aired recently wait their turn), and fairShowLines() wraps the episode: the crier's open and the episode title around
+// the style's theme, the bed under the first and last spoken lines, the lines in order, then the outro and the crier's close.
+// test/faire.test.mjs checks every show: 15+ episodes, unique titles, a known style, a voice for every speaker, known sfx.
+//
+// Shape of SHOW_HOARD:
+//   id        the show's switch key in the station's "what plays" list; unique on the station
+//   name      said in the open and close, and shown in now-playing
+//   label     the switch's label in the UI (falls back to name)
+//   style     a HEARYE music style (F_STYLE_STINGS in engine.js) for the theme, stingers and bed ("council")
+//   tags      loglines; one is dealt per airing and read after the open ("It is time for {show}. <tag>")
+//   cast      speaker id -> voice { name, accent, pitch, rate }. name is the caption and host credit; pitch and rate are
+//             multipliers (engine clamps them to .88..1.12 and .9..1.1). The first two cast entries are credited as hosts
+//             unless they are ph_ ids. An id starting ph_ is heard through the telephone filter (the "speaking shell").
+//   episodes  [{ title, cast?, lines }]: title is read in the open; cast adds or overrides voices for that episode only.
+// Line forms in lines:
+//   [speakerId, "text"]  spoken by that cast voice and captioned
+//   ["sfx", name]        a sound effect from OT in engine.js; the test allows rain knock door steps claps thunder clock
+//                        horse wind teacup page applause hammer crash gallery
+//   ["pause", ms]        silence, in milliseconds
+//   ["seg"]              segment break: a stinger in the show's style (a leading or doubled break is dropped)
+//
   id: "hoard",
   name: "Hoard and Order",
   label: "Hoard and Order (dragon finance)",
   style: "council",
+  // ===== Loglines: one is read after the announcer's open =====
   tags: [
     "The realm's sternest personal finance call-in show for dragons and other hoarders",
     "Ledgerwyrm, an ancient dragon, will not tolerate a single misplaced copper",
@@ -10,10 +37,12 @@ const SHOW_HOARD = {
     "Goblins with too many spoons, liches with long plans, knights paid in exposure",
     "Barnaby is saving up to buy his freedom. Ledgerwyrm is absolutely not proud of him",
   ],
+  // ===== Regular cast: speaker id -> voice (episodes can add more) =====
   cast: {
     ledgerwyrm: { name: "Ledgerwyrm", accent: "scottish", pitch: 0.9, rate: 0.94 },
     barnaby: { name: "Barnaby Quill", accent: "american", pitch: 1.06, rate: 1.04 },
   },
+  // ===== Episodes, in story order (aired shuffled, each once per cycle) =====
   episodes: [
     { title: "A Cave With a View",
       cast: {
