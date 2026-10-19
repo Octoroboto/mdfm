@@ -2,6 +2,15 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.32.0 (2026-10-19, Rob)
+- **PTRN: five goth genres** in a new **Goth & dark** family: darkwave, gothic rock, witch house, ethereal wave and dark synth-pop. Each has its own switch in Settings (all on). They take MDFM's goth rules (`STYLE_FAM` "goth": key change up for the last hook, 6/8 and 7/8, the goth High-end pack picks). Gothic rock is left out of the High-end pack picks so it keeps its chorus guitar.
+- **New sounds:** `M.ppbass` (a picked chorus bass) played by `BASSX.postpunk` (a melodic eighth-note figure per song); `M.chime` (a clean chorus guitar) played by `CHX.chime` (ringing arpeggios); `SNX.cavern` (the big reverb snare). The chorus (`chorusIn`) is shared by overlapping notes and is left out in LITE live. Settings › Instruments has "Chorus bass (post-punk)" and "Chorus guitar (post-punk)" (since "1.32", tagged new).
+- **Levels:** genre `lvl` matched to PTRN's other genres (about −15.3 LUFS, within about 1 dB). Cost: gothic rock about 1.35× Rock at a 6× CPU throttle; the others are in line with their neighbours.
+- MDFM 99.9 songs are unchanged (seeded render matches 1.31.0). PTRN's genre draws change, since there are more genres to draw from.
+- Test hooks: `renderOffline("inst")` gains roles `mbass` and `snare`.
+- **Fix:** PTRN could go silent after a tag (reported on Next track). When a resume of the audio was refused (iOS refuses one while its system voice holds the audio) nothing tried again. Now a once-a-second check resumes it while SOUND is on, and the 1.31 voice guard gives up after 10 s.
+- **Fix:** SOUND off now stops a voice mid-line. In `setOn` an end-of-line comment had swallowed the voice stop (the known issue from the comments pass); it now calls `hush()`.
+
 ## Comments pass (2026-10-18, Rob; no version change, no behaviour change)
 - **Comments:** every file outside `vendor/`, `dist/` and `apps/*/kit/` is now commented for a reader opening it cold. That means file headers, section banners, every function and table, and the reasons behind non-obvious lines. `src/engine.js` gets an overview and a glossary of its short names at the top.
 - **Rules:** `docs/COMMENTING.md` has the rules, and `CLAUDE.md` makes them part of every future change.
