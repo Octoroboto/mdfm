@@ -42,7 +42,7 @@ function downloadUpdate(url, appName) {
       message: "The update didn't download", detail: e.message }).then(r => { if (r.response === 0) shell.openExternal(url); }).catch(() => {}));
 }
 
-// Bouncer starts first, before any window or request exists (rules: src/main/bouncer/policy.cedar).
+// Bouncer starts first, before any window or request exists (rules: src/main/bouncer/bouncer.config.json "rules").
 const bouncer = security.startBouncer({ notify: p => sendStatus(`Bouncer stopped a request: ${p.body}`) });
 const bundledDir = path.join(__dirname, "../../vendor");
 const getSettings = () => settings;

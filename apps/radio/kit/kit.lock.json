@@ -1,30 +1,36 @@
 {
-  "kit": "2.1.0",
-  "installedAt": "2026-10-12T15:12:08.740Z",
+  "kit": "2.19.0",
+  "installedAt": "2026-10-20T14:21:53.464Z",
   "source": "github.com/Octoroboto/rentvision-app-kit",
   "modules": {
     "bouncer": {
-      "version": "2.0.0",
+      "version": "2.3.0",
       "files": {
-        "README.md": "d4b502d72658931f0c04776c24d889b6eae64ef4bde627ba63a863dc2dca4325",
-        "index.js": "5dbcb7a935c15a515184ccfc194c2ec8efcf9852cee7ed7752e30e4487af4419",
+        "README.md": "4d20e3dd111ad798154165670e12e179707c13afb9055a220e61582ef30a1271",
+        "index.js": "95864f2701083c0732d0053c7578c05c93422f7270b4523d1b4ca11439b22757",
         "engine-cedar.js": "804b52b2b3add4daa3dbd9395f8b9425e0a4b1d6202839009a00439c521cb817",
         "facts.js": "6bd9a72758b24ad31f3bddc2f569b789dc4a77a2fe30b07e0357eb79af0c8d67",
         "log.js": "561dd1933897bfd2c40cf0b641ad28c09d7f450908077c166e07dbd1181619e6",
         "renderer/badge.css": "771e7bcf8bcd36aabef021e4e8faba6e01c8fe741170c000fbf93787cbaab4e4",
         "renderer/badge.js": "208185d148132f99f1ce1884165154ed94361665c5fcdc7331974fad2026086e",
-        "tools/lock.js": "86caff93c6e93a4b7fd1e12e8a899e7dadb0512cbaf26e29c83665a96929f976",
-        "templates/policy.cedar": "a4dbd056273337ab39dc9cb65624bf8b4765d152a16db06a9cf0d906bc09df56",
+        "rules.js": "6f13c8fc3f708e8ede7930321f0597e9e20179a473598789f9a86486bffae8d9",
+        "shared.cedar": "e87a3c14d614b5eae5d2a7064275143696afddc587f8c724a11edcfd651fda63",
+        "families/mdfm-apps.cedar": "46dbc024b3276023b330286b64567de1c20e441597cce73f253958b20a1c58e2",
+        "tools/lock.js": "fc5d4c96c7ae84c887b9f6cced213e51c4e3e2813630f9c3d1d068292526914c",
+        "tools/cedar-diff.cjs": "0711a545d2928ac0b79bd368703abc72e8c0815681c35f6eb3d9156b57642a3e",
+        "templates/policy.cedar": "829dee105a3815b489a1da7f7d988f571acfb45ce121538d3f057091072a9437",
         "templates/bouncer.config.json": "80f27d373d3b95bbe69ef5574d9f496ec11d49e58190db68df1e91206832936f",
-        "templates/egress.js": "2d959bb99abc0d547eb24710e78f8ad67b3b69f2adaf74a8204ef2af38884209"
+        "templates/egress.js": "2d959bb99abc0d547eb24710e78f8ad67b3b69f2adaf74a8204ef2af38884209",
+        "templates/kit-update.yml": "fbef6bd163b23d349b16c9f2805edf4a22f7807e66315827f424b6f9b8fd24d7",
+        "templates/bouncer-cases.cjs": "907fa08171891f32b48adda312a07cc9b2e7888290c2caa6fa269cef4aab0eac"
       }
     },
     "futureproofer": {
-      "version": "2.0.0",
+      "version": "2.1.0",
       "files": {
         "README.md": "f3d80012b59633b3286727e8bc266d71791826d50b054b381c7e758a99dd75b8",
-        "index.js": "4b6930452a9e41c5710072d4365b4d10890d70f6b0094fc10f5976b99cc9d5f2",
-        "checks.js": "a20f049dbc401aaa343ab970b94e785a97097cb2123b3581a72ffa95c9ae3e6b",
+        "index.js": "1ce34a113bf0616e82076a4f0ff6d2f7039f0b04453df89177da6ad4d374ebbc",
+        "checks.js": "e693d325d98444ba8cad114aa9b31a71fd228d002d77488a373d65486e17cfd5",
         "versions.js": "4f63c02369b5b8ed73b4acdd401d873d23ba83b582c46aeece94b1492c048191",
         "recipes.js": "061d86f73406a5ccd3749956eca4e565d47c6f2e31aaa1c2f5d479ef97876cb1",
         "recorder.js": "d27e620913c6db2fcd765a42ff066f193b497f3085d3c5f0c9bf54272bf74cc8",
@@ -41,7 +47,7 @@
         "README.md": "56f5d7db84f421c51eb514546c55fbdac5510080de1c8626589492400f4268ef",
         "main.js": "a46fd8aefa74311531170bee6e7ad26fafda63906e4bea6e81702448d4ef8693",
         "preload.js": "214938b3d2def1ed4250e138e8c8165b40978d6edb8a95831efa8d45c07d6291",
-        "renderer/save-button.js": "6ef3d1d7f372591c9a018a4389684988e67587b9d3e9ae0e514f00dc17252926"
+        "renderer/save-button.js": "6b506b36c2faf5f556ca8be8bb43287c5d5bc6ef9bddb71c0636873babc7c58c"
       }
     }
   }

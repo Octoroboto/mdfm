@@ -46,7 +46,7 @@
           <div class="bnc-head"><div><h2>Bouncer</h2><div class="bnc-muted">Checks every request ${esc(st.appName || 'this app')} sends using your logins</div></div>
             <button class="bnc-close" data-x>Close</button></div>
           <div class="bnc-state"><span class="bnc-dot" style="background:${st.level === 'green' ? 'var(--ok,#137a3d)' : st.level === 'red' ? 'var(--bad,#b42318)' : '#d99a00'}"></span>${esc(st.label)}</div>
-          <p>${esc(modeText)} Your Streamliner and Wistia logins can do much more than this app needs; Bouncer limits the app to its own short list, however broad the login is.</p>
+          <p>${esc(modeText)} The logins this app uses can do much more than it needs; Bouncer limits the app to its own short list, however broad a login is.</p>
           ${st.problems && st.problems.length ? `<div class="bnc-problems">${st.problems.map(esc).join('<br>')}</div>` : ''}
           <h3>Engine</h3>
           <dl class="bnc-kv">

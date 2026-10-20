@@ -24,13 +24,29 @@ function createLog(dir) {
     if (f !== lastFile) { lastFile = f; lastHash = tail(f); }
     const rec = { t: new Date().toISOString(), ...entry, prev: lastHash || 'start' };
     rec.hash = sha(JSON.stringify(rec));
-    fs.appendFileSync(f, JSON.stringify(rec) + '\n');
+    // Written synchronously on purpose: lines stay in order and survive a crash. Only blocks, would-blocks and
+    // allowed changes are logged (never reads), so it's a handful of short lines, not one per request.
+    const line = JSON.stringify(rec) + '\n';
+    const fresh = checked && checked.file === f && checked.ok && sameStat(f, checked);
+    fs.appendFileSync(f, line);
     lastHash = rec.hash;
+    if (fresh) { const st = fs.statSync(f); Object.assign(checked, { entries: checked.entries + 1, size: st.size, mtimeMs: st.mtimeMs }); }
+    else checked = null;
     return rec;
   }
+  // The last full verify, kept while the file is only changed by this log: then status() doesn't re-read it.
+  let checked = null;
+  function sameStat(f, c) { try { const st = fs.statSync(f); return st.size === c.size && st.mtimeMs === c.mtimeMs; } catch { return false; } }
 
-  // -> { ok, entries, brokenAt? }
-  function verify(f = file()) {
+  // -> { ok, entries, brokenAt? }. Re-reads the whole file only when something other than this log changed it
+  // (or it hasn't been read yet, or it's been 10 minutes); pass { full: true } to force a full re-read.
+  function verify(f = file(), { full = false } = {}) {
+    if (!full && checked && checked.file === f && Date.now() - checked.at < 600e3 && sameStat(f, checked)) return { ok: checked.ok, entries: checked.entries, ...(checked.brokenAt ? { brokenAt: checked.brokenAt } : {}) };
+    const r = fullVerify(f);
+    try { const st = fs.statSync(f); checked = { file: f, ...r, size: st.size, mtimeMs: st.mtimeMs, at: Date.now() }; } catch { checked = null; }
+    return r;
+  }
+  function fullVerify(f) {
     let lines;
     try { lines = fs.readFileSync(f, 'utf8').trim().split('\n').filter(Boolean); } catch { return { ok: true, entries: 0 }; }
     let prev = 'start';

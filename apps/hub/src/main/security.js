@@ -1,5 +1,6 @@
 // Two Bouncers for MD Hub:
-//   app:  the app's own requests (weather, sports, Slack, update checks) — ENFORCED (policy.cedar)
+//   app:  the app's own requests (weather, sports, Slack, update checks) — ENFORCED (the files bouncer.config.json "rules"
+//         lists: the kit's shared floor, the MDFM family rules and app.cedar, through kit/bouncer/rules.js)
 //   view: the hub page itself on claude.ai — OBSERVE (view-policy.cedar): logs anything unusual, blocks nothing,
 //         because blocking a site's own first-party calls can break it. Switch to enforce once the logs are clean.
 // Process: Electron main, called from main.js at load (before app "ready"), so sessions are gated before any page loads.
@@ -7,6 +8,7 @@
 const { app } = require("electron");
 const fs = require("fs"), path = require("path");
 const { createBouncer } = require("../../kit/bouncer");
+const { loadRules } = require("../../kit/bouncer/rules");
 const net = require("../common/net");
 const DIR = path.join(__dirname, "bouncer");
 // Reads a JSON file from src/main/bouncer, or returns d when it's missing or broken.
@@ -15,11 +17,13 @@ const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(D
 function enginePackageVersion() {
   try { return JSON.parse(fs.readFileSync(path.join(path.dirname(require.resolve("@cedar-policy/cedar-wasm/nodejs")), "..", "package.json"), "utf8")).version; } catch { return null; }
 }
+// The app's joined rules, or "" when they can't be read: the lock then doesn't match and Bouncer blocks everything (fails closed).
+function rulesText() { try { return loadRules(DIR).text; } catch { return ""; } }
 // notify(problem): called when the app's Bouncer blocks a request. Returns { appB, viewB, signinB, enginePackageVersion }.
 // main.js attaches the sessions: appB on the default session, viewB on the hub's persist:mdhub session.
 function startBouncers({ notify }) {
   const ev = enginePackageVersion(), dev = !app.isPackaged && process.env.MDFM_BOUNCER_OBSERVE === "1" ? "observe" : null;   // dev: MDFM_BOUNCER_OBSERVE=1 in a source run logs instead of blocking; a built app ignores it
-  const appB = createBouncer({ appName: "MD Hub", policyText: fs.readFileSync(path.join(DIR, "policy.cedar"), "utf8"), config: readJson("bouncer.config.json", {}),
+  const appB = createBouncer({ appName: "MD Hub", policyText: rulesText(), config: readJson("bouncer.config.json", {}),
     lock: readJson("bouncer.lock.json", {}), logDir: path.join(app.getPath("userData"), "bouncer"), notify, enginePackageVersion: ev, modeOverride: dev });
   const viewB = createBouncer({ appName: "MD Hub (hub page)", policyText: fs.readFileSync(path.join(DIR, "view-policy.cedar"), "utf8"), config: readJson("bouncer.view.config.json", {}),
     lock: readJson("bouncer.view.lock.json", {}), logDir: path.join(app.getPath("userData"), "bouncer-hub-page"), notify: () => {}, enginePackageVersion: ev });   // (no modeOverride: the view Bouncer's mode comes from bouncer.view.config.json)
