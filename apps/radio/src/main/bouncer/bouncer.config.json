@@ -1,5 +1,10 @@
 {
-  "policyVersion": 4,
+  "policyVersion": 5,
   "mode": "enforce",
-  "quietRules": []
+  "quietRules": [],
+  "rules": [
+    "../../../kit/bouncer/shared.cedar",
+    "../../../kit/bouncer/families/mdfm-apps.cedar",
+    "app.cedar"
+  ]
 }

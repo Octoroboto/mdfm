@@ -40,7 +40,7 @@ Settings → **ACCESSIBILITY** (or Cmd+Option+A anywhere) slides out the AXMOD d
 
 ## What keeps it safe and current
 
-- **Bouncer** (`kit/bouncer`, rules in `src/main/bouncer/policy.cedar`): every request the app makes is checked by Cedar
+- **Bouncer** (`kit/bouncer`, rules: the kit's `shared.cedar` and `families/mdfm-apps.cedar` plus the app's own `src/main/bouncer/app.cedar`, listed in `bouncer.config.json`; the questions they must answer are in `test/bouncer-cases.cjs`): every request the app makes is checked by Cedar
   rules first; anything not on the list is blocked. The app only reads (weather, location, sports, Slack posts if
   connected, MDFM content from this repo, the receiver look and skins from `meddev-receiver/main/dist`, version checks),
   plus one security lookup at OSV. Rules v4. Status shows on the

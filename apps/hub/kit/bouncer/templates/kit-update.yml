@@ -1,0 +1,140 @@
+# Cedar upgrades from the RentVision app kit (copy to .github/workflows/kit-update.yml).
+#
+# Every day this reads the Cedar version the kit pins (kit.json engines.cedar on the kit's main branch, which only
+# changes when Rob merges a kit PR). If this app pins something else, it installs the kit's version, asks the app's
+# Bouncer questions (test/bouncer-cases.cjs) of the old and new engine, runs npm test, and opens a pull request.
+# If anything answers differently or a test fails, it opens an issue instead and nothing ships. Rob merges.
+# To retry a version after fixing something, close its issue: the next run tries again.
+#
+# Two jobs, so untested code never sees a token that can write: "check" installs and runs the new engine with
+# read-only access; only "publish" (git and gh, no app code) gets a token that can push a branch and open the PR.
+#
+# Needs (once per repo, see the kit's README, "Cedar upgrades"):
+#   secrets KIT_BOT_APP_ID and KIT_BOT_PRIVATE_KEY (the kit bot GitHub App, installed on this repo and the kit repo)
+#   Dependabot told to ignore @cedar-policy/* (or it opens its own, unchecked Cedar PRs)
+# For a repo with several apps (mdfm: apps/radio and apps/hub), list their folders in APP_DIRS. If the apps' tests need
+# something built first, put that command in PREPARE; it runs once, in the read-only check job.
+name: kit-update
+on:
+  schedule:
+    - cron: "41 13 * * *"   # every day, 8:41 am Chicago (summer time)
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+concurrency: kit-update
+env:
+  APP_DIRS: "."
+  PREPARE: ""
+  KIT_REPO: rentvision-app-kit
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pin.outputs.version }}
+      skip: ${{ steps.seen.outputs.skip }}
+      changed: ${{ steps.up.outputs.changed }}
+      status: ${{ steps.up.outputs.status }}
+    steps:
+      - id: read
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.KIT_BOT_APP_ID }}
+          private-key: ${{ secrets.KIT_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ env.KIT_REPO }}
+          permission-contents: read
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/${{ env.KIT_REPO }}
+          ref: main
+          path: .kit-src
+          token: ${{ steps.read.outputs.token }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: pin
+        run: echo "version=$(node -p "require('./.kit-src/kit.json').engines.cedar.version")" >> "$GITHUB_OUTPUT"
+      - id: seen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.pin.outputs.version }}
+        run: |
+          # One PR per version (a PR Rob closed without merging means "not this one"); an open issue means it's waiting on a fix.
+          n=$(gh pr list --head "bot/cedar-$V" --state all --json number --jq length)
+          i=$(gh issue list --search "Cedar $V in:title" --state open --json number --jq length)
+          if [ "$n" != 0 ] || [ "$i" != 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+      - id: up
+        if: steps.seen.outputs.skip == 'false'
+        run: |
+          set +e   # keep going after a failure so the report says everything
+          R="$RUNNER_TEMP/out/report.md"; mkdir -p "$RUNNER_TEMP/out"; : > "$R"; changed=false; status=0
+          if [ -n "$PREPARE" ]; then bash -c "$PREPARE" > "$RUNNER_TEMP/prepare.log" 2>&1 || { status=1; { echo "✗ The build step ($PREPARE) failed:"; echo '```'; tail -30 "$RUNNER_TEMP/prepare.log"; echo '```'; } >> "$R"; }; fi
+          for d in $APP_DIRS; do
+            if [ -f "$d/package-lock.json" ]; then (cd "$d" && npm ci --ignore-scripts); else echo "! $d has no package-lock.json, so this used npm install (commit a lockfile for repeatable builds)." >> "$R"; (cd "$d" && npm install --ignore-scripts); fi
+            [ $? -ne 0 ] && { echo "✗ Installing $d's packages failed." >> "$R"; status=1; continue; }
+            node .kit-src/install/cedar-upgrade.mjs --app "$d" --report "$RUNNER_TEMP/one.md"; s=$?
+            [ -f "$RUNNER_TEMP/one.md" ] && { echo "# $d" >> "$R"; cat "$RUNNER_TEMP/one.md" >> "$R"; rm "$RUNNER_TEMP/one.md"; }
+            [ $s -ne 0 ] && status=1
+            if ! git diff --quiet -- "$d/package.json"; then
+              changed=true
+              if [ $s -eq 0 ]; then
+                (cd "$d" && npm test) > "$RUNNER_TEMP/test.log" 2>&1 && echo "✓ npm test passed in $d" >> "$R" \
+                  || { status=1; { echo "✗ npm test failed in $d."; { echo "Failing tests:"; echo '```'; grep -A20 -E '^not ok|^ *not ok|✖' "$RUNNER_TEMP/test.log" | head -150; echo '…'; grep -E '^# (tests|pass|fail)' "$RUNNER_TEMP/test.log"; echo '```'; }; echo "Last lines:"; echo '```'; tail -20 "$RUNNER_TEMP/test.log"; echo '```'; } >> "$R"; }
+              fi
+              mkdir -p "$RUNNER_TEMP/out/files/$d"; cp "$d/package.json" "$RUNNER_TEMP/out/files/$d/"
+              [ -f "$d/package-lock.json" ] && cp "$d/package-lock.json" "$RUNNER_TEMP/out/files/$d/"
+            fi
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"; echo "status=$status" >> "$GITHUB_OUTPUT"
+      - if: steps.seen.outputs.skip == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cedar-upgrade
+          path: ${{ runner.temp }}/out
+          retention-days: 7
+  publish:
+    needs: check
+    if: needs.check.outputs.skip == 'false' && (needs.check.outputs.changed == 'true' || needs.check.outputs.status != '0')
+    runs-on: ubuntu-latest
+    steps:
+      - id: write
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.KIT_BOT_APP_ID }}
+          private-key: ${{ secrets.KIT_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ steps.write.outputs.token }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: cedar-upgrade
+          path: ${{ runner.temp }}/out
+      - if: needs.check.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ steps.write.outputs.token }}
+          V: ${{ needs.check.outputs.version }}
+        run: |
+          # Only package.json and package-lock.json change, copied from the checked run; no app code runs here.
+          cp -R "$RUNNER_TEMP/out/files/." .
+          git config user.name "rentvision-kit-bot"; git config user.email "kit-bot@users.noreply.github.com"
+          git checkout -b "bot/cedar-$V"
+          git add -- $(cd "$RUNNER_TEMP/out/files" && find . -type f | sed 's|^\./||')
+          git commit -m "Cedar $V (from the app kit's pin)"
+          git push -u origin "bot/cedar-$V"
+          gh pr create --title "Cedar $V" --body-file "$RUNNER_TEMP/out/report.md" --base main
+      - if: needs.check.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ steps.write.outputs.token }}
+          V: ${{ needs.check.outputs.version }}
+        run: gh issue create --title "Cedar $V didn't pass for this app" --body-file "$RUNNER_TEMP/out/report.md"

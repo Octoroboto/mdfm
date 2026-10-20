@@ -1,7 +1,7 @@
 // Every outbound request goes through here. Only these hosts, only GET, short timeouts. Nothing else leaves the app.
 // slack.com is only called when the person has connected Slack (read-only: channel history, channel list, user names).
 // Process: Electron main only (radio and hub). Renderers never fetch directly; they ask main over IPC and main calls here.
-// ALLOWED: the full host allowlist. Bouncer's Cedar policy (src/main/bouncer/policy.cedar) narrows it further per caller.
+// ALLOWED: the full host allowlist. Bouncer's Cedar rules (src/main/bouncer: the kit's shared + MDFM family rules and app.cedar) narrow it further per caller.
 const ALLOWED = new Set(["registry.npmjs.org", "api.osv.dev", "api.open-meteo.com", "geocoding-api.open-meteo.com", "api.bigdatacloud.net", "ipwho.is", "get.geojs.io", "site.api.espn.com",
   "raw.githubusercontent.com", "api.github.com", "slack.com",
   "api.gdeltproject.org", "en.wikipedia.org", "feeds.npr.org", "feeds.bbci.co.uk", "www.gamespot.com"]);   // PTLK 108.0: headlines and encyclopedia pages (common/headlines.js)

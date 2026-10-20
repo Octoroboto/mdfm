@@ -34,6 +34,29 @@ async function checkPackage({ id, title, name, current, getJson, behindMajorIsBa
   return result(id, title, lvl, `${name} ${current} → ${latest} available.`, { current, latest });
 }
 
+// Bouncer's rule engine. Apps never update Cedar themselves: the app kit pins one version and its upgrade workflow
+// brings a newer one to each app as a tested PR, then a normal release. So a newer Cedar on npm isn't a job for the
+// person using the app. This warns only when the upgrade seems stuck: a newer version has been out for staleDays
+// and this build is still on the same old one. (Known security problems in it are the vulnerabilities check's job.)
+// previous = this check's last result (Futureproofer passes it), which remembers when the newer version first appeared.
+async function checkCedar({ current, getJson, previous = null, staleDays = 14, now = Date.now(), name = '@cedar-policy/cedar-wasm' }) {
+  const id = 'cedar', title = "Bouncer's rule engine (Cedar)";
+  const tags = await getJson(`https://registry.npmjs.org/-/package/${name}/dist-tags`);
+  const latest = tags.latest;
+  if (!current) return result(id, title, 'bad', 'Cedar is not installed, so Bouncer blocks everything.', { latest });
+  if (compare(current, latest) >= 0) return result(id, title, 'ok', `Cedar ${current} is the newest.`, { current, latest });
+  // The clock starts when this build first fell behind and keeps running while it stays on the same version, even if
+  // more releases come out meanwhile (otherwise frequent releases would hide a stuck upgrade). Upgrading resets it.
+  const newerSince = previous && previous.current === current && previous.newerSince ? previous.newerSince : new Date(now).toISOString();
+  const days = Math.floor((now - Date.parse(newerSince)) / 864e5);
+  const base = { current, latest, newerSince, daysBehind: days };
+  if (days >= staleDays) {
+    return result(id, title, 'warn', `Cedar ${latest} came out ${days} days ago and this version still has ${current}. Its upgrade may be stuck: look for the Cedar ${latest} pull request or issue in the app's repo.`, base);
+  }
+  const why = major(latest) > major(current) ? 'a major version, so a person reviews it before it moves' : 'on its way through the app kit\'s tests';
+  return result(id, title, 'ok', `Cedar ${current} is current for this app; ${latest} is out (${why}).`, base);
+}
+
 // Known security problems in the exact versions the app ships, from OSV (https://osv.dev),
 // the open vulnerability database run by Google that covers the npm ecosystem.
 async function checkVulnerabilities({ packages, postJson }) {
@@ -96,4 +119,4 @@ function checkBuildReport({ report, maxAgeDays = 45, now = Date.now() }) {
   return result('build', 'Build check', level, notes.length ? notes.join(' ') : `Built ${ageDays} day(s) ago; no problems in shipped packages.`, { report: { createdAt: report.createdAt, audit: a, outdated: report.outdated || [] } });
 }
 
-module.exports = { checkElectron, checkPackage, checkVulnerabilities, checkMac, macosFromDarwin, checkAppRelease, checkBuildReport, result };
+module.exports = { checkElectron, checkPackage, checkCedar, checkVulnerabilities, checkMac, macosFromDarwin, checkAppRelease, checkBuildReport, result };

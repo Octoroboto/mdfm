@@ -9,10 +9,11 @@ const path = require('path');
 
 const RANK = { ok: 0, info: 0, warn: 1, bad: 2 };
 
-function createFutureproofer({ appName, stateFile, checks = [], notify = () => {}, staleAfterDays = 3, now = () => Date.now() }) {
+function createFutureproofer({ appName, stateFile, checks = [], notify = () => {}, staleAfterDays = 3, retryMinutes = 30, now = () => Date.now() }) {
   let state = { results: {}, lastFullCheck: null };
   try { state = { ...state, ...JSON.parse(fs.readFileSync(stateFile, 'utf8')) }; } catch {}
-  const save = () => { try { fs.mkdirSync(path.dirname(stateFile), { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify(state, null, 2)); } catch {} };
+  // Written to a side file and renamed into place, so a crash or full disk never leaves half a state file.
+  const save = () => { const tmp = `${stateFile}.${process.pid}.tmp`; try { fs.mkdirSync(path.dirname(stateFile), { recursive: true }); fs.writeFileSync(tmp, JSON.stringify(state, null, 2)); fs.renameSync(tmp, stateFile); } catch { try { fs.rmSync(tmp, { force: true }); } catch {} } };
   const registry = new Map(checks.map((c) => [c.id, c]));
   let runningNow = null;
 
@@ -27,6 +28,7 @@ function createFutureproofer({ appName, stateFile, checks = [], notify = () => {
 
   const due = (c) => {
     const r = state.results[c.id];
+    if (r && r.failed) return now() - Date.parse(r.failedAt || 0) > retryMinutes * 60e3;   // retry a failed check sooner
     if (!r || !r.checkedAt) return true;
     return now() - Date.parse(r.checkedAt) > (c.everyHours || 6) * 3600e3;
   };
@@ -39,14 +41,16 @@ function createFutureproofer({ appName, stateFile, checks = [], notify = () => {
       const list = [...registry.values()].filter((c) => (only ? only.includes(c.id) : force || due(c)));
       for (const c of list) {
         try {
-          const r = await c.run();
-          state.results[c.id] = { ...r, id: c.id, title: r.title || c.title };
+          const r = await c.run({ previous: state.results[c.id] || null }); // a check may remember things between runs (checkCedar does)
+          state.results[c.id] = { ...r, id: c.id, title: r.title || c.title, checkedAt: r.checkedAt || new Date(now()).toISOString() };
         } catch (e) {
           const prev = state.results[c.id] || {};
-          state.results[c.id] = { ...prev, id: c.id, title: c.title, level: prev.level === 'bad' ? 'bad' : 'warn', summary: `Couldn't check: ${e.message}`, checkedAt: new Date(now()).toISOString(), failed: true };
+          // A check that couldn't run keeps its last real checkedAt (if any), so offline doesn't look fresh.
+          state.results[c.id] = { ...prev, id: c.id, title: c.title, level: prev.level === 'bad' ? 'bad' : 'warn', summary: `Couldn't check: ${e.message}`, failedAt: new Date(now()).toISOString(), failed: true };
         }
       }
-      if ([...registry.values()].every((c) => !due(c))) state.lastFullCheck = new Date(now()).toISOString();
+      // A full check means every check ran and succeeded recently; a failure doesn't count.
+      if ([...registry.values()].every((c) => { const r = state.results[c.id]; return r && !r.failed && !due(c); })) state.lastFullCheck = new Date(now()).toISOString();
       save();
       const after = level({ ignoreFailed: true });
       if (RANK[after] > RANK[before] && after !== 'ok') {

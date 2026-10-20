@@ -43,6 +43,12 @@ when { context.host == "fonts.googleapis.com" || context.host == "fonts.gstatic.
 permit (principal == Caller::"app", action == Action::"GET", resource == Host::"raw.githubusercontent.com")
 when { context.path like "/Octoroboto/meddev-receiver/main/dist/*" };
 
+// MDFM: new radio content (only if the app uses the mdfm module's live updater).
+@id("mdfm-content")
+@description("Read MDFM's published radio engine and radio page parts")
+permit (principal == Caller::"app", action == Action::"GET", resource == Host::"raw.githubusercontent.com")
+when { context.path like "/Octoroboto/mdfm/main/dist/*" || context.path like "/Octoroboto/mdfm/main/skin/*" };
+
 // FUTUREPROOFER: version and security checks (only if the app uses the futureproofer module).
 @id("versions")
 @description("Read newest package versions (Electron, Cedar) from npm")

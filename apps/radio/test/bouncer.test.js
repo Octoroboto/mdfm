@@ -1,12 +1,16 @@
 // Bouncer for MDFM Radio: the real Cedar rules, checked against every request the app makes and a set it must never make.
-// Tests src/main/bouncer/policy.cedar through the app kit's Bouncer (kit/bouncer) with the real Cedar engine.
+// Tests the app's rules (kit/bouncer/shared.cedar + kit/bouncer/families/mdfm-apps.cedar + src/main/bouncer/app.cedar,
+// as bouncer.config.json lists them) through the app kit's Bouncer (kit/bouncer) with the real Cedar engine.
 // Run: cd apps/radio && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
 // One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). Node's built-in runner, no window.
 const test = require("node:test"), assert = require("node:assert"), fs = require("fs"), os = require("os"), path = require("path");
 const { createBouncer, fingerprint } = require("../kit/bouncer");
 const DIR = path.join(__dirname, "../src/main/bouncer");
-const policyText = fs.readFileSync(path.join(DIR, "policy.cedar"), "utf8");
 const config = JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.config.json"), "utf8"));
+const policyText = require("../kit/bouncer/rules").loadRules(DIR, config).text;
+// The questions the rules must answer (shared with the kit's Cedar upgrade check): [caller, method, url, body, expect, why].
+const CASES = require("./bouncer-cases.cjs");
+const ask = (b, [caller, method, url, body]) => b.check({ url, method, ...(body && typeof body === "object" ? body : body != null ? { body } : {}) }, caller);
 const lock = JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.lock.json"), "utf8"));
 // A fresh Bouncer over the reviewed rules, logging to a temp folder.
 const make = () => createBouncer({ appName: "MDFM Radio", policyText, config, lock, logDir: fs.mkdtempSync(path.join(os.tmpdir(), "mdfm-b-")), enginePackageVersion: "4.13.0" });
@@ -17,65 +21,16 @@ test("rules are locked, enforcing and healthy", () => {
   const st = make().status(); assert.strictEqual(st.healthy, true, st.problems.join("; ")); assert.strictEqual(st.mode, "enforce");
 });
 
-// Requests the app really makes: [caller, url] (GET unless a method is given). Each must be allowed.
-const ALLOW = [
-  ["app", "https://api.open-meteo.com/v1/forecast?latitude=41.9&longitude=-87.6&current=temperature_2m"],
-  ["app", "https://geocoding-api.open-meteo.com/v1/search?count=1&name=Chicago"],
-  ["app", "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=41.9&longitude=-87.6&localityLanguage=en"],
-  ["app", "https://ipwho.is/"],
-  ["app", "https://get.geojs.io/v1/ip/geo.json"],
-  ["app", "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"],
-  ["app", "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard"],
-  ["app", "https://slack.com/api/conversations.list?types=public_channel&limit=1000"],
-  ["app", "https://slack.com/api/conversations.history?channel=C2WCGG31N&limit=20&oldest=1"],
-  ["app", "https://slack.com/api/users.info?user=U123"],
-  ["app", "https://slack.com/api/auth.revoke"],
-  ["app", "https://raw.githubusercontent.com/Octoroboto/mdfm/main/package.json"],
-  ["app", "https://raw.githubusercontent.com/Octoroboto/mdfm/main/dist/radio.html"],
-  ["app", "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/manifest.json"],
-  ["app", "https://raw.githubusercontent.com/Octoroboto/mdfm/main/config/slack.json"],
-  ["app", "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/receiver.js"],
-  ["app", "https://api.github.com/repos/Octoroboto/mdfm/releases?per_page=20"],
-  ["app", "https://registry.npmjs.org/@cedar-policy/cedar-wasm/latest"],
-  ["app", "https://registry.npmjs.org/-/package/electron/dist-tags"],
-  ["app", "https://registry.npmjs.org/-/package/@cedar-policy/cedar-wasm/dist-tags"],
-  ["radio", "https://fonts.googleapis.com/css2?family=VT323&display=swap"],
-  ["radio", "https://fonts.gstatic.com/s/vt323/v17/abc.woff2"],
-];
-// Requests that must never leave: [caller, method, url, why].
-const BLOCK = [
-  ["app", "POST", "https://slack.com/api/chat.postMessage", "posting to Slack"],
-  ["app", "GET", "https://slack.com/api/chat.postMessage?channel=C1&text=hi", "posting to Slack via GET"],
-  ["app", "GET", "https://slack.com/api/conversations.join?channel=C1", "joining a channel"],
-  ["app", "GET", "https://slack.com/api/files.list", "reading files"],
-  ["app", "GET", "https://slack.com/api/conversations.history?channel=D123", "fine path, but this one is allowed"],
-  ["app", "GET", "https://raw.githubusercontent.com/someone-else/evil/main/radio.html", "another repo"],
-  ["app", "GET", "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/src/receiver.css", "the receiver's source, not its checked dist"],
-  ["app", "GET", "https://api.github.com/repos/Octoroboto/floorplan-video-uploader/releases", "another repo's releases"],
-  ["app", "GET", "https://example.com/", "an unknown site"],
-  ["app", "GET", "https://registry.npmjs.org/left-pad", "other npm packages"],
-  ["app", "PUT", "https://api.open-meteo.com/v1/forecast", "a change"],
-  ["app", "DELETE", "https://slack.com/api/users.info", "a delete"],
-  ["radio", "GET", "https://api.open-meteo.com/v1/forecast", "the window calling an API"],
-  ["radio", "GET", "https://www.google-analytics.com/collect", "tracking from the window"],
-  ["background", "GET", "https://fonts.gstatic.com/s/x.woff2", "a service worker"],
-  ["ui", "GET", "https://fonts.googleapis.com/css2", "an unlabelled window"],
-].filter(x => !x[3].startsWith("fine path"));
-
-test("every request the app makes is allowed", () => {
-  const b = make();
-  for (const [caller, url] of ALLOW) { const r = b.check({ url, method: "GET" }, caller); assert.strictEqual(r.decision, "allow", `${caller} ${url}: ${r.why}`); }
+test("every request the app makes is allowed, and everything else is blocked (test/bouncer-cases.cjs)", () => {
+  const b = make(), wrong = [];
+  for (const c of CASES) { const r = ask(b, c); if ((c[4] === "allow") !== (r.decision === "allow") || (c[4] === "deny" && r.allow)) wrong.push(`${c[4]} expected: ${c[0]} ${c[1]} ${c[2]} (${c[5] || "a request the app makes"}): ${r.decision} ${r.why || ""}`); }
+  assert.deepStrictEqual(wrong, []);
+  assert.ok(CASES.filter(c => c[4] === "allow").length >= 20 && CASES.filter(c => c[4] === "deny").length >= 15, "the questions file is complete");
 });
-test("the OSV security lookup is the only POST", () => {
-  const b = make(), body = JSON.stringify({ queries: [{ package: { name: "electron", ecosystem: "npm" }, version: "44.5.1" }] });
-  assert.strictEqual(b.check({ url: "https://api.osv.dev/v1/querybatch", method: "POST", body, contentType: "application/json" }, "app").decision, "allow");
-  assert.strictEqual(b.check({ url: "https://api.osv.dev/v1/querybatch", method: "POST", body: JSON.stringify({ queries: [], extra: 1 }), contentType: "application/json" }, "app").allow, false);
-  assert.strictEqual(b.check({ url: "https://api.osv.dev/v1/query", method: "POST", body, contentType: "application/json" }, "app").allow, false);
-  assert.strictEqual(b.check({ url: "https://slack.com/api/conversations.history", method: "POST", body: "{\"queries\":1}", contentType: "application/json" }, "app").allow, false);
-});
-test("anything else is blocked", () => {
+test("plain http is blocked even where https is allowed (kit/bouncer/shared.cedar)", () => {
   const b = make();
-  for (const [caller, method, url, what] of BLOCK) { const r = b.check({ url, method }, caller); assert.strictEqual(r.allow, false, `${what} should be blocked: ${caller} ${method} ${url}`); }
+  assert.strictEqual(b.check({ url: "https://ipwho.is/", method: "GET" }, "app").decision, "allow");
+  assert.strictEqual(b.check({ url: "http://ipwho.is/", method: "GET" }, "app").allow, false);
   assert.throws(() => b.assert({ url: "https://example.com/x", method: "GET" }), /Blocked by Bouncer/);
 });
 test("a runaway loop hits the daily limit", () => {

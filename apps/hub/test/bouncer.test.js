@@ -1,5 +1,6 @@
 // Bouncer for MD Hub: both rule sets checked with real Cedar.
-//   app  (policy.cedar, enforced): the app's own requests.
+//   app  (enforced): the app's own requests. Rules: kit/bouncer/shared.cedar + kit/bouncer/families/mdfm-apps.cedar
+//        + src/main/bouncer/app.cedar, as bouncer.config.json lists them; questions in test/bouncer-cases.cjs.
 //   view (view-policy.cedar, observe): the hub page on claude.ai, which is logged, never blocked.
 // Run: cd apps/hub && npm test (copies apps/common into src/common first, then MDFM_TEST=1 node --test test/*.test.js).
 // One file: MDFM_TEST=1 node --test test/<this file> (after one npm test, so src/common exists). No window.
@@ -8,7 +9,11 @@ const { createBouncer, fingerprint } = require("../kit/bouncer");
 const DIR = path.join(__dirname, "../src/main/bouncer");
 // Reads one rules file, its config and lock from src/main/bouncer.
 const load = (p, c, l) => ({ policyText: fs.readFileSync(path.join(DIR, p), "utf8"), config: JSON.parse(fs.readFileSync(path.join(DIR, c), "utf8")), lock: JSON.parse(fs.readFileSync(path.join(DIR, l), "utf8")) });
-const APP = load("policy.cedar", "bouncer.config.json", "bouncer.lock.json");
+const APP = (() => { const config = JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.config.json"), "utf8"));
+  return { policyText: require("../kit/bouncer/rules").loadRules(DIR, config).text, config, lock: JSON.parse(fs.readFileSync(path.join(DIR, "bouncer.lock.json"), "utf8")) }; })();
+// The questions the app's rules must answer (shared with the kit's Cedar upgrade check): [caller, method, url, body, expect, why].
+const CASES = require("./bouncer-cases.cjs");
+const ask = (b, [caller, method, url, body]) => b.check({ url, method, ...(body && typeof body === "object" ? body : body != null ? { body } : {}) }, caller);
 const VIEW = load("view-policy.cedar", "bouncer.view.config.json", "bouncer.view.lock.json");
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "mdhub-b-"));
 // fp: a rules set's current fingerprint, to compare with its lock.
@@ -23,51 +28,16 @@ test("both rule sets are locked and healthy; app enforces, hub page observes", (
   }
 });
 
-// URLs the app's own code really fetches (caller "app", GET). Each must be allowed.
-const ALLOW = [
-  "https://api.open-meteo.com/v1/forecast?latitude=41.2&longitude=-95.9&current=temperature_2m",
-  "https://geocoding-api.open-meteo.com/v1/search?count=1&name=Omaha",
-  "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=41.2&longitude=-95.9&localityLanguage=en",
-  "https://ipwho.is/", "https://get.geojs.io/v1/ip/geo.json",
-  "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80",
-  "https://site.api.espn.com/apis/site/v2/sports/rugby/267979/scoreboard",
-  "https://slack.com/api/conversations.list?types=public_channel&limit=1000",
-  "https://slack.com/api/conversations.history?channel=C2WCGG31N&limit=20&oldest=1",
-  "https://slack.com/api/users.info?user=U123", "https://slack.com/api/auth.revoke",
-  "https://api.github.com/repos/Octoroboto/mdfm/releases?per_page=30",
-  "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/manifest.json",
-  "https://raw.githubusercontent.com/Octoroboto/mdfm/main/config/slack.json",
-  "https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/receiver.css",
-  "https://registry.npmjs.org/@cedar-policy/cedar-wasm/latest",
-  "https://registry.npmjs.org/-/package/electron/dist-tags",
-];
-// Requests the app must never send: [method, url, why].
-const BLOCK = [
-  ["POST", "https://slack.com/api/chat.postMessage", "posting to Slack"],
-  ["GET", "https://slack.com/api/chat.postMessage?channel=C1&text=hi", "posting to Slack via GET"],
-  ["GET", "https://slack.com/api/conversations.join?channel=C1", "joining a channel"],
-  ["GET", "https://slack.com/api/files.list", "reading files"],
-  ["GET", "https://api.github.com/repos/Octoroboto/floorplan-video-uploader/releases", "another repo"],
-  ["GET", "https://claude.ai/api/organizations", "the app's own code calling claude.ai"],
-  ["GET", "https://example.com/", "an unknown site"],
-  ["GET", "https://raw.githubusercontent.com/Octoroboto/mdfm/main/dist/radio.html", "radio content (the hub app doesn't need it)"],
-  ["GET", "https://raw.githubusercontent.com/someone-else/meddev-receiver/main/dist/receiver.js", "a look from another account"],
-  ["GET", "https://registry.npmjs.org/left-pad", "other npm packages"],
-  ["PUT", "https://api.open-meteo.com/v1/forecast", "a change"],
-];
-test("every request the app's own code makes is allowed", () => {
-  const b = make(APP);
-  for (const url of ALLOW) { const r = b.check({ url, method: "GET" }, "app"); assert.strictEqual(r.decision, "allow", `${url}: ${r.why}`); }
+test("every request the app's own code makes is allowed, and everything else is blocked (test/bouncer-cases.cjs)", () => {
+  const b = make(APP), wrong = [];
+  for (const c of CASES) { const r = ask(b, c); if ((c[4] === "allow") !== (r.decision === "allow") || (c[4] === "deny" && r.allow)) wrong.push(`${c[4]} expected: ${c[0]} ${c[1]} ${c[2]} (${c[5] || "a request the app makes"}): ${r.decision} ${r.why || ""}`); }
+  assert.deepStrictEqual(wrong, []);
+  assert.ok(CASES.filter(c => c[4] === "allow").length >= 15 && CASES.filter(c => c[4] === "deny").length >= 12, "the questions file is complete");
 });
-test("the OSV security lookup is the only POST", () => {
-  const b = make(APP), body = JSON.stringify({ queries: [{ package: { name: "electron", ecosystem: "npm" }, version: "44.5.1" }] });
-  assert.strictEqual(b.check({ url: "https://api.osv.dev/v1/querybatch", method: "POST", body, contentType: "application/json" }, "app").decision, "allow");
-  assert.strictEqual(b.check({ url: "https://api.osv.dev/v1/querybatch", method: "POST", body: JSON.stringify({ queries: [], extra: 1 }), contentType: "application/json" }, "app").allow, false);
-});
-test("anything else from the app is blocked", () => {
+test("plain http is blocked even where https is allowed (kit/bouncer/shared.cedar)", () => {
   const b = make(APP);
-  for (const [method, url, what] of BLOCK) assert.strictEqual(b.check({ url, method }, "app").allow, false, `${what} should be blocked`);
-  for (const caller of ["shell", "ui"]) assert.strictEqual(b.check({ url: "https://api.open-meteo.com/v1/forecast", method: "GET" }, caller).allow, false, `${caller} window calling an API`);
+  assert.strictEqual(b.check({ url: "https://ipwho.is/", method: "GET" }, "app").decision, "allow");
+  assert.strictEqual(b.check({ url: "http://ipwho.is/", method: "GET" }, "app").allow, false);
   assert.throws(() => b.assert({ url: "https://example.com/x", method: "GET" }), /Blocked by Bouncer/);
 });
 test("a changed rules file without a new lock blocks everything", () => {

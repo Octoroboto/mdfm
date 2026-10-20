@@ -35,7 +35,7 @@ Settings → **Accessibility** (or Cmd+Option+A anywhere) slides out the AXMOD d
 
 ## Safety
 
-- **Bouncer, the app's own requests (enforced):** the app may only read weather, location, scoreboards, Slack news (read-only), this repo's releases, and the receiver look and skins (rules v2). Everything else is blocked. Rules are in `src/main/bouncer/policy.cedar`.
+- **Bouncer, the app's own requests (enforced):** the app may only read weather, location, scoreboards, Slack news (read-only), this repo's releases, and the receiver look and skins (rules v2). Everything else is blocked. Rules: the kit's `shared.cedar` (https only, never delete) and `families/mdfm-apps.cedar` (shared with MDFM Radio) plus the app's own `src/main/bouncer/app.cedar`, listed in `bouncer.config.json`; the questions they must answer are in `test/bouncer-cases.cjs`.
 - **Bouncer, the hub page (observe):** claude.ai is watched, and anything unusual is logged. Nothing is blocked, because blocking a site's own calls can break it. Rules are in `view-policy.cedar`. Switch it to enforce once the log has been quiet for a while.
 - **Radio bridge scope:** only the hub artifact's own frame gets the radio bridge (`window.mdfmApp`: live data, voices, settings), and the app re-checks every call. Rules (`src/main/bridge-scope.js`):
   - the frame must be the artifact's sandbox frame on `*.claudeusercontent.com` (never the top page), with only claude.ai or claudeusercontent.com frames between it and the top;
