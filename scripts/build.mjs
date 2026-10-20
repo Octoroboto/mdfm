@@ -24,6 +24,11 @@ const faire = ["doug", "cauldron", "grog", "pest", "dqi", "onestar", "hoard", "p
 const wx = read("src/weather.js").replace(/^export function /m, "function ") + "\n" + read("src/sports.js").replace(/^export function /m, "function ");
 // safety net: a file that still imports or exports would break the concatenated bundle
 if (/^\s*(import|export)\b/m.test(pack + engine + ui + wx + talk + faire + cluk)) throw new Error("build: unexpected import/export left in src; update scripts/build.mjs");
+// 1.33: baked PTRN tags (real voices recorded ahead of time on a Mac by scripts/render-tags.mjs; plain script that sets
+// window.MDFM_TAGS). Optional: without the file, browsers keep using the system voice for tags. Inlined into radio.html
+// as its own <script id="mdfm-tags"> ahead of the library, and into the hub embed by scripts/hub-snippet.mjs.
+let tagsJs = ""; try { tagsJs = read("src/content/tags-baked.js"); } catch {}
+const tagsTag = tagsJs ? `<script id="mdfm-tags">${tagsJs.replace(/<\/script/gi, "<\\/script")}</script>\n` : "";
 const xp = read("src/export.js") + "\n" + read("src/tune.js");   // TUNE (the sound designer panel) and the Save helpers ride in the same scope
 // the MP3 encoder (lamejs, LGPL-3.0, "npm install --save-exact lamejs@1.2.1"); without it Save song reports that it's missing
 let lame = ""; try { lame = readFileSync(new URL("vendor/lamejs/lame.min.js", root), "utf8"); } catch {}
@@ -66,7 +71,7 @@ const radio = `<!doctype html>
 <style id="mdfm-radio">${read("skin/radio.css")}</style>
 </head><body>
 ${read("skin/radio-body.html").replace("<!--MDFM:BADGES-->", badges)}
-<script id="mdfm-lib">${iife}</script>
+${tagsTag}<script id="mdfm-lib">${iife}</script>
 ${skinsTag}
 <script id="meddev-receiver-js">${receiverJs}</script>
 <script id="mdfm-skin-js">${mdfmSkinJs}</script>

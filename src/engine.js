@@ -3526,13 +3526,33 @@ function ptrnTagNow(){ const p=ptrn; if(!on||!p) return; const s=p.songs.find(x=
 // rendered tags (apps that render voices): a few kept ready, so each one can land exactly on the beat
 // ptrnTagPrefetch(s): keeps about 6 rendered tags ready (opts.tts, 15 s limit each; only tags under 6 s are kept, with
 // a reversed copy): a "song" tag for track s when given, the rest IDs, drops and jokes (R() draws). Apps only.
-function ptrnTagPrefetch(s){ const p=ptrn; if(!p||typeof opts.tts!=="function"||!ctx) return; const want=[];
+// 1.33: in a browser (no opts.tts) the tags come from BAKED clips instead: real voices recorded ahead of time on a Mac
+// (scripts/render-tags.mjs writes src/content/tags-baked.js, inlined into the page as window.MDFM_TAGS). They play inside
+// the music like the apps' rendered tags, with the same stutter / echo / reverse treatments. On iPhone the system voice
+// silenced the music for the length of every tag; a baked clip never leaves Web Audio. Song tags are per genre only
+// (no BPM, key or clock lines). Without the clips (or before they decode) the system voice is still the fallback.
+function ptrnTagPrefetch(s){ const p=ptrn; if(!p||!ctx) return; if(typeof opts.tts!=="function"){ bakedPrefetch(p,s); return; } const want=[];
   if(s) want.push({kind:"song",text:ptrnTagText("song",s),sid:s.title});
   while(p.ready.length+p.loading+want.length<6) want.push((k=>({kind:k,text:ptrnTagText(k)}))(pick(["id","id","drop","drop","joke"])));
   for(const w of want){ p.loading++; const v=pick(TAG_VOICES), c=ctx;
     Promise.race([opts.tts({text:w.text,voice:v,rate:1,pitch:1}),new Promise((_,rej)=>setTimeout(()=>rej(new Error("tts timeout")),15000))])
       .then(buf=>c.decodeAudioData(buf instanceof ArrayBuffer?buf:buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength)))
       .then(b=>{ p.loading--; if(ptrn===p&&b&&b.duration<6) p.ready.push({...w,b,r:revBuf(b),voice:v}); }).catch(()=>{ p.loading--; }); } }
+// bakedTags(): the baked clip list ({kind, text, genre?, voice, b64}) from window.MDFM_TAGS, or null
+function bakedTags(){ const B=typeof window!=="undefined"&&window.MDFM_TAGS; return B&&Array.isArray(B.clips)&&B.clips.length?B.clips:null; }
+// b64buf(str): base64 text -> ArrayBuffer (for decodeAudioData)
+function b64buf(str){ const bin=atob(str), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u.buffer; }
+// bakedPrefetch(p, s): keeps about 6 baked tags decoded and ready, like ptrnTagPrefetch does with rendered ones: track s's
+// genre tag when there is one, the rest IDs, drops and jokes. Picks with Math.random (not R(), so the song's own stream
+// is untouched) and avoids clips heard recently (p.bakedLast holds the last 24 indexes). Decoding is async; until a clip
+// is ready, ptrnTag falls back to the system voice.
+function bakedPrefetch(p,s){ const B=bakedTags(); if(!B) return; const last=p.bakedLast||(p.bakedLast=[]), want=[];
+  const choose=f=>{ const all=B.map((c,i)=>i).filter(i=>f(B[i],i)); if(!all.length) return -1; const fresh=all.filter(i=>!last.includes(i)); const L=fresh.length?fresh:all; return L[Math.floor(Math.random()*L.length)]; };
+  if(s){ const gl=(PTRN_KEY[s.name]||[0,s.name])[1], i=choose(c=>c.kind==="song"&&c.genre===gl); if(i>=0) want.push([i,s.title]); }
+  while(p.ready.length+p.loading+want.length<6){ const k=["id","id","drop","drop","joke"][Math.floor(Math.random()*5)], i=choose((c,j)=>c.kind===k&&!want.some(w=>w[0]===j)); if(i<0) break; want.push([i,null]); }
+  for(const [i,sid] of want){ const c=B[i], cx=ctx; last.push(i); if(last.length>24) last.shift(); p.loading++;
+    let ab; try{ ab=b64buf(c.b64); }catch(e){ p.loading--; continue; }
+    cx.decodeAudioData(ab).then(b=>{ p.loading--; if(ptrn===p&&ctx===cx&&b&&b.duration<6) p.ready.push({kind:c.kind,text:c.text,sid,b,r:revBuf(b),voice:c.voice}); }).catch(()=>{ p.loading--; }); } }
 // ptrnTake(p, kind, s): takes a ready tag: the current track's "song" tag (unless an ID is wanted), else one of kind,
 // else any but a song tag; null if none. Asks for a replacement.
 function ptrnTake(p,kind,s){ const R2=p.ready; let i=R2.findIndex(x=>x.kind==="song"&&s&&x.sid===s.title&&kind!=="id"); if(i<0) i=R2.findIndex(x=>x.kind===kind); if(i<0) i=R2.findIndex(x=>x.kind!=="song"); if(i<0) return null;
@@ -5692,7 +5712,12 @@ return {
   beatNow(id){ return beatNow(id||station); },   // {step, bar, song:{k..p: 16 booleans}, play:{...}|null}
   setGroove(vals,id){ return setGroove(id||station,vals); },
   resetGroove(id){ return setGroove(id||station,GROOVE_UI); },
-  stationTypeList(id){ return (STATION_TYPES[id]||[]).map(x=>[...x]); },   // PTRN's entries carry a third item: the genre's family
+  stationTypeList(id){ return (STATION_TYPES[id]||[]).map(x=>[...x]); },
+  /* 1.33: the lines scripts/render-tags.mjs records for browsers: [{kind, text, genre?}] (IDs, drops and jokes as written;
+     two genre lines per PTRN genre; lines with {bpm}, {key}, {time} or {clock} are live-only) and the voices to use */
+  tagScript(){ const L=[]; for(const k of ["id","drop","joke"]) for(const text of TAG_TXT[k]) L.push({kind:k,text});
+    for(const g of PTRN_GENRES) for(const t of ["Now playing {genre}.","{genre}. On Pattern."]) L.push({kind:"song",genre:g[1],text:t.replace("{genre}",g[1])});
+    return {lines:L,voices:[...TAG_VOICES]}; },   // PTRN's entries carry a third item: the genre's family
   /* Effects (TUNE, 1.22), on every station and in Save: echo, chorus, reverb, flange, phaser, warble, crush, drive, gate, pump
      (0..1, 0 = off) and filter (.5 = off, below: low-pass, above: high-pass). tapeStop() and spinBack() are one-shots. */
   /* Instruments (1.23): the pool MDFM 99.9 and PTRN 101.1 pick from. instrumentList() gives [key, label, category

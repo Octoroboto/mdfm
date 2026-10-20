@@ -9,5 +9,8 @@ const d = p => readFileSync(new URL("../dist/" + p, import.meta.url), "utf8");  
 const v = p => readFileSync(new URL("../vendor/meddev-receiver/" + p, import.meta.url), "utf8");   // v(p): a file in the bundled MedDev Receiver
 const read = p => readFileSync(new URL("../" + p, import.meta.url), "utf8");   // read(p): a file anywhere in the repo
 writeFileSync(new URL("../dist/hub-skin.html", import.meta.url), `<style id="mdfm-skin">${d("skin.css")}</style>\n`);
-writeFileSync(new URL("../dist/hub-embed.html", import.meta.url), `<script id="mdfm-lib">\n${d("mdfm.iife.js")}\n</script>\n<script id="meddev-skins" type="application/json">${v("skins.json").trim().replace(/</g, "\\u003c")}</script>\n<script id="meddev-receiver-js">\n${v("receiver.js")}\n</script>\n<script id="mdfm-skin-js">\n${read("skin/types.js")}\n</script>\n`);   // "<" in the skins JSON is escaped so it can't close the script tag
+// 1.33: the baked PTRN tags ride along when src/content/tags-baked.js exists (their own block, id mdfm-tags)
+let tags = ""; try { tags = read("src/content/tags-baked.js"); } catch {}
+const tagsTag = tags ? `<script id="mdfm-tags">${tags.replace(/<\/script/gi, "<\\/script")}</script>\n` : "";
+writeFileSync(new URL("../dist/hub-embed.html", import.meta.url), `${tagsTag}<script id="mdfm-lib">\n${d("mdfm.iife.js")}\n</script>\n<script id="meddev-skins" type="application/json">${v("skins.json").trim().replace(/</g, "\\u003c")}</script>\n<script id="meddev-receiver-js">\n${v("receiver.js")}\n</script>\n<script id="mdfm-skin-js">\n${read("skin/types.js")}\n</script>\n`);   // "<" in the skins JSON is escaped so it can't close the script tag
 console.log("wrote dist/hub-skin.html and dist/hub-embed.html: Claude swaps them into the hub and republishes");

@@ -1140,7 +1140,7 @@ window.MDFM_receiver=function(radio,{app=null}={}){
 
 window.MedDevReceiver={version:"1.13.4",mountBadges:()=>window.MDFM_mountBadges(),mountControls:(radio,o)=>window.MDFM_receiver(radio,o||{})};
 
-/* MDFM 1.32.1: content types for the receiver controls */
+/* MDFM 1.33.0: content types for the receiver controls */
 /* What plays between songs: the talk types people can switch off (music always plays), plus (1.22) the songs that aren't in 4/4. Shared by every MDFM receiver and the MD Hub settings. */
 // Where it fits: scripts/build.mjs puts this file into dist/skin.js, inlines it in dist/radio.html (the mdfm-skin-js script)
 // and lists it in dist/manifest.json so the apps can update it live; scripts/hub-snippet.mjs puts it in the hub embed.

@@ -2,6 +2,10 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.33.0 (2026-10-20, Rob)
+- **PTRN tags in browsers are baked:** real macOS voices recorded ahead of time (`scripts/render-tags.mjs`, run on a Mac, writes `src/content/tags-baked.js`; the build inlines it into radio.html as `<script id="mdfm-tags">` and `hub-snippet.mjs` adds it to the hub embed). They play inside the music like the apps' rendered tags, with the stutter / echo / reverse treatments. On iPhone the system voice silenced the music for the length of each tag; a baked clip never leaves Web Audio. 143 lines: every ID, drop and joke, plus two genre lines per PTRN genre. BPM, key, time and clock lines stay live-only (apps). Without the file, or before a clip decodes, the system voice is still the fallback.
+- Engine: `bakedPrefetch` keeps about 6 decoded (Math.random, not `R()`; avoids the last 24 heard); API `tagScript()` lists the lines and voices for the render tool.
+
 ## 1.32.1 (2026-10-20, Rob)
 - **VOID title bar (apps):** VOID strips the window-control strip's background and left-aligns the title, so POWER / MIN / FULL sat on top of "MDFM RADIO". In VOID the controls now sit in line before the title (`html.mx-void header.top .wctl`).
 - **Settings section headers:** the frequency is now a small LCD chip in the skin's own LCD colours, one width for all (so the titles line up). It was the skin's LCD colour straight on the panel, which vanished on light skins (Q3 Reconciliation 1.4:1, Analyze Pics). The doubled class outranks Analyze Pics' black `<b>`. Analyze Pics' "N of N on" count is darker. Checked in every skin: frequency 7:1 or better, titles 4:1 or better.
