@@ -2,6 +2,10 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.32.1 (2026-10-20, Rob)
+- **VOID title bar (apps):** VOID strips the window-control strip's background and left-aligns the title, so POWER / MIN / FULL sat on top of "MDFM RADIO". In VOID the controls now sit in line before the title (`html.mx-void header.top .wctl`).
+- **Settings section headers:** the frequency is now a small LCD chip in the skin's own LCD colours, one width for all (so the titles line up). It was the skin's LCD colour straight on the panel, which vanished on light skins (Q3 Reconciliation 1.4:1, Analyze Pics). The doubled class outranks Analyze Pics' black `<b>`. Analyze Pics' "N of N on" count is darker. Checked in every skin: frequency 7:1 or better, titles 4:1 or better.
+
 ## 1.32.0 (2026-10-19, Rob)
 - **PTRN: five goth genres** in a new **Goth & dark** family: darkwave, gothic rock, witch house, ethereal wave and dark synth-pop. Each has its own switch in Settings (all on). They take MDFM's goth rules (`STYLE_FAM` "goth": key change up for the last hook, 6/8 and 7/8, the goth High-end pack picks). Gothic rock is left out of the High-end pack picks so it keeps its chorus guitar.
 - **New sounds:** `M.ppbass` (a picked chorus bass) played by `BASSX.postpunk` (a melodic eighth-note figure per song); `M.chime` (a clean chorus guitar) played by `CHX.chime` (ringing arpeggios); `SNX.cavern` (the big reverb snare). The chorus (`chorusIn`) is shared by overlapping notes and is left out in LITE live. Settings › Instruments has "Chorus bass (post-punk)" and "Chorus guitar (post-punk)" (since "1.32", tagged new).

@@ -1343,6 +1343,7 @@ html.mx-void .skin-decor,html.mx-void [class^="sx-"],html.mx-void [class*=" sx-"
 html.mx-void .deck,html.mx-void .panel,html.mx-void .wing,html.mx-void .mx-card,html.mx-void .mx-sec,html.mx-void .setsec{background-color:var(--v-blk)!important;border:1px solid var(--v-line)!important;border-radius:8px!important}
 html.mx-void .mixdrawer{background-color:transparent!important;border-top:1px solid var(--v-line)!important}
 html.mx-void .wtitle{background-color:transparent!important;border:0!important;color:var(--v-mute)!important;letter-spacing:.3em!important;justify-content:flex-start!important}
+html.mx-void header.top .wctl{position:static!important;transform:none!important;height:auto!important;padding:0!important;margin:0 18px 0 0!important;background:none!important}
 html.mx-void .lcd,html.mx-void .vu-glass,html.mx-void input,html.mx-void select,html.mx-void textarea,html.mx-void .mx-eqg{background-color:var(--v-scr)!important;border:1px solid var(--v-line)!important;border-radius:6px!important}
 html.mx-void .btn,html.mx-void .wbtn button,html.mx-void .stbtn,html.mx-void .seg button,html.mx-void .tabs button,html.mx-void .mixdrawer button:where(:not(.rd-knob,.mx-eqn,.mx-puck,.mx-acc,.mx-bt-c)){background-color:var(--v-blk2)!important;border:1px solid var(--v-line)!important;border-radius:6px!important;color:var(--v-txt)!important}
 html.mx-void .btn:hover,html.mx-void .mixdrawer button:where(:not(.rd-knob,.mx-eqn,.mx-puck,.mx-acc,.mx-bt-c)):hover{background-color:var(--v-blk3)!important}
