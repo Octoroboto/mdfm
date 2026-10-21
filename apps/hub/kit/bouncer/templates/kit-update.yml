@@ -10,7 +10,12 @@
 # read-only access; only "publish" (git and gh, no app code) gets a token that can push a branch and open the PR.
 #
 # Needs (once per repo, see the kit's README, "Cedar upgrades"):
-#   secrets KIT_BOT_APP_ID and KIT_BOT_PRIVATE_KEY (the kit bot GitHub App, installed on this repo and the kit repo)
+#   With the kit bot (Rob's repos): secrets KIT_BOT_CLIENT_ID and KIT_BOT_PRIVATE_KEY (the kit bot GitHub App, installed
+#     on this repo and the kit repo).
+#   Without it (an app on someone else's account): secret KIT_READ_TOKEN (a read-only token for the kit repo, from Rob;
+#     not needed once the kit is public), and Settings → Actions → General → "Allow GitHub Actions to create and approve
+#     pull requests". PRs and issues then come from this repo's own token. (A PR made that way doesn't start this repo's
+#     own tests by itself; the report in it already has npm test's result.)
 #   Dependabot told to ignore @cedar-policy/* (or it opens its own, unchecked Cedar PRs)
 # For a repo with several apps (mdfm: apps/radio and apps/hub), list their folders in APP_DIRS. If the apps' tests need
 # something built first, put that command in PREPARE; it runs once, in the read-only check job.
@@ -27,7 +32,9 @@ concurrency: kit-update
 env:
   APP_DIRS: "."
   PREPARE: ""
+  KIT_OWNER: Octoroboto          # who owns the kit repo (not always this repo's owner)
   KIT_REPO: rentvision-app-kit
+  HAS_BOT: ${{ secrets.KIT_BOT_CLIENT_ID != '' }}
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -38,11 +45,12 @@ jobs:
       status: ${{ steps.up.outputs.status }}
     steps:
       - id: read
+        if: env.HAS_BOT == 'true'
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.KIT_BOT_APP_ID }}
+          client-id: ${{ secrets.KIT_BOT_CLIENT_ID }}
           private-key: ${{ secrets.KIT_BOT_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
+          owner: ${{ env.KIT_OWNER }}
           repositories: ${{ env.KIT_REPO }}
           permission-contents: read
       - uses: actions/checkout@v7
@@ -50,10 +58,10 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v7
         with:
-          repository: ${{ github.repository_owner }}/${{ env.KIT_REPO }}
+          repository: ${{ env.KIT_OWNER }}/${{ env.KIT_REPO }}
           ref: main
           path: .kit-src
-          token: ${{ steps.read.outputs.token }}
+          token: ${{ steps.read.outputs.token || secrets.KIT_READ_TOKEN || github.token }}
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
@@ -102,11 +110,17 @@ jobs:
     needs: check
     if: needs.check.outputs.skip == 'false' && (needs.check.outputs.changed == 'true' || needs.check.outputs.status != '0')
     runs-on: ubuntu-latest
+    # Used only without the kit bot (this repo's own token); with the bot, its token below does the writing.
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     steps:
       - id: write
+        if: env.HAS_BOT == 'true'
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.KIT_BOT_APP_ID }}
+          client-id: ${{ secrets.KIT_BOT_CLIENT_ID }}
           private-key: ${{ secrets.KIT_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
@@ -115,14 +129,14 @@ jobs:
           permission-issues: write
       - uses: actions/checkout@v7
         with:
-          token: ${{ steps.write.outputs.token }}
+          token: ${{ steps.write.outputs.token || github.token }}
       - uses: actions/download-artifact@v8
         with:
           name: cedar-upgrade
           path: ${{ runner.temp }}/out
       - if: needs.check.outputs.status == '0'
         env:
-          GH_TOKEN: ${{ steps.write.outputs.token }}
+          GH_TOKEN: ${{ steps.write.outputs.token || github.token }}
           V: ${{ needs.check.outputs.version }}
         run: |
           # Only package.json and package-lock.json change, copied from the checked run; no app code runs here.
@@ -135,6 +149,6 @@ jobs:
           gh pr create --title "Cedar $V" --body-file "$RUNNER_TEMP/out/report.md" --base main
       - if: needs.check.outputs.status != '0'
         env:
-          GH_TOKEN: ${{ steps.write.outputs.token }}
+          GH_TOKEN: ${{ steps.write.outputs.token || github.token }}
           V: ${{ needs.check.outputs.version }}
         run: gh issue create --title "Cedar $V didn't pass for this app" --body-file "$RUNNER_TEMP/out/report.md"
