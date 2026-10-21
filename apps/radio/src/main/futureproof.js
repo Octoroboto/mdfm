@@ -40,7 +40,7 @@ function startFutureproofer({ updater, look, enginePackageVersion, onChange }) {
         return checks.result("look", "Receiver look (MedDev Receiver)", "ok", `Look ${s.version} (${s.source === "updated" ? "updated" : "built in"}; ${s.result}). A new look shows from the next launch.`);
       } },
       { id: "electron", title: "Electron (the app's engine)", everyHours: 12, run: () => checks.checkElectron({ current: process.versions.electron, getJson: getJSON }) },
-      { id: "bouncer-engine", title: "Bouncer's rule engine (Cedar)", everyHours: 12, run: () => checks.checkPackage({ id: "bouncer-engine", title: "Bouncer's rule engine (Cedar)", name: "@cedar-policy/cedar-wasm", current: enginePackageVersion, getJson: getJSON, behindMajorIsBad: true }) },
+      { id: "bouncer-engine", title: "Bouncer's rule engine (Cedar)", everyHours: 12, run: ({ previous } = {}) => checks.checkCedar({ current: enginePackageVersion, previous, getJson: getJSON }) },   // newer Cedar arrives as a tested PR (kit-update.yml); this warns only if that looks stuck
       { id: "vulnerabilities", title: "Known security problems", everyHours: 12, run: () => checks.checkVulnerabilities({ packages: [{ name: "electron", version: process.versions.electron }, { name: "@cedar-policy/cedar-wasm", version: enginePackageVersion }], postJson: postJSON }) },
       { id: "mac", title: "This Mac", everyHours: 24, run: async () => checks.checkMac({ darwinRelease: os.release(), arch: process.arch, translated, minMacos: MIN_MACOS, testedMacos: TESTED_MACOS }) },
       { id: "build", title: "Build check", everyHours: 24, run: async () => checks.checkBuildReport({ report: buildReport() }) },

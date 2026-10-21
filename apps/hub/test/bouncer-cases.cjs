@@ -1,0 +1,42 @@
+// The questions MD Hub's Bouncer (the app's own requests) must answer, with the answer each must get.
+// Used by test/bouncer.test.js and by the app kit's Cedar upgrade check (kit-update.yml → kit/bouncer/tools/cedar-diff.cjs),
+// which asks them of the old and the new Cedar engine and stops the upgrade if any answer changes.
+// Plain data, no requires: [caller, method, url, body (or { body, contentType }), "allow" | "deny", why].
+
+module.exports = [
+  // Requests the app really makes (each must be allowed)
+  ["app","GET","https://api.open-meteo.com/v1/forecast?latitude=41.2&longitude=-95.9&current=temperature_2m",null,"allow",""],
+  ["app","GET","https://geocoding-api.open-meteo.com/v1/search?count=1&name=Omaha",null,"allow",""],
+  ["app","GET","https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=41.2&longitude=-95.9&localityLanguage=en",null,"allow",""],
+  ["app","GET","https://ipwho.is/",null,"allow",""],
+  ["app","GET","https://get.geojs.io/v1/ip/geo.json",null,"allow",""],
+  ["app","GET","https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80",null,"allow",""],
+  ["app","GET","https://site.api.espn.com/apis/site/v2/sports/rugby/267979/scoreboard",null,"allow",""],
+  ["app","GET","https://slack.com/api/conversations.list?types=public_channel&limit=1000",null,"allow",""],
+  ["app","GET","https://slack.com/api/conversations.history?channel=C2WCGG31N&limit=20&oldest=1",null,"allow",""],
+  ["app","GET","https://slack.com/api/users.info?user=U123",null,"allow",""],
+  ["app","GET","https://slack.com/api/auth.revoke",null,"allow",""],
+  ["app","GET","https://api.github.com/repos/Octoroboto/mdfm/releases?per_page=30",null,"allow",""],
+  ["app","GET","https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/manifest.json",null,"allow",""],
+  ["app","GET","https://raw.githubusercontent.com/Octoroboto/mdfm/main/config/slack.json",null,"allow",""],
+  ["app","GET","https://raw.githubusercontent.com/Octoroboto/meddev-receiver/main/dist/receiver.css",null,"allow",""],
+  ["app","GET","https://registry.npmjs.org/@cedar-policy/cedar-wasm/latest",null,"allow",""],
+  ["app","GET","https://registry.npmjs.org/-/package/electron/dist-tags",null,"allow",""],
+  // The one POST, and look-alikes
+  ["app","POST","https://api.osv.dev/v1/querybatch",{"body":"{\"queries\":[{\"package\":{\"name\":\"electron\",\"ecosystem\":\"npm\"},\"version\":\"44.5.1\"}]}","contentType":"application/json"},"allow","the OSV security lookup (the only POST)"],
+  ["app","POST","https://api.osv.dev/v1/querybatch",{"body":"{\"queries\":[],\"extra\":1}","contentType":"application/json"},"deny","an OSV lookup with an extra field"],
+  // Requests that must never leave
+  ["app","POST","https://slack.com/api/chat.postMessage",null,"deny","posting to Slack"],
+  ["app","GET","https://slack.com/api/chat.postMessage?channel=C1&text=hi",null,"deny","posting to Slack via GET"],
+  ["app","GET","https://slack.com/api/conversations.join?channel=C1",null,"deny","joining a channel"],
+  ["app","GET","https://slack.com/api/files.list",null,"deny","reading files"],
+  ["app","GET","https://api.github.com/repos/Octoroboto/floorplan-video-uploader/releases",null,"deny","another repo"],
+  ["app","GET","https://claude.ai/api/organizations",null,"deny","the app's own code calling claude.ai"],
+  ["app","GET","https://example.com/",null,"deny","an unknown site"],
+  ["app","GET","https://raw.githubusercontent.com/Octoroboto/mdfm/main/dist/radio.html",null,"deny","radio content (the hub app doesn't need it)"],
+  ["app","GET","https://raw.githubusercontent.com/someone-else/meddev-receiver/main/dist/receiver.js",null,"deny","a look from another account"],
+  ["app","GET","https://registry.npmjs.org/left-pad",null,"deny","other npm packages"],
+  ["app","PUT","https://api.open-meteo.com/v1/forecast",null,"deny","a change"],
+  ["shell","GET","https://api.open-meteo.com/v1/forecast",null,"deny","the steel strip calling an API"],
+  ["ui","GET","https://api.open-meteo.com/v1/forecast",null,"deny","a window calling an API"],
+];

@@ -3,7 +3,10 @@
 // Default deny: a request leaves the app only if a rule in the app's Cedar policy permits it.
 // Two gates cover every route out of the app:
 //   1. attachSession(ses): Electron's request hook for every window using that session
-//      (pages, hidden windows, and Electron `net` requests).
+//      (pages, hidden windows, and Electron `net` requests). A session has room for one hook, so a module that opens
+//      its own windows on its own session (mdfm-live's Connect Slack window) claims it with attachSession(ses, { own: true }):
+//      its Bouncer takes over that session whichever order they attach in, and the app's catch-all
+//      app.on('session-created', s => bouncer.attachSession(s)) leaves a claimed session alone.
 //   2. assert(req) / guardFetch: called by the app's own code before Node requests
 //      (fetch, https) — those don't pass through Electron's hook.
 // Modes (from the app's bouncer.config.json, fixed at build time):
@@ -161,8 +164,17 @@ function createBouncer({
   }
 
   const attached = new WeakSet();
-  function attachSession(ses) {
-    if (!ses || attached.has(ses)) return;
+  // Which Bouncer owns a session, shared by every Bouncer in the process (an app's and its modules'), even across copies of this file.
+  const OWNED = globalThis[Symbol.for('rentvision.bouncer.owned')] || (globalThis[Symbol.for('rentvision.bouncer.owned')] = new WeakMap());
+  const me = {};
+  // Returns true when this Bouncer's hook is on the session, false when it was left to the Bouncer that owns it.
+  function attachSession(ses, opts = {}) {
+    if (!ses) return false;
+    const owner = OWNED.get(ses);
+    if (owner && owner !== me && !opts.own) return false;   // another module's own session: its Bouncer stays in charge
+    const takeover = !!opts.own && owner !== me;
+    if (opts.own) OWNED.set(ses, me);
+    if (attached.has(ses) && !takeover) return true;
     attached.add(ses);
     ses.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details, callback) => {
       let body = null;
@@ -177,6 +189,7 @@ function createBouncer({
       catch (e) { r = { allow: mode !== 'enforce' }; }
       callback({ cancel: !r.allow });
     });
+    return true;
   }
 
   // Engine freshness: compares the installed engine package with the newest release.

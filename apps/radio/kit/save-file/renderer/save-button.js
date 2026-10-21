@@ -2,7 +2,7 @@
    on claude.ai pages (the downloads capability; .mp3 and other types it doesn't take go inside a .zip) and in plain
    browsers (a normal download). Uses MDFM.saveBytes when the MDFM radio is on the page, else its own copy.
      KitSave.attach(button, { make: async () => ({ bytes, name }), app: window.mdfmApp, onStatus: t => ... })
-     KitSave.attachSong(button, radio, { app, onStatus })   // MDFM: saves the song that's playing as an MP3 */
+     KitSave.attachSong(button, radio, { app, onStatus })   // MDFM: saves what's playing as an MP3 (the show or break on top, else the song) */
 (function () {
   const save = (bytes, name, app) => (window.MDFM && MDFM.saveBytes) ? MDFM.saveBytes(bytes, name, { app }) : fallback(bytes, name, app);
   async function fallback(bytes, name, app) {
@@ -21,10 +21,10 @@
   function attachSong(btn, radio, { app = null, onStatus = () => {} } = {}) {
     btn.addEventListener("click", async () => {
       if (btn.getAttribute("aria-busy") === "true") return;
-      if (!radio.isOn() || !radio.nowPlaying()) { onStatus("Tune in first, then save the song that's playing."); return; }
+      if (!radio.isOn() || (!radio.nowPlaying() && !(radio.onAir && radio.onAir()))) { onStatus("Tune in first, then save what's playing."); return; }
       busy(btn, true);
       try { const r = await MDFM.saveSong(radio, { app, onStatus }); onStatus(`Saved “${r.title}”.`); }
-      catch (e) { onStatus(e && e.code === "declined" ? "Not saved." : `Couldn't save the song: ${(e && e.message) || e}`); }
+      catch (e) { onStatus(e && e.code === "declined" ? "Not saved." : `Couldn't save it: ${(e && e.message) || e}`); }
       finally { busy(btn, false); }
     });
   }

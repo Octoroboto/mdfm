@@ -1,5 +1,7 @@
-# Futureproofer, part 1: Dependabot opens a pull request when Electron, Cedar or the build tools release a new
+# Futureproofer, part 1: Dependabot opens a pull request when Electron or the build tools release a new
 # version. The tests run on each one (workflows/test.yml). Rob merges, then: cd apps/radio (or apps/hub) && npm run release -- "notes".
+# Cedar (Bouncer's engine) is NOT updated here: it arrives through the app kit's pin (workflows/kit-update.yml), after the
+# same-answers check, so it's ignored below.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -8,14 +10,16 @@ updates:
     open-pull-requests-limit: 5
     groups:
       electron: { patterns: ["electron", "electron-builder", "@electron/*"] }
-      bouncer-engine: { patterns: ["@cedar-policy/*"] }
+    ignore:
+      - dependency-name: "@cedar-policy/*"
   - package-ecosystem: npm
     directory: /apps/hub
     schedule: { interval: weekly, day: monday }
     open-pull-requests-limit: 5
     groups:
       electron: { patterns: ["electron", "electron-builder", "@electron/*"] }
-      bouncer-engine: { patterns: ["@cedar-policy/*"] }
+    ignore:
+      - dependency-name: "@cedar-policy/*"
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: monthly }

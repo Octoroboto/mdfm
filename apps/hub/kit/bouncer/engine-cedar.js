@@ -37,10 +37,13 @@ function createCedarEngine(policyText, cedar = loadCedar()) {
   function decide(caller, facts) {
     const context = {
       caller,
+      scheme: facts.scheme,
       method: facts.method,
       host: facts.host,
       path: facts.path,
       search: facts.search,
+      pathLower: facts.pathLower || String(facts.path || '').toLowerCase(),
+      searchLower: facts.searchLower || String(facts.search || '').toLowerCase(),
       fields: facts.fields,
       form: facts.form,
       sameToday: facts.sameToday || 0,

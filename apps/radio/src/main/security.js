@@ -1,4 +1,5 @@
-// Starts Bouncer for MDFM Radio: loads the reviewed rules (src/main/bouncer/policy.cedar), checks them
+// Starts Bouncer for MDFM Radio: loads the reviewed rules (the files src/main/bouncer/bouncer.config.json "rules" lists:
+// the kit's shared floor, the MDFM family rules and app.cedar, through kit/bouncer/rules.js), checks them
 // against the lock, puts the gate on every browser session, and hands it to common/net.js, the one
 // file that sends the app's own requests.
 // Process: Electron main, required by main.js before app "ready". Two Bouncers (app kit, kit/bouncer): the app's own, and
@@ -6,6 +7,7 @@
 const { app, session } = require("electron");
 const fs = require("fs"), path = require("path");
 const { createBouncer } = require("../../kit/bouncer");
+const { loadRules } = require("../../kit/bouncer/rules");
 const net = require("../common/net");
 const DIR = path.join(__dirname, "bouncer");
 let bouncer = null, signinBouncer = null;   // both set by startBouncer(); read through get() and signin()
@@ -18,12 +20,15 @@ function enginePackageVersion() {
 // Reads a JSON file, or returns d when it's missing or broken (Bouncer then reports the problem rather than crashing).
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return d; } };
 
+// The joined rules, or "" when they can't be read: the lock then doesn't match and Bouncer blocks everything (fails closed).
+function rulesText() { try { return loadRules(DIR).text; } catch { return ""; } }
+
 // Call before app "ready" so every session (including later ones) gets the gate.
 // notify(problem): called when Bouncer blocks a request (main.js shows it on the Station screen). Returns the app's Bouncer.
 function startBouncer({ notify }) {
   bouncer = createBouncer({
     appName: "MDFM Radio",
-    policyText: fs.readFileSync(path.join(DIR, "policy.cedar"), "utf8"),
+    policyText: rulesText(),
     config: readJson(path.join(DIR, "bouncer.config.json"), {}),
     lock: readJson(path.join(DIR, "bouncer.lock.json"), {}),
     logDir: path.join(app.getPath("userData"), "bouncer"),
