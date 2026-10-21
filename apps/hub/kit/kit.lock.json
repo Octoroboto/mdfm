@@ -1,10 +1,10 @@
 {
-  "kit": "2.19.0",
-  "installedAt": "2026-10-20T14:21:53.547Z",
+  "kit": "2.19.1",
+  "installedAt": "2026-10-21T03:23:37.566Z",
   "source": "github.com/Octoroboto/rentvision-app-kit",
   "modules": {
     "bouncer": {
-      "version": "2.3.0",
+      "version": "2.3.1",
       "files": {
         "README.md": "4d20e3dd111ad798154165670e12e179707c13afb9055a220e61582ef30a1271",
         "index.js": "95864f2701083c0732d0053c7578c05c93422f7270b4523d1b4ca11439b22757",
@@ -21,7 +21,7 @@
         "templates/policy.cedar": "829dee105a3815b489a1da7f7d988f571acfb45ce121538d3f057091072a9437",
         "templates/bouncer.config.json": "80f27d373d3b95bbe69ef5574d9f496ec11d49e58190db68df1e91206832936f",
         "templates/egress.js": "2d959bb99abc0d547eb24710e78f8ad67b3b69f2adaf74a8204ef2af38884209",
-        "templates/kit-update.yml": "fbef6bd163b23d349b16c9f2805edf4a22f7807e66315827f424b6f9b8fd24d7",
+        "templates/kit-update.yml": "7f4ef69f431c56208ee528b29ff16b22861f7cc3770399ca0914499378c1b925",
         "templates/bouncer-cases.cjs": "907fa08171891f32b48adda312a07cc9b2e7888290c2caa6fa269cef4aab0eac"
       }
     },
