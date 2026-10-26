@@ -11,6 +11,7 @@
 // the instrument list, wires Save, MIX and the receiver, and (in an app) the settings and status lines.
 // Everything it keeps lives in localStorage on this device (keys: mdfmStation, wybcTypes, hearyeTypes, ptrnTypes, clukTypes,
 // ptlkTypes, mdfmInstruments, mdfmInstHeard, mdfmSetOpen), always inside try/catch so a blocked storage still plays.
+// 1.34: an imported MIX file (the MIX drawer's IMPORT) ticks these lists to match it and saves them (see "mixfile" below).
 (()=>{
   // $(s): the first element matching s. app: the Electron app's bridge, or null in a plain browser.
   const $=s=>document.querySelector(s), app=window.mdfmApp||null;
@@ -163,7 +164,15 @@
         l.querySelector("input").checked=pt[k]!==false; pl.appendChild(l); }
       const ps=()=>{ const t={}; pl.querySelectorAll("input[data-ptype]").forEach(cb=>t[cb.dataset.ptype]=cb.checked); return t; };
       radio.setStationTypes("ptlk",ps()); pl.addEventListener("change",()=>{ const t=ps(); radio.setStationTypes("ptlk",t); try{ localStorage.setItem("ptlkTypes",JSON.stringify(t)); }catch(e){} });
-      $("#ptlkSet").hidden=false; } }
+      $("#ptlkSet").hidden=false; }
+    // 1.34: an imported MIX file changed the switches (the "switch" step of its crossmix): tick every list to match the file,
+    // then fire each list's "change" so its own handler sends the set to the engine and saves it, as if ticked by hand.
+    // MDFM 99.9's list (#typeList) is the receiver's; its change handler saves it the same way. Disabled boxes (Slack news
+    // without Slack) are left alone.
+    radio.on("mixfile",e=>{ if(!e||e.phase!=="switch") return;
+      const sync=(sel,attr,t)=>{ const box=$(sel); if(!box||!t||typeof t!=="object") return; box.querySelectorAll(`input[${attr}]`).forEach(cb=>{ const k=cb.getAttribute(attr); if(!cb.disabled&&k in t) cb.checked=t[k]!==false; }); box.dispatchEvent(new Event("change")); };
+      const T=e.types||{}; sync("#typeList","data-type",T.mdfm); sync("#wybcList","data-wtype",T.wybc); sync("#hearyeList","data-htype",T.hearye); sync("#ptrnList","data-rtype",T.ptrn);
+      sync("#clukList","data-ctype",T.cluk); sync("#ptlkList","data-ptype",T.ptlk); sync("#instList","data-itype",e.instruments); }); }
   else { const b=$("#stBtns"); if(b) b.hidden=true; }   // an engine without stations: no dial
   // ===== Captions, play controls and Save =====
   // Captions (every spoken line) show under the display for 14 s.
@@ -185,7 +194,7 @@
   // MIX (was TUNE): the mixing drawer under the deck: EQ and sound, style, groove and key, effects. Kept on this device.
   // It runs before MDFM_receiver: the receiver wires #uwBtn, which MIX puts in FX > COLOUR.
   const mountMix=MDFM.mountMix||MDFM.mountTune;
-  if(mountMix&&radio.setSound&&$("#tunePop")) mountMix(radio,{panel:$("#tunePop"),toggle:$("#tuneOn")});
+  if(mountMix&&radio.setSound&&$("#tunePop")) mountMix(radio,{panel:$("#tunePop"),toggle:$("#tuneOn"),app});   // app: MIX FILE's EXPORT saves through the app's Save dialog (1.34)
   else if($("#tuneOn")) $("#tuneOn").closest("label").hidden=true;
   $("#stEngine").textContent=`v${MDFM.VERSION}`;
   window.MDFM_receiver(radio,{app});   // the MedDev Receiver wires the rest: power, volume, EQ display, meters, skins, MDFM 99.9's type list, the badges

@@ -5744,5 +5744,11 @@ return {
   _clukRun(L){ if(cluk&&Array.isArray(L)){ gen++; hush(); cluk.n++; clukSongEnd(cluk,.5); clukRun(cluk,L); return true; } return false; },   // for tests: play these lines on CLUK now
   getStationTypes(id){ return {...(stn(id)||STN.mdfm).types}; },
   setStationTypes(id,t){ (stn(id)||STN.mdfm).setTypes(t); },
+  /* 1.34: MIX files (src/mixfile.js). getSettings({name, types}) is every station's switches, the instruments and the whole
+     mix as one plain object; applySettings(file, {crossmix: seconds, onFrame}) puts one on, gliding there while on air, and
+     resolves {name, station, crossmix, skipped}. Emits "mixfile" {phase: "start" | "switch" | "done", ...}. Null / a
+     rejection when this build was made without src/mixfile.js. */
+  getSettings(o){ return typeof mixSnapshot==="function"?mixSnapshot(this,o||{}):null; },
+  applySettings(d,o){ return typeof mixApply==="function"?mixApply(this,d,{...(o||{}),emit}):Promise.reject(new Error("MIX files aren't in this build.")); },
 };
 }

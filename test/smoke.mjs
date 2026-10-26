@@ -135,6 +135,17 @@ await p3.focus('.mx-k[data-key="realism"] .rd-knob'); await p3.keyboard.press("E
 await p3.waitForFunction(() => document.querySelector("#tunePop").hidden, null, { timeout: 2500 }).catch(() => {});   // 1.26: wait for the close (a fixed 400 ms was flaky on slower machines)
 r.mixClosed = await p3.evaluate(() => document.querySelector("#tunePop").hidden && document.activeElement === document.querySelector("#tuneOn"));
 r.mixErrs = errs3;
+// 1.34 MIX FILE: the row is in the drawer; a file picked in IMPORT (made from getSettings, put through a DataTransfer)
+// lands at once with CROSSMIX off: the engine, the Settings checkboxes and the saved settings all follow it
+const p4 = await b.newPage({ viewport: { width: 1440, height: 900 } }), errs4 = []; p4.on("pageerror", e => errs4.push(e.message));
+await p4.goto(`http://localhost:${port}/dist/radio.html`); await p4.waitForTimeout(800); await p4.click("#tuneOn", { force: true }); await p4.waitForTimeout(400);
+r.mixFile = await p4.evaluate(async () => { const R = window.__radio, row = document.querySelector(".mx-files"); if (!row) return null;
+  R.setFx({ echo: .45 }); R.setStationTypes("wybc", { winds: false }); const f = R.getSettings({ name: "Smoke" }); R.resetFx(); R.setStationTypes("wybc", { winds: true });
+  const xm = row.querySelector('[data-f="xm"]'); xm.value = "0"; xm.dispatchEvent(new Event("input"));
+  const dt = new DataTransfer(); dt.items.add(new File([JSON.stringify(f)], "Smoke.mdfm", { type: "application/json" })); const pick = row.querySelector('[data-f="file"]'); pick.files = dt.files; pick.dispatchEvent(new Event("change"));
+  await new Promise(res => setTimeout(res, 600));
+  return { echo: R.getFx().echo, winds: R.getStationTypes("wybc").winds, box: document.querySelector('#wybcList input[data-wtype="winds"]').checked, savedFx: (JSON.parse(localStorage.getItem("mdfmFx") || "null") || {}).echo, savedW: (JSON.parse(localStorage.getItem("wybcTypes") || "null") || {}).winds, stat: row.querySelector('[data-f="stat"]').textContent }; });
+r.mixFileErrs = errs4;
 console.log(r); await b.close(); srv.close();
 // The verdict: every check from above in one expression. Thresholds: spectrum > .05 means it moved; RMS > .02 means sound;
 // peak < 1.2-1.5 means no clipping.
@@ -149,6 +160,7 @@ const ok = !errs.length && r.spectrumMax > 0.05 && r.rms > 0.02 && r.peak < 1.5 
   && r.clukRenders.every(([, rms, pk]) => rms > 0.02 && pk < 1.3) && r.clukCues.every(([, rms, pk]) => rms > 0.005 && pk < 1.3) && r.wired && !r.wireErrs.length
   && r.mix.open && !r.mix.pop && r.mix.pos !== "absolute" && r.mix.label === "MIX" && r.mix.secs === 4 && r.mix.uw && r.mix.mountMix
   && r.ui2.pad && r.ui2.view === "pad" && r.ui2.nodes === 6 && r.ui2.canvas && !r.ui2.chaos && r.ui2.glitch && r.ui2.drums && r.ui2.orig && r.ui2.padMix >= 1 && r.ui2.eq[0] > 0 && r.ui2.eq[1] && r.ui2.eq[2] && r.ui2.ghosts > 0 && r.ui2.origOn && r.ui2.origOff && r.ui2.repaint === "30%"
-  && r.mixMoved.realism > 0 && r.mixMoved.low > 0 && r.mixMoved.pop > 0 && r.mixMoved.hum > 0 && r.mixMoved.echo > 0 && r.mixMoved.led && r.mixReset && r.mixClosed && !r.mixErrs.length;
+  && r.mixMoved.realism > 0 && r.mixMoved.low > 0 && r.mixMoved.pop > 0 && r.mixMoved.hum > 0 && r.mixMoved.echo > 0 && r.mixMoved.led && r.mixReset && r.mixClosed && !r.mixErrs.length
+  && r.mixFile && r.mixFile.echo === .45 && r.mixFile.winds === false && r.mixFile.box === false && r.mixFile.savedFx === .45 && r.mixFile.savedW === false && /Loaded/.test(r.mixFile.stat) && !r.mixFileErrs.length;
 if (errs.length) console.log("page errors:", errs);
 console.log(ok ? "SMOKE TEST PASSED" : "SMOKE TEST FAILED"); process.exit(ok ? 0 : 1);

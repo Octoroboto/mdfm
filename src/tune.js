@@ -44,6 +44,8 @@
 function mountMix(radio, opts = {}) {
   // opts: see the header above. The stores fall back to localStorage, section by section, further down.
   const { panel, toggle, store, mixStore, grooveStore, fxStore, toneStore, eqStore, uiStore, title = "MIX" } = opts;
+  // 1.34: opts.app is the app bridge MIX files save through (its native Save dialog); the radio page's window.mdfmApp otherwise
+  const app = opts.app || (typeof window !== "undefined" && window.mdfmApp) || null;
   // nothing to mount without a panel or an engine with the SOUND API; callers treat null as "no MIX here"
   if (!radio || typeof radio.setSound !== "function" || !panel) return null;
   // the panel's own document and window (the drawer can be mounted into another window or frame), not the globals
@@ -299,6 +301,17 @@ function mountMix(radio, opts = {}) {
   const secHTML = (k, h, badge, hint, body, extra = "") => `<section class="mx-sec" data-sec="${k}" id="${mkid("sec-" + k)}" aria-labelledby="${mkid("h-" + k)}"><header class="mx-sh"><h3><button type="button" class="mx-acc" id="${mkid("h-" + k)}" aria-controls="${mkid("body-" + k)}">${h}<i class="mx-dot" aria-hidden="true"></i></button></h3><span class="mx-badge" data-badge="${k}">${badge}</span>${extra}${rdBtn(`data-reset="${k}"`, "RESET", `Reset ${NAMES[k]}`, k === "style" || k === "groove" ? `Back to the song as written on this station` : `Back to how MDFM sounds as it is, on every station`)}<p class="mx-hint">${hint}</p></header><div class="mx-body" id="${mkid("body-" + k)}">${body}</div></section>`;
   // BYP: the engine call behind ORIGINAL (setMixBypass from 1.25 E3, setBypass before), or null: no ORIGINAL button
   const BYP = has("setMixBypass") ? "setMixBypass" : has("setBypass") ? "setBypass" : null;
+  // 1.34: MIX FILE, a row under the head: a name, EXPORT, IMPORT (a hidden file picker) and the CROSSMIX length; FILES: the
+  // engine can do it (radio.getSettings / applySettings, src/mixfile.js)
+  const FILES = has("getSettings") && has("applySettings");
+  // filesHTML(): that row's markup; the file picker takes .mdfm / .json and the .zip claude.ai's downloads hand back
+  const filesHTML = () => `<div class="mx-files" role="group" aria-labelledby="${mkid("files")}"><span class="mx-flab" id="${mkid("files")}">MIX FILE</span>` +
+    `<input type="text" class="mx-fname" data-f="name" maxlength="80" placeholder="Name this mix" aria-label="Name for the mix file" spellcheck="false" autocomplete="off">` +
+    `<button type="button" class="btn" data-f="export" title="Save every station's What plays switches, the instruments and the whole mix (sound, EQ, style, groove, BEAT, FX) to a file with this name. The skin and the volume aren't saved">EXPORT</button>` +
+    `<button type="button" class="btn" data-f="import" title="Load a mix file. While the radio plays, the dials glide to it over the CROSSMIX time">IMPORT</button>` +
+    `<input type="file" data-f="file" accept=".mdfm,.json,.zip,application/json" hidden tabindex="-1">` +
+    `<label class="mx-xm" title="How long an imported mix takes to glide in while the radio plays. OFF: at once. On/off switches change halfway"><span>CROSSMIX</span><input type="range" data-f="xm" min="0" max="15" step="0.5" aria-label="Crossmix length, seconds"><output data-f="xmv"></output></label>` +
+    `<output class="mx-fstat" data-f="stat" role="status" aria-live="polite"></output></div>`;
   // the drawer's head: the title, the scope line (data-scope: which station the per-station sections apply to), the section
   // tabs (buttons; a tablist in the tabs layout), then ORIGINAL (hold to bypass), LITE, VOID and PERF when the engine has
   // them, RESET ALL, and the role=status note shown while ORIGINAL is held
@@ -307,7 +320,7 @@ function mountMix(radio, opts = {}) {
     (has("setLite") ? `<button type="button" class="btn mx-lite" data-t="lite" aria-pressed="false" title="LITE mixing for phones and tablets: while MIX is open it pauses the decorations, drops the glass and glow, slows the meters, schedules the music further ahead and holds MDFM's talk breaks until you close MIX. AUTO turns it on for touch screens. Tap to switch AUTO / ON / OFF">LITE <span data-lite-v>AUTO</span></button>` : "") +
     `<button type="button" class="btn mx-void" data-t="void" aria-pressed="false" title="VOID: while MIX is open, the radio drops its skin and every texture, glass, glow and decoration for flat dark blocks (the fastest thing a phone can draw). Same layout and controls. Tap again to bring the look back">VOID</button>` +
     (has("perfStats") ? `<button type="button" class="btn mx-perfbtn" data-t="perf" aria-pressed="false" title="A small readout of how the page and the music are keeping up: frame rate, the longest freeze, and whether notes arrive on time. Try it with LITE and VOID on and off">PERF</button>` : "") +
-    `<div class="rd-btn mx-resetall"><button type="button" data-t="reset" aria-label="Reset everything in MIX for this station" title="Everything back: sound and EQ, this station's style and groove, and the effects"></button><small>RESET ALL</small></div></div><p class="mx-bypnote" role="status" hidden>ORIGINAL: you're hearing the station as it is. Your mix comes back when you let go.</p>`;
+    `<div class="rd-btn mx-resetall"><button type="button" data-t="reset" aria-label="Reset everything in MIX for this station" title="Everything back: sound and EQ, this station's style and groove, and the effects"></button><small>RESET ALL</small></div></div>${FILES ? filesHTML() : ""}<p class="mx-bypnote" role="status" hidden>ORIGINAL: you're hearing the station as it is. Your mix comes back when you let go.</p>`;
   // SOUND
   // DEF: the engine's SOUND defaults (its keys decide which knobs exist); presets: [{id, name, sound}]; rooms: [{id, name}]
   const DEF = radio.soundDefaults(), presets = has("soundPresets") ? radio.soundPresets() : [], rooms = has("rooms") ? radio.rooms() : [];
@@ -506,7 +519,8 @@ function mountMix(radio, opts = {}) {
     // S.sound: paint() syncs every control from the engine; reset() puts sound, EQ and tone back; moved() lights the section dot;
     // get / set for the returned API; eq lets eqWake() size the curve when it comes on screen
     S.sound = {
-      paint() { for (const [k] of TONE) { K[k].set(pct(cur[k])); K[k].state({ moved: Math.abs(cur[k] - DEF[k]) > .005 }); }
+      paint() { cur = radio.getSound();   // 1.34: from the engine, so an imported mix's glide moves these knobs too
+        for (const [k] of TONE) { K[k].set(pct(cur[k])); K[k].state({ moved: Math.abs(cur[k] - DEF[k]) > .005 }); }
         if (K.room) { K.room.set(pct(cur.room)); K.room.state({ moved: Math.abs(cur.room - DEF.room) > .005 }); }
         if (roomSeg) roomSeg.set(cur.room > 0 ? cur.roomType : null);
         if (EQON) tone = toneOf(radio.getEq());
@@ -514,7 +528,9 @@ function mountMix(radio, opts = {}) {
         if (pre) { const m = presets.find(p => same(p.sound, cur)); pre.value = m ? m.id : "custom"; }
         if (E) E.paint(); },
       reset() { cur = radio.resetSound(); st.set(cur); if (EQON) radio.resetEq(); else if (BANDS.length) { tone = { low: 0, mid: 0, high: 0 }; radio.setTone(tone); } saveTone(); this.paint(); },
-      moved: () => !same(cur, DEF) || toneMoved() || (E ? E.moved() : false), get: () => ({ ...cur }), set, eq: E };
+      moved: () => !same(cur, DEF) || toneMoved() || (E ? E.moved() : false), get: () => ({ ...cur }), set, eq: E,
+      // keep(): 1.34: save what the engine has now (after a MIX file was imported)
+      keep() { cur = radio.getSound(); st.set(cur); saveTone(); } };
 
     // ---------- the parametric EQ: a HiDPI canvas curve from eqResponse(), six draggable dots, and a band strip under it ----------
     // mountEq(changed): wires the EQ card; changed() runs after every engine change. Returns { paint, moved, size, redraw, specOn }.
@@ -839,6 +855,9 @@ function mountMix(radio, opts = {}) {
         if (P) P.paint(m, plan); },
       reset() { radio.resetStyleMix(); rings[sid()] = 1; save(); this.paint(); },
       moved: () => Object.values(radio.getStyleMix()).some(v => v > .001) || ringOf(sid()) < .995 || (LANES.length ? Object.values(radio.getStyleLanes()).some(v => v < .995) : false),
+      // keep(ids): 1.34: save those stations' style as the engine has it now (after a MIX file was imported). AMOUNT goes back
+      // to ALL for them: a file holds the weights that play, so the pad shows them as they are.
+      keep(ids) { for (const id of ids) { rings[id] = 1; all[id] = { v: 2, w: radio.getStyleMix(id), ...(LANES.length ? { lanes: radio.getStyleLanes(id) } : {}), ring: 1 }; } ms.set(all); },
       glitchFromV1 };
     // show the saved view (this is also the first paint)
     showView();
@@ -964,7 +983,9 @@ function mountMix(radio, opts = {}) {
         // open a collapsed "more" disclosure that hides a moved knob, so a change is never invisible
         for (const d of $$p(".mx-more")) { if (!d.open && [...d.querySelectorAll(".mx-k")].some(c => c.classList.contains("moved"))) d.open = true; } },
       reset() { gsave(radio.resetGroove()); this.paint(); },
-      moved: () => { const g = radio.getGroove(); return Object.keys(GD).some(k => k !== "gv" && isMoved(g, k)); } };
+      moved: () => { const g = radio.getGroove(); return Object.keys(GD).some(k => k !== "gv" && isMoved(g, k)); },
+      // keep(ids): 1.34: save those stations' groove as the engine has it now (after a MIX file was imported)
+      keep(ids) { for (const id of ids) gall[id] = radio.getGroove(id); gs.set(gall); } };
     // ---------- 1.31 BEAT: tap or drag across the steps with a tool; INFLUENCE decides how hard the pattern pulls ----------
       // bs: the beat store (opts.beatStore or localStorage "mdfmBeat"), { stationId: beat }; each is pushed to the engine at mount.
       // A beat is { grid: { lane: 16 steps }, inf: 0..1 influence, plus on/off switches named by the [data-bt] buttons }.
@@ -1051,7 +1072,8 @@ function mountMix(radio, opts = {}) {
           : b.inf === 0 ? "INFLUENCE is off: the song plays its own drums." : b.inf >= 1 ? "The drums play exactly your pattern (from the next bar)." : "Your pattern steers the song's drums from the next bar. A song without drums gets some that fit it, from its next section."; }
       // wrap S.groove so the GROOVE section's paint/reset/moved include the BEAT card
       const g0 = S.groove;
-      S.groove = { paint() { g0.paint(); paintB(); }, reset() { g0.reset(); bsave(radio.resetBeat()); paintB(); }, moved: () => g0.moved() || used(radio.getBeat()) };
+      S.groove = { paint() { g0.paint(); paintB(); }, reset() { g0.reset(); bsave(radio.resetBeat()); paintB(); }, moved: () => g0.moved() || used(radio.getBeat()),
+        keep(ids) { g0.keep(ids); for (const id of ids) ball[id] = radio.getBeat(id); bs.set(ball); } };   // 1.34: the BEAT is saved with the groove
       // the engine's "beat" event (a change from elsewhere: the hub, the API) repaints on the next tick; later() is defined below
       if (radio.on) radio.on("beat", () => later("groove"));
     }
@@ -1096,7 +1118,9 @@ function mountMix(radio, opts = {}) {
     S.fx = {
       paint() { const f = radio.getFx(); for (const k of Object.keys(FKn)) { FKn[k].set(Math.round(f[k] * 100)); FKn[k].state({ moved: Math.abs(f[k] - (FD[k] || 0)) > .004 }); } },
       reset() { fs.set(radio.resetFx()); if (uw && uwOn()) uw.click(); this.paint(); },
-      moved: () => { const f = radio.getFx(); return Object.keys(FD).some(k => Math.abs(f[k] - FD[k]) > .004) || uwOn(); } };
+      moved: () => { const f = radio.getFx(); return Object.keys(FD).some(k => Math.abs(f[k] - FD[k]) > .004) || uwOn(); },
+      // keep(): 1.34: save the FX as the engine has them now; uw: UNDERWATER's button, which a MIX file import presses
+      keep() { fs.set(radio.getFx()); }, uw: () => uw, uwOn };
   }
 
   // ---------- moved dots, the MIX LED, scope badges ----------
@@ -1157,6 +1181,42 @@ function mountMix(radio, opts = {}) {
     radio.on("fx", () => later("fx")); radio.on("groove", () => later("groove")); radio.on("mix", () => later("style"));
     radio.on("eq", () => later("sound")); radio.on("tone", () => later("sound"));
     radio.on("bypass", v => bypPaint(v)); }
+
+  // ---------- 1.34: MIX FILE: EXPORT, IMPORT and CROSSMIX (src/mixfile.js does the work) ----------
+  // ui.crossmix: the glide in seconds (0..15, default 4). fst(t): the status line under the row (cleared after 9 s).
+  if (FILES) {
+    const fq = k => $p(`[data-f="${k}"]`), nm = fq("name"), pick = fq("file"), xm = fq("xm"), xmv = fq("xmv"), stat = fq("stat");
+    if (typeof ui.crossmix !== "number" || !Number.isFinite(ui.crossmix)) ui.crossmix = 4;
+    ui.crossmix = clamp(ui.crossmix, 0, 15);
+    const xmText = v => v > 0 ? v.toFixed(1) + " s" : "OFF";
+    xm.value = String(ui.crossmix); xmv.textContent = xmText(ui.crossmix); xm.setAttribute("aria-valuetext", ui.crossmix > 0 ? `${ui.crossmix} seconds` : "off");
+    xm.addEventListener("input", () => { ui.crossmix = clamp(+xm.value || 0, 0, 15); xmv.textContent = xmText(ui.crossmix); xm.setAttribute("aria-valuetext", ui.crossmix > 0 ? `${ui.crossmix} seconds` : "off"); });
+    xm.addEventListener("change", saveUI);
+    if (typeof ui.fileName === "string") nm.value = ui.fileName;   // the last name used, so a tweak-and-save keeps it
+    let fT = 0; const fst = t => { stat.textContent = t; clearTimeout(fT); if (t) fT = setTimeout(() => { stat.textContent = ""; }, 9000); };
+    // pageTypes(): MDFM 99.9's switches as the page shows them (#typeList, the receiver's), when this page has them: Calm mode
+    // keeps the engine's stingers off without unticking the box, and the file should hold the box
+    const pageTypes = () => { const L = doc.querySelectorAll('#typeList input[data-type]'); if (!L.length) return null; const t = {}; L.forEach(cb => { if (!cb.disabled) t[cb.dataset.type] = cb.checked; }); return { mdfm: t }; };
+    const busy = (b, v) => { if (v) b.setAttribute("aria-busy", "true"); else b.removeAttribute("aria-busy"); };
+    fq("export").addEventListener("click", async () => { const b = fq("export"); if (b.getAttribute("aria-busy") === "true") return;
+      const name = nm.value.trim() || "My mix"; ui.fileName = nm.value.trim(); saveUI(); busy(b, true);
+      try { const r = await exportMix(radio, { name, app, types: pageTypes() }); fst(r.via === "claude" ? `Saved “${name}” (inside ${r.name}).` : `Saved “${name}”.`); }
+      catch (e) { fst(e && e.code === "declined" ? "Not saved." : `Couldn't save it: ${(e && e.message) || e}`); }
+      finally { busy(b, false); } });
+    fq("import").addEventListener("click", () => { pick.value = ""; pick.click(); });
+    // land(r): after an import: save every section as the engine has it now, follow UNDERWATER, repaint, say what happened
+    const land = (d, r) => { const ids = Object.keys((d && d.stations) || {}).filter(id => !r.skipped.includes(`station ${id}`));
+      for (const k of Object.keys(S)) if (S[k].keep) try { S[k].keep(ids); } catch (e) {}
+      const F = S.fx; if (F && typeof d.underwater === "boolean" && F.uw() && F.uwOn() !== d.underwater) F.uw().click();
+      paintAll(); fst(`Loaded “${r.name || "the mix"}”${r.skipped.length ? `. This version skipped: ${r.skipped.join(", ")}` : ""}.`); };
+    pick.addEventListener("change", async () => { const f = pick.files && pick.files[0]; if (!f) return;
+      let d; try { d = await readMixFile(f); } catch (e) { fst((e && e.message) || "Couldn't read that file."); return; }
+      if (d.name) { nm.value = d.name; ui.fileName = d.name; saveUI(); }
+      const on = has("isOn") && radio.isOn(), secs = on ? ui.crossmix : 0;
+      fst(secs > 0 ? `Crossmixing into “${d.name || f.name}” over ${xmText(secs)}…` : `Loading “${d.name || f.name}”…`);
+      try { const r = await radio.applySettings(d, { crossmix: secs, onFrame: () => later("sound", "style", "groove", "fx") }); land(d, r); }
+      catch (e) { fst(`Couldn't load it: ${(e && e.message) || e}`); } });
+  }
   // ---------- layout: board (>= 900 px), accordion (600-899), tabs (< 600); by the drawer's own width ----------
   // secs: the section keys in S; tabs: the section tab buttons (also the accordion headers' twins). ui.section: the shown/last section.
   const secs = Object.keys(S), tabs = $$p("[data-tab]");
@@ -1375,6 +1435,21 @@ html.mx-lite .mx-padbox,html.mx-lite .mx-padtxt,html.mx-lite .mx-eqg,html.mx-lit
 @media (pointer:coarse){.mixdrawer .rd-btn>button::after{inset:-12px}}
 .mixdrawer .rd-btn>button{position:relative}
 .mx-resetall{margin-left:auto}
+.mx-files{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.18);box-shadow:inset 0 1px 3px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.06);min-width:0}
+.mx-flab{font:700 .66rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;opacity:.8}
+.mx-fname{flex:1 1 160px;min-width:0;max-width:280px;min-height:40px;box-sizing:border-box;padding:0 10px;border-radius:4px;border:1px solid rgba(0,0,0,.6);font:400 18px/1 var(--f-mono,"VT323",monospace);color:var(--lcd,#00e000);background:var(--lcd-bg,rgba(0,0,0,.45))}
+.mx-fname::placeholder{color:inherit;opacity:.45}
+.mixdrawer .mx-files>.btn{min-height:44px;padding:0 14px;font:700 .66rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em;touch-action:manipulation}
+.mixdrawer .mx-files>.btn[aria-busy=true]{opacity:.6}
+.mx-xm{display:flex;align-items:center;gap:8px;min-height:44px;flex:0 1 auto;min-width:0}
+.mx-xm>span{font:700 .66rem/1 Tahoma,Verdana,sans-serif;letter-spacing:.16em}
+.mx-xm>input{width:120px;min-width:60px;flex:1 1 120px;accent-color:#7fe22a}
+.mx-xm>output{font:400 18px/1 var(--f-mono,"VT323",monospace);min-width:3.6em;text-align:center;color:var(--lcd,#00e000);background:var(--lcd-bg,rgba(0,0,0,.45));border-radius:3px;padding:5px 6px}
+.mx-fstat{flex:1 1 100%;font-size:.8rem;min-height:0}
+.mixdrawer[data-layout=tabs] .mx-fname{flex:1 1 100%;max-width:none}
+.mixdrawer[data-layout=tabs] .mx-files>.btn{flex:1 1 0}
+.mixdrawer[data-layout=tabs] .mx-xm{flex:1 1 100%}
+.mx-fstat:empty{display:none}
 .mx-resetall button.armed{box-shadow:0 0 0 2px var(--btn-bezel,#111),0 0 10px #ff5f56}
 .mx-resetall small{min-width:7.5em;text-align:center}
 .mx-sec{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:8px;background:rgba(0,0,0,.18);box-shadow:inset 0 1px 3px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.06);min-width:0;scroll-margin-top:8px}
