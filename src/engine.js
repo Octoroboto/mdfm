@@ -5175,16 +5175,50 @@ function setGroove(id,vals){ const r=GRAW[id]||(GRAW[id]={...GROOVE_UI}), g=grvO
    song's intros and breaks drumless. Choices use mHash (never R()), and nothing changes until a cell is set. */
 // BEAT_LANES: [lane, label]: k kick, s snare / clap, h hat, o open hat, p perc
 const BEAT_LANES=[["k","KICK"],["s","SNARE / CLAP"],["h","HAT"],["o","OPEN HAT"],["p","PERC"]];
-// BEAT_PRE: [id, name, lanes as 16-character strings]: "." no opinion, "g" soft, "x" hit, "X" loud, "-" rest (BEAT_CH); a missing lane is all "."
-const BEAT_PRE=[["four","Four on the floor",{k:"x...x...x...x...",s:"....x.......x...",h:"x-x-x-x-x-x-x-x-",o:"..x...x...x...x."}],
-  ["boombap","Boom bap",{k:"x......x..x.....",s:"....x.......x...",h:"x.x.x.x.x.x.x.x.",o:"----------------"}],
-  ["trap","Trap",{k:"x......x..x....x",s:"----....X.......",h:"xxxxxxxxxxxxxxxx"}],
-  ["half","Half-time",{k:"x.....x.........",s:"....-...X...-...",h:"x...x...x...x..."}],
-  ["break","Breakbeat",{k:"x.x.......x.x...",s:"....X..g.g..X..g",h:"x.x.x.x.x.x.x.x."}],
-  ["dembow","Dembow",{k:"x...x...x...x...",s:"...x..x....x..x.",h:"x.x.x.x.x.x.x.x.",p:"..x...x...x...x."}],
-  ["twostep","Two-step",{k:"x.........x.....",s:"....x.......x..g",h:"..x...x.x.x...x."}],
-  ["lesshats","Fewer hats",{h:".-.-.-.-.-.-.-.-",o:"----------------"}],
-  ["nokick","Kick on 1 only",{k:"x---------------"}]];
+// BEAT_PRE: [id, name, lanes as 16-character strings, group]: "." no opinion, "g" soft, "x" hit, "X" loud, "-" rest (BEAT_CH);
+// a missing lane is all ".". The group is the heading the START FROM list files it under (BEAT_GROUPS gives their order).
+// 1.35: 24 more, in five groups. Each string is one bar of 16ths: steps 1, 5, 9 and 13 are the four beats.
+// Patterns that leave a lane out let the song keep its own part there (only the lanes written are steered).
+const BEAT_GROUPS=["Hip-hop","Dance","Band","World","Shape it"];
+const BEAT_PRE=[
+  // Hip-hop
+  ["boombap","Boom bap",{k:"x......x..x.....",s:"....x.......x...",h:"x.x.x.x.x.x.x.x.",o:"----------------"},"Hip-hop"],
+  ["trap","Trap",{k:"x......x..x....x",s:"----....X.......",h:"xxxxxxxxxxxxxxxx"},"Hip-hop"],
+  ["half","Half-time",{k:"x.....x.........",s:"....-...X...-...",h:"x...x...x...x..."},"Hip-hop"],
+  ["drill","UK drill",{k:"x.........x.x...",s:"----....X.....g.",h:"x..x..x.x..x..x."},"Hip-hop"],            // hats in 3-3-2 groups, snare late on 3
+  ["lofi","Lo-fi lazy",{k:"x.......x.x.....",s:"....x.......x...",h:"g.g.g.g.g.g.g.g.",o:"----------------"},"Hip-hop"],   // soft hats, no open hat
+  ["jersey","Jersey club",{k:"x..x..x...x.x.x.",s:"....x.......x...",h:"x.x.x.x.x.x.x.x."},"Hip-hop"],      // the bouncing kick run in the second half
+  ["gfunk","G-funk bounce",{k:"x......xx.x.....",s:"....x.......x...",h:"xgxgxgxgxgxgxgxg",o:"..............x."},"Hip-hop"],
+  // Dance
+  ["four","Four on the floor",{k:"x...x...x...x...",s:"....x.......x...",h:"x-x-x-x-x-x-x-x-",o:"..x...x...x...x."},"Dance"],
+  ["disco","Disco",{k:"x...x...x...x...",s:"....X.......X...",h:"xgxgxgxgxgxgxgxg",o:"..x...x...x...x."},"Dance"],     // 16th hats under open offbeats
+  ["techno","Techno",{k:"X...x...X...x...",s:"....x.......x...",h:"..x...x...x...x.",p:"...g...g...g...g"},"Dance"],
+  ["electro","Electro",{k:"x.....x...x..x..",s:"....x.......x...",h:"xxxxxxxxxxxxxxxx"},"Dance"],
+  ["break","Breakbeat",{k:"x.x.......x.x...",s:"....X..g.g..X..g",h:"x.x.x.x.x.x.x.x."},"Dance"],
+  ["jungle","Jungle",{k:"x.x.......xx....",s:"....x..g.g.gx..g",h:"x.x.x.x.x.x.x.x."},"Dance"],          // an Amen-style chop
+  ["twostep","Two-step",{k:"x.........x.....",s:"....x.......x..g",h:"..x...x.x.x...x."},"Dance"],
+  // Band
+  ["rock","Rock",{k:"x.......x.x.....",s:"....X.......X...",h:"x.x.x.x.x.x.x.x."},"Band"],
+  ["funk","Funk",{k:"x..x..x...x..x..",s:"....X..g..g.X.g.",h:"xgxgxgxgxgxgxgxg"},"Band"],            // ghost notes around a loud backbeat
+  ["shuffle","Shuffle",{k:"x.......x.......",s:"....x.......x...",h:"x..xx..xx..xx..x"},"Band"],        // long-short hats: a swung feel on a straight grid
+  ["motorik","Motorik",{k:"x.x.....x.x.....",s:"....x.......x...",h:"x.x.x.x.x.x.x.x."},"Band"],
+  ["ballad","Ballad (soft)",{k:"x.......x.......",s:"....g.......g...",h:"g...g...g...g...",o:"----------------",p:"----------------"},"Band"],
+  ["march","Marching snare",{k:"x...x...x...x...",s:"x.ggx.ggx.ggxggg",h:"----------------"},"Band"],
+  // World
+  ["dembow","Dembow",{k:"x...x...x...x...",s:"...x..x....x..x.",h:"x.x.x.x.x.x.x.x.",p:"..x...x...x...x."},"World"],
+  ["afro","Afrobeats",{k:"x..x..x...x.....",s:"....x.......x...",h:"xgxgxgxgxgxgxgxg",p:"x..x..x...x.x..."},"World"],   // perc plays a 3-2 clave
+  ["onedrop","One drop",{k:"--------x-------",s:"--------x-------",h:"..x...x...x...x."},"World"],      // kick and snare together on 3 only (fully from LEAD up)
+  ["bossa","Bossa nova",{k:"x..xx..xx..xx..x",s:"----------------",h:"gggggggggggggggg",p:"x..x..x...x..x.."},"World"],   // no snare; perc plays the bossa clave
+  ["gogo","Go-go",{k:"x..x..x...x..x..",s:"....x.......x...",h:"x.x.x.x.x.x.x.x.",p:"..x.x..x..x.x..x"},"World"],
+  // Shape it: touch one or two lanes and leave the rest of the song alone
+  ["lesshats","Fewer hats",{h:".-.-.-.-.-.-.-.-",o:"----------------"},"Shape it"],
+  ["morehats","More hats (16ths)",{h:"xgxgxgxgxgxgxgxg"},"Shape it"],
+  ["nokick","Kick on 1 only",{k:"x---------------"},"Shape it"],
+  ["fourkick","Kick on every beat",{k:"x...x...x...x..."},"Shape it"],
+  ["accents","Loud backbeat",{s:"....X.......X..."},"Shape it"],
+  ["nosnare","No snare / clap",{s:"----------------"},"Shape it"],
+  ["noperc","No open hat or perc",{o:"----------------",p:"----------------"},"Shape it"],
+  ["bare","Bare kit (kick + snare)",{h:"----------------",o:"----------------",p:"----------------"},"Shape it"]];
 const BEAT_CH={".":0,g:1,x:2,X:3,"-":-1};
 // beatGrid(o): preset strings -> {lane: 16 cells}; no argument: an empty grid
 const beatGrid=o=>Object.fromEntries(BEAT_LANES.map(([k])=>[k,Array.from({length:16},(_,i)=>o&&o[k]?BEAT_CH[o[k][i]]??0:0)]));
@@ -5701,8 +5735,8 @@ return {
   getGroove(id){ return {...(GRAW[id||station]||GROOVE_UI)}; },
   /* 1.31: BEAT, a one-bar drum pattern that steers the song's drums. Cells: 0 the song decides, 1 soft / 2 hit / 3 loud, -1 rest.
      {inf 0-1, bass (BASS FOLLOWS KICK), follow (FOLLOW BREAKS), grid:{k,s,h,o,p: 16 cells}}; per station; event "beat". */
-  // beatInfo(): {lanes, steps: 16, presets [[id, name]], def}; beatPreset(id): that preset as a grid, for setBeat({grid})
-  beatInfo(){ return {lanes:BEAT_LANES.map(x=>[...x]),steps:16,presets:BEAT_PRE.map(([id,name])=>[id,name]),def:{...BEAT_DEF}}; },
+  // beatInfo(): {lanes, steps: 16, presets [[id, name, group]], groups (their order), def}; beatPreset(id): that preset as a grid, for setBeat({grid})
+  beatInfo(){ return {lanes:BEAT_LANES.map(x=>[...x]),steps:16,presets:BEAT_PRE.map(([id,name,,group])=>[id,name,group]),groups:[...BEAT_GROUPS],def:{...BEAT_DEF}}; },
   beatSupport(id){ return (GSUP[id||station]||{}).melody===1; },   // MDFM, PTRN and CLUK: the stations whose songs MDFM writes
   getBeat(id){ return getBeat(id||station); },
   setBeat(v,id){ return setBeat(id||station,v); },

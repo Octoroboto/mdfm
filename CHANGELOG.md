@@ -2,6 +2,16 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.35.0 (2026-10-26, Rob)
+- **More BEAT starting patterns:** MIX › Groove & Key › BEAT › START FROM… goes from 9 to 33 patterns, filed under headings:
+  - **Hip-hop:** Boom bap, Trap, Half-time, plus UK drill, Lo-fi lazy, Jersey club and G-funk bounce.
+  - **Dance:** Four on the floor, Breakbeat, Two-step, plus Disco, Techno, Electro and Jungle.
+  - **Band (new):** Rock, Funk, Shuffle, Motorik, Ballad (soft) and Marching snare.
+  - **World:** Dembow, plus Afrobeats (3-2 clave on perc), One drop and Bossa nova (no snare, bossa clave) and Go-go.
+  - **Shape it:** Fewer hats and Kick on 1 only, plus More hats (16ths), Kick on every beat, Loud backbeat, No snare / clap, No open hat or perc and Bare kit. These set one or two lanes and leave the rest to the song.
+- Engine: `BEAT_PRE` entries carry a group; `beatInfo()` returns presets as `[id, name, group]` plus `groups` (their order). The 1.31 ids are unchanged. The MIX list uses `<optgroup>`s (a flat list with an older engine).
+- No sound changes until a preset is picked. Test: `test/beat135.test.mjs`.
+
 ## 1.34.0 (2026-10-26, Rob)
 - **MIX files:** a new MIX FILE row at the top of the MIX drawer (radio page, MDFM Radio app, kit apps and MD Hub, since they all mount `mountMix`). Give the mix a name and press **EXPORT** to save `<name>.mdfm.json` (JSON, because the apps' Save dialog only writes known types; a plain `.mdfm` loads too): every station's What plays switches, the instruments, and the whole mix (SOUND, EQ, ORIGINAL, UNDERWATER, FX, and each station's STYLE, GROOVE & KEY and BEAT). The skin and the volume are never in it. It saves through the app's Save dialog, claude.ai's downloads (as a .zip) or a browser download.
 - **IMPORT** loads one (or the `.zip` claude.ai hands back). With SOUND on, the dials glide from where they are to the file's values over the **CROSSMIX** time (0 to 15 s, default 4, kept in `mdfmMixUI.crossmix`; 0 = at once). Numbers glide (frequencies on a log scale); switches, choices, the BEAT grid and SONG / FOLLOW values change at the halfway point. A file saved on another station tunes there with the usual switch-over, with that station's own mix already in place, while the shared SOUND, EQ and FX glide. Turning the dial or importing again mid-glide lands the glide at once.

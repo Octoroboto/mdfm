@@ -409,6 +409,13 @@ function mountMix(radio, opts = {}) {
   const BT = SEC.groove && has("setBeat") && has("beatInfo"), BTI = BT ? radio.beatInfo() : null;
   // BT_TOOLS: the paint tools [cell value, label, tooltip]: 2 hit, 3 loud, 1 soft (a ghost), -1 rest, 0 erase (the song decides)
   const BT_TOOLS = [["2", "● HIT", "Play here"], ["3", "▲ LOUD", "Play here, accented"], ["1", "· SOFT", "Play here, softly (a ghost note)"], ["-1", "✕ REST", "Keep this step quiet"], ["0", "ERASE", "No opinion: the song decides"]];
+  // btPreOpts(): the START FROM list's options. 1.35: presets carry a group (Hip-hop, Dance, …), so they're filed under
+  // <optgroup> headings in the engine's group order; an older engine without groups gets the plain flat list.
+  const btPreOpt = ([id, n]) => `<option value="${esc(id)}">${esc(n)}</option>`;
+  const btPreOpts = () => { const ps = BTI.presets, gs = BTI.groups || [...new Set(ps.map(p => p[2]).filter(Boolean))];
+    if (!gs.length) return ps.map(btPreOpt).join("");
+    const loose = ps.filter(p => !gs.includes(p[2]));   // any preset without a known group goes last, ungrouped
+    return gs.map(g => { const in_ = ps.filter(p => p[2] === g); return in_.length ? `<optgroup label="${esc(g)}">${in_.map(btPreOpt).join("")}</optgroup>` : ""; }).join("") + loose.map(btPreOpt).join(""); };
   // beatHTML: the INFLUENCE knob, BASS FOLLOWS KICK and FOLLOW BREAKS, the tool picker, a 16-step row per lane (role=grid,
   // focus roves in it), COPY SONG, a START FROM preset list, CLEAR and a live note
   const beatHTML = !BT ? "" : `<div class="mx-card mx-beat" data-card="beat" id="${mkid("gc-beat")}"><h4>BEAT</h4>` +
@@ -418,7 +425,7 @@ function mountMix(radio, opts = {}) {
     `<div class="mx-bt-tools" data-bt-tools></div>` +
     `<div class="mx-bt-grid" role="grid" aria-label="Beat pattern: one bar of 16 steps">${BTI.lanes.map(([k, l]) => `<div class="mx-bt-lane" role="row" data-lane="${k}"><span class="mx-bt-ln" role="rowheader">${esc(l)}</span><div class="mx-bt-cells">${Array.from({ length: 16 }, (_, i) => `<button type="button" class="mx-bt-c" role="gridcell" tabindex="-1" data-lane="${k}" data-i="${i}"></button>`).join("")}</div></div>`).join("")}</div>` +
     `<div class="mx-bt-acts"><button type="button" class="btn mx-sb" data-bt-copy title="Fill the grid with what the song on air is playing in this bar">COPY SONG</button>` +
-    `<label class="mx-fld mx-bt-pre"><span class="mx-vh">Start from a pattern</span><select data-bt-pre><option value="">START FROM…</option>${BTI.presets.map(([id, n]) => `<option value="${esc(id)}">${esc(n)}</option>`).join("")}</select></label>` +
+    `<label class="mx-fld mx-bt-pre"><span class="mx-vh">Start from a pattern</span><select data-bt-pre><option value="">START FROM…</option>${btPreOpts()}</select></label>` +
     `<button type="button" class="btn mx-sb" data-bt-clear title="Empty every step (the song decides)">CLEAR</button></div>` +
     `<p class="mx-bt-note" data-bt-note aria-live="polite"></p></div>`;
   // gTempoK / gMelK: the knobs in the TEMPO & TIME and MELODY cards; gPushPart: per-part pushes, folded under PUSH EACH PART

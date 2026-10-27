@@ -126,7 +126,7 @@ The MIX drawer (`mountMix`, alias `mountTune`, in `src/tune.js`) opens under the
 
 **MELODY (1.29):** groove keys `mel` (COMPLEXITY), `rep` (REPETITION), `range` (RANGE) and `harm` (HARMONY), each 0..1 with .5 as written, kept per station with the rest of GROOVE. `playStep` uses `melMot` (which phrase, varied, simplified or filled, wider or narrower) and `harmChord` (fifths, triads, the song's voicing, 7ths, 9ths) only while one is moved. Choices come from a hash, never the song's random stream. `grooveSupport(id).melody` is 1 on MDFM, PTRN and CLUK.
 
-**BEAT (1.31):** `setBeat({inf, bass, follow, grid:{k,s,h,o,p}}, id)` (cells 0 = the song decides, 1/2/3 = soft/hit/loud, −1 = rest) steers the song's drums per bar (`beatPlan`, hashed, never the song's random stream); `beatNow()` gives the on-air bar for the MIX card (logged only while `beatWatch(true)`). Nothing changes until a step is set.
+**BEAT (1.31):** `setBeat({inf, bass, follow, grid:{k,s,h,o,p}}, id)` (cells 0 = the song decides, 1/2/3 = soft/hit/loud, −1 = rest) steers the song's drums per bar (`beatPlan`, hashed, never the song's random stream); `beatNow()` gives the on-air bar for the MIX card (logged only while `beatWatch(true)`). Nothing changes until a step is set. `beatInfo().presets` lists the START FROM patterns as `[id, name, group]` (33 since 1.35, in the groups `beatInfo().groups`), and `beatPreset(id)` returns one as a grid.
 
 **LITE (1.26, phones and tablets):** the LITE button next to ORIGINAL cycles AUTO / ON / OFF. It's saved in `mdfmMixUI.lite`, and AUTO means touch devices. While MIX is open in LITE:
 - the page gets `html.mx-lite` and `window.MDFM_lite` (the receiver's meters drop to 20 fps);
