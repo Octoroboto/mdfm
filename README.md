@@ -137,6 +137,10 @@ The MIX drawer (`mountMix`, alias `mountTune`, in `src/tune.js`) opens under the
 
 **PERF (1.27):** a fixed readout fed by `radio.perfStats(true)` twice a second and by `requestAnimationFrame` for frame timing.
 
+**PERFORM (1.37):** MIX's fifth section: PADS (keys 1-8, RECORD into BEAT), ROLL (hold a beat repeat), XY (filter across, an effect up), DROP (4 or 8 bars of build, a beat of silence, the drop) and SCENES A-D with MORPH. Engine: `perfInfo`, `perfPad`, `perfRoll`, `perfXY`, `perfDrop`, `perfState`.
+
+**Pop & dance pack (1.37):** PTRN adds phonk and a Pop & dance family (French house, '90s Eurodance, tropical house, nu-disco, future house), with a supersaw lead, future-house plucks, disco strings, a filtered disco loop, a thumb-and-pop slap bass and a bouncy bass (Settings › Instruments, since "1.37").
+
 **MIX files (1.34):** the MIX FILE row (a name, EXPORT, IMPORT, CROSSMIX 0-15 s) saves and loads `<name> - <CALL> - <key> - <bpm> BPM.mdfm.json` (since 1.36 the call sign, key and BPM on air are added by `mixTags`), a small JSON file with every station's What plays switches, the instruments and the whole mix (not the skin or the volume). `radio.getSettings({name})` makes one; `radio.applySettings(file, {crossmix})` puts one on, gliding over `crossmix` seconds while on air (switches change halfway; a file from another station tunes there), and resolves `{name, station, crossmix, skipped}`. The `mixfile` event (`start`, `switch`, `done`) lets a page tick its own checkboxes (`skin/radio-wire.js` does). `exportMix(radio, {name, app})`, `readMixFile(file)` and `mixFileName(name)` are exported for pages with their own buttons. The format is described at the top of `src/mixfile.js`.
 
 While any MIX control is being dragged, its engine call, repaint and save are coalesced to one per frame and the saves are written when the drag ends.

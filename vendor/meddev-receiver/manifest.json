@@ -1,18 +1,18 @@
 {
   "name": "meddev-receiver",
-  "version": "1.13.4",
+  "version": "1.14.0",
   "files": {
     "receiver.css": {
-      "sha256": "172d71acd957ab4dcaa94d2308da67fe8a38e6cf33d1abee1023a5f3408b543f",
-      "bytes": 616529
+      "sha256": "62dfd84266f1aa636ac323e9cbfc680601b3ffab126611d244535c16c3b1a474",
+      "bytes": 623037
     },
     "receiver.js": {
-      "sha256": "3b7b8f0a35a4c02f24e5b9418ccf723185c9d386b404d38750e8617556db8c83",
-      "bytes": 123317
+      "sha256": "00902ecc39479ac0078afc088112a1dd1d1ac58730730b1ef3ced75af0a88fa2",
+      "bytes": 128745
     },
     "skins.json": {
-      "sha256": "2e7230c23e088a060a48e48ddef7695045f515bfa987226050fe447e0a2de835",
-      "bytes": 6805701
+      "sha256": "983c19c60fe11c19fdd41ad421b4ebf9efec62a70cb211dc3b521c62229b8e29",
+      "bytes": 6806894
     }
   },
   "skins": [
@@ -25,7 +25,8 @@
     "mouth-jamboree",
     "q3-reconciliation",
     "clara-stamford",
-    "slouch-from-the-dead"
+    "slouch-from-the-dead",
+    "void"
   ],
   "default": "default"
 }

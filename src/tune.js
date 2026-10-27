@@ -105,15 +105,16 @@ function mountMix(radio, opts = {}) {
   // ui fields (saveUI() writes them):
   //   v           record version (1)
   //   open        the drawer was left open (reopened on load, except on a phone)
-  //   section     the section shown in the tabs layout, or the one last chosen ("sound" | "style" | "groove" | "fx")
+  //   section     the section shown in the tabs layout, or the one last chosen ("sound" | "style" | "groove" | "fx" | "perform")
   //   acc         which sections are unfolded in the accordion layout
   //   styleView   STYLE's view, "pad" or "faders"
   //   eqBand      the EQ band selected in the band strip ("lc" "ls" "p1" "p2" "hs" "hc")
   //   grooveCard  the Groove & Key card shown when its cards are tabbed ("tempo" "key" "melody" "drums" "beat")
   //   lite, void, perf are added further down (LITE "auto" | "on" | "off", VOID and PERF on or off).
+  //   xyfx        1.37: the effect on PERFORM's XY pad's up-down axis ("echo" "reverb" "gate" "crush" "flange")
   // acc is merged on its own so a saved acc that lacks a section keeps that section's default.
-  const ui = { v: 1, open: false, section: "sound", acc: { sound: true, style: true, groove: false, fx: false }, styleView: "pad", eqBand: "p1", grooveCard: "tempo",
-    ...ui0, acc: { sound: true, style: true, groove: false, fx: false, ...(obj(ui0.acc) || {}) } };
+  const ui = { v: 1, open: false, section: "sound", acc: { sound: true, style: true, groove: false, fx: false, perform: false }, styleView: "pad", eqBand: "p1", grooveCard: "tempo",
+    ...ui0, acc: { sound: true, style: true, groove: false, fx: false, perform: false, ...(obj(ui0.acc) || {}) } };
   // saveUI(): write ui to its store
   const saveUI = () => us.set(ui);
 
@@ -294,11 +295,11 @@ function mountMix(radio, opts = {}) {
 
   // ---------- markup ----------
   // SEC: the sections this engine supports (one it lacks isn't built). NAMES: their names on the tabs and RESET labels.
-  const SEC = { sound: has("setSound"), style: has("setStyleMix") && has("styleMixKeys"), groove: has("setGroove") && has("grooveKeys"), fx: has("setFx") && has("fxKeys") };
-  const NAMES = { sound: "Sound", style: "Style", groove: "Groove & Key", fx: "FX" };
+  const SEC = { sound: has("setSound"), style: has("setStyleMix") && has("styleMixKeys"), groove: has("setGroove") && has("grooveKeys"), fx: has("setFx") && has("fxKeys"), perform: has("perfPad") && has("perfInfo") };   // 1.37: PERFORM
+  const NAMES = { sound: "Sound", style: "Style", groove: "Groove & Key", fx: "FX", perform: "Perform" };
   // secHTML(k, h, badge, hint, body, extra): one section: a header (its h3 is the accordion button; a scope badge such as
   // ALL STATIONS or THIS STATION; extra controls; RESET; a hint) and the body. The ids tie tabs, headers and bodies for ARIA.
-  const secHTML = (k, h, badge, hint, body, extra = "") => `<section class="mx-sec" data-sec="${k}" id="${mkid("sec-" + k)}" aria-labelledby="${mkid("h-" + k)}"><header class="mx-sh"><h3><button type="button" class="mx-acc" id="${mkid("h-" + k)}" aria-controls="${mkid("body-" + k)}">${h}<i class="mx-dot" aria-hidden="true"></i></button></h3><span class="mx-badge" data-badge="${k}">${badge}</span>${extra}${rdBtn(`data-reset="${k}"`, "RESET", `Reset ${NAMES[k]}`, k === "style" || k === "groove" ? `Back to the song as written on this station` : `Back to how MDFM sounds as it is, on every station`)}<p class="mx-hint">${hint}</p></header><div class="mx-body" id="${mkid("body-" + k)}">${body}</div></section>`;
+  const secHTML = (k, h, badge, hint, body, extra = "") => `<section class="mx-sec" data-sec="${k}" id="${mkid("sec-" + k)}" aria-labelledby="${mkid("h-" + k)}"><header class="mx-sh"><h3><button type="button" class="mx-acc" id="${mkid("h-" + k)}" aria-controls="${mkid("body-" + k)}">${h}<i class="mx-dot" aria-hidden="true"></i></button></h3><span class="mx-badge" data-badge="${k}">${badge}</span>${extra}${rdBtn(`data-reset="${k}"`, "RESET", `Reset ${NAMES[k]}`, k === "style" || k === "groove" ? `Back to the song as written on this station` : k === "perform" ? `Let go of every trick (ROLL, XY). Your scenes stay` : `Back to how MDFM sounds as it is, on every station`)}<p class="mx-hint">${hint}</p></header><div class="mx-body" id="${mkid("body-" + k)}">${body}</div></section>`;
   // BYP: the engine call behind ORIGINAL (setMixBypass from 1.25 E3, setBypass before), or null: no ORIGINAL button
   const BYP = has("setMixBypass") ? "setMixBypass" : has("setBypass") ? "setBypass" : null;
   // 1.34: MIX FILE, a row under the head: a name, EXPORT, IMPORT (a hidden file picker) and the CROSSMIX length; FILES: the
@@ -458,6 +459,25 @@ function mountMix(radio, opts = {}) {
     `${FMORE.length ? `<div class="mx-card mx-grp" data-card="more"><h4>MORE</h4><div class="mx-knobs">${FMORE.map(k => knobHTML("fx-" + k, flab[k][0], "OFF", "MAX")).join("")}</div></div>` : ""}` +
     `${hasTricks ? `<div class="mx-card mx-grp mx-tricks" data-card="tricks"><h4>TRICKS</h4><div class="mx-pads">${has("tapeStop") ? `<button type="button" class="btn mx-padbtn" data-t="tape" title="The music slows to a stop, then drops back in on the beat">TAPE STOP</button>` : ""}${has("spinBack") ? `<button type="button" class="btn mx-padbtn" data-t="spin" title="Spins the music backwards like a record, then drops back in on the beat">SPIN BACK</button>` : ""}</div>` +
       `${FKS.has("glitch") ? `<div class="mx-knobs">${knobHTML("fx-glitch", flab.glitch[0], "OFF", "MAX", "chaos")}</div>` : ""}</div>` : ""}</div>`);
+  // ---------- 1.37 PERFORM: PADS (+ RECORD), ROLL, XY, DROP, SCENES ----------
+  // PFI: the engine's lists (radio.perfInfo): pads [id, label, BEAT lane, tip], xy [fx, label], rolls [beats, label], drops [bars]
+  const PFI = SEC.perform ? radio.perfInfo() : null, SCN = ["A", "B", "C", "D"];
+  if (SEC.perform) html += secHTML("perform", "PERFORM", "LIVE", "Play the station like an instrument. Everything lands on the beat. Nothing here is saved except your scenes. Keys 1-8 play the pads while this is open.",
+    `<div class="mx-grid mx-pfgrid">` +
+    // PADS: eight pads in a 4 x 2 grid (keys 1-8), RECORD writes the drum pads into BEAT
+    `<div class="mx-card mx-pfpads" data-card="pads"><div class="mx-ch"><h4>PADS</h4><button type="button" class="btn mx-tg" data-pf-rec aria-pressed="false" title="RECORD: the drum pads (KICK to PERC) also write their hit into this station's BEAT grid, at the step they land on">● RECORD</button></div>` +
+    `<div class="mx-pfpadg">${PFI.pads.map(([id, l, , tip], i) => `<button type="button" class="btn mx-pfpad" data-pad="${esc(id)}" title="${esc(tip)}. Lands on the next 16th (key ${i + 1})"><b>${esc(l)}</b><small>${i + 1}</small></button>`).join("")}</div></div>` +
+    // XY: across is the DJ filter, up is the chosen effect
+    `<div class="mx-card mx-pfxy" data-card="xy"><h4>XY</h4><div class="mx-xy" data-xy tabindex="0" role="slider" aria-label="XY pad: across is the filter (left low-pass, right high-pass), up is the effect picked below. Hold a finger on it; let go and your FX come back. Arrow keys play it from the keyboard, Escape lets go" aria-valuetext="off"><span class="mx-xyl mx-xyx">LP ◂ FILTER ▸ HP</span><span class="mx-xyl mx-xyy" data-xyy></span><i class="mx-xydot" data-xydot hidden></i></div>` +
+    `<div class="mx-pfchips" data-xyfx role="group" aria-label="The XY pad's up-down effect">${PFI.xy.map(([k, l]) => `<button type="button" class="btn" data-xyk="${esc(k)}" aria-pressed="false">${esc(l)}</button>`).join("")}</div></div>` +
+    // ROLL: hold a length to repeat it
+    `<div class="mx-card mx-pfroll" data-card="roll"><h4>ROLL</h4><div class="mx-pads">${PFI.rolls.map(([d, l]) => `<button type="button" class="btn mx-padbtn" data-roll="${d}" aria-pressed="false" title="Hold: catch the next ${l} note and repeat it. Let go and the music drops back in">${l}</button>`).join("")}</div><p class="mx-pfnote">Hold to roll, let go to drop back in.</p></div>` +
+    // DROP: the build and the drop
+    `<div class="mx-card mx-pfdrop" data-card="drop"><h4>DROP</h4><div class="mx-pads">${PFI.drops.map(b => `<button type="button" class="btn mx-padbtn" data-drop="${b}" title="From the next bar: a ${b}-bar build (filter sweep, riser, snare roll, gate), a beat of silence, then the drop">DROP · ${b} BARS</button>`).join("")}</div><output class="mx-pfnote" data-drop-st aria-live="polite"></output></div>` +
+    // SCENES: four saved mixes, and MORPH between the saved ones
+    `<div class="mx-card mx-pfscn" data-card="scenes"><div class="mx-ch"><h4>SCENES</h4><button type="button" class="btn mx-tg" data-scn-save aria-pressed="false" title="Then tap A, B, C or D to save the mix you hear now into it (an empty one saves with a single tap)">SAVE</button><button type="button" class="btn mx-sb" data-scn-clear title="Empty all four scenes (tap twice)">CLEAR</button></div>` +
+    `<div class="mx-pads">${SCN.map(k => `<button type="button" class="btn mx-padbtn mx-scn" data-scn="${k}" aria-pressed="false">${k}</button>`).join("")}</div>` +
+    `<label class="mx-morph"><span>MORPH</span><input type="range" data-morph min="0" max="1000" step="1" value="0" aria-label="Morph between the saved scenes"><output data-morph-v></output></label><p class="mx-pfnote" data-scn-hint></p></div></div>`);
   // the close button at the foot
   html += `<button type="button" class="btn mx-close">▲ Close ${esc(title)}</button></div>`;
 
@@ -1130,6 +1150,107 @@ function mountMix(radio, opts = {}) {
       keep() { fs.set(radio.getFx()); }, uw: () => uw, uwOn };
   }
 
+
+  // ---------- 1.37 PERFORM ----------
+  // Pads fire on pointerdown (no click delay on touch); the keyboard's Enter / Space arrive as a click with detail 0. The
+  // engine lands each on the next 16th and emits "pad" with its audio-clock time; the pad lights then. ROLL holds while
+  // pressed. XY sends its position while held (perfXY) and lets go on release. DROP shows a countdown. SCENES keep up to
+  // four mixes (SOUND, EQ, FX and this station's STYLE and GROOVE) in localStorage "mdfmScenes"; tapping a saved one glides
+  // to it over a beat or so, and MORPH blends along the saved ones in order (A to D) with mxfLerp, the MIX file's blend.
+  if (SEC.perform) {
+    const ctxNow = () => radio.audioContext ? radio.audioContext.currentTime : 0;
+    // atAudio(t, fn): run fn when the audio clock reaches t (a pad's landing), at most 2 s ahead
+    const atAudio = (t, fn) => setTimeout(fn, Math.max(0, Math.min(2000, ((t || 0) - ctxNow()) * 1000)));
+    let rec = false; const recB = $p("[data-pf-rec]");
+    recB.addEventListener("click", () => { rec = !rec; recB.setAttribute("aria-pressed", String(rec)); });
+    // keepBeat(): after RECORD wrote into BEAT: save it with the groove (debounced) and repaint
+    let kbT = 0; const keepBeat = () => { clearTimeout(kbT); kbT = setTimeout(() => { if (S.groove && S.groove.keep) S.groove.keep([sid()]); later("groove"); led(); }, 250); };
+    // pad(id): play one; the engine says when it lands
+    const pad = id => { const r = radio.perfPad(id, { rec }); if (r && rec && PFI.pads.find(p => p[0] === id && p[2])) keepBeat(); return r; };
+    const padEls = $$p("[data-pad]");
+    for (const b of padEls) {
+      b.addEventListener("pointerdown", e => { if (e.button > 0) return; e.preventDefault(); pad(b.dataset.pad); });
+      b.addEventListener("click", e => { if (e.detail === 0) pad(b.dataset.pad); }); }
+    if (radio.on) radio.on("pad", e => { const b = e && $p(`[data-pad="${e.id}"]`); if (b) atAudio(e.t, () => { b.classList.add("hit"); setTimeout(() => b.classList.remove("hit"), 110); }); });
+    // keys 1-8 play the pads while PERFORM is on screen (never while typing in a field)
+    doc.addEventListener("keydown", e => { if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || !/^[1-8]$/.test(e.key)) return;
+      const tg = e.target, tag = tg && tg.tagName; if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (tg && tg.isContentEditable)) return;
+      if (!visible($p('[data-card="pads"]'))) return; const P = PFI.pads[+e.key - 1]; if (P) { e.preventDefault(); pad(P[0]); } });
+    // ROLL: press and hold (pointer, or Space / Enter held); one at a time, a different length takes over
+    let rollB = null;
+    const rollOn = b => { if (rollB && rollB !== b) rollB.setAttribute("aria-pressed", "false"); rollB = b; b.setAttribute("aria-pressed", "true"); radio.perfRoll(+b.dataset.roll); };
+    const rollOff = b => { if (rollB !== b) return; rollB = null; b.setAttribute("aria-pressed", "false"); radio.perfRoll(0); };
+    for (const b of $$p("[data-roll]")) {
+      b.addEventListener("pointerdown", e => { if (e.button > 0) return; e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (x) {} rollOn(b); });
+      for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) b.addEventListener(ev, () => rollOff(b));
+      b.addEventListener("keydown", e => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); rollOn(b); } });
+      b.addEventListener("keyup", e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); rollOff(b); } });
+      b.addEventListener("blur", () => rollOff(b)); }
+    // XY: the pad, its dot and the effect chips (the choice is kept in ui.xyfx)
+    const xy = $p("[data-xy]"), dot = $p("[data-xydot]"), xyY = $p("[data-xyy]"), xyLab = Object.fromEntries(PFI.xy);
+    if (!xyLab[ui.xyfx]) ui.xyfx = PFI.xy[0][0];
+    const paintXyFx = () => { for (const c of $$p("[data-xyk]")) c.setAttribute("aria-pressed", String(c.dataset.xyk === ui.xyfx)); xyY.textContent = xyLab[ui.xyfx] + " ▴"; };
+    for (const c of $$p("[data-xyk]")) c.addEventListener("click", () => { ui.xyfx = c.dataset.xyk; saveUI(); paintXyFx(); });
+    paintXyFx();
+    // xyAt(x, y): play the pad at x, y (0..1, y up) and move the dot; xyOff(): let go
+    let xyHeld = false, kx = .5, ky = 0, xyRaf = 0, xyNext = null;
+    const xySend = () => { xyRaf = 0; if (xyNext && xyHeld) radio.perfXY(xyNext); };
+    const xyAt = (x, y) => { kx = clamp(x, 0, 1); ky = clamp(y, 0, 1); xyHeld = true; dot.hidden = false; dot.style.left = (kx * 100) + "%"; dot.style.top = ((1 - ky) * 100) + "%"; xy.classList.add("held");
+      xy.setAttribute("aria-valuetext", `filter ${Math.abs(kx - .5) < .02 ? "off" : kx < .5 ? "low-pass" : "high-pass"}, ${xyLab[ui.xyfx].toLowerCase()} ${Math.round(ky * 100)} percent`);
+      xyNext = { x: kx, y: ky, fx: ui.xyfx }; if (!xyRaf) xyRaf = (win.requestAnimationFrame || (f => setTimeout(f, 16)))(xySend); };
+    const xyOff = () => { if (!xyHeld) return; xyHeld = false; xyNext = null; dot.hidden = true; xy.classList.remove("held"); xy.setAttribute("aria-valuetext", "off"); radio.perfXY(null); };
+    const xyPt = e => { const r = xy.getBoundingClientRect(); xyAt((e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height); };
+    xy.addEventListener("pointerdown", e => { if (e.button > 0) return; e.preventDefault(); try { xy.setPointerCapture(e.pointerId); } catch (x) {} xyPt(e); });
+    xy.addEventListener("pointermove", e => { if (xyHeld && e.buttons !== 0) xyPt(e); });
+    for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) xy.addEventListener(ev, xyOff);
+    xy.addEventListener("keydown", e => { const d = { ArrowLeft: [-.05, 0], ArrowRight: [.05, 0], ArrowUp: [0, .05], ArrowDown: [0, -.05] }[e.key];
+      if (d) { e.preventDefault(); xyAt(kx + d[0], ky + d[1]); } else if (e.key === "Escape") { e.preventDefault(); xyOff(); } });
+    xy.addEventListener("blur", xyOff);
+    // DROP: start it and count down the bars until it lands
+    const dropSt = $p("[data-drop-st]"), dropBs = $$p("[data-drop]"); let dropT = 0;
+    const dropDone = () => { clearInterval(dropT); dropT = 0; for (const b of dropBs) { b.disabled = false; b.classList.remove("busy"); } };
+    for (const b of dropBs) b.addEventListener("click", () => { const r = radio.perfDrop(+b.dataset.drop); if (!r) { dropSt.textContent = radio.isOn && !radio.isOn() ? "Turn the sound on first." : ""; return; }
+      for (const x of dropBs) x.disabled = true; b.classList.add("busy");
+      const tick = () => { const now = ctxNow(), left = r.at - now; if (left <= 0) { dropSt.textContent = "DROP!"; dropDone(); setTimeout(() => { if (!dropT) dropSt.textContent = ""; }, 1500); return; }
+        dropSt.textContent = now < r.from ? "Building from the next bar…" : `Dropping in ${left.toFixed(1)} s`; };
+      tick(); dropT = setInterval(tick, 100); });
+    // SCENES: snap() reads the mix now; put(a, b, k) puts the blend of two snaps (k 0..1) on the engine, only what changed
+    const sc = ls("mdfmScenes"); let scenes = obj(sc.get()) || {};
+    const snap = () => { const id = sid(); return { sound: radio.getSound(), eq: has("getEq") ? radio.getEq() : null, fx: has("getFx") ? radio.getFx() : null,
+      style: has("getStyleMix") ? { w: radio.getStyleMix(id), lanes: has("getStyleLanes") ? radio.getStyleLanes(id) : undefined } : null, groove: has("getGroove") ? radio.getGroove(id) : null }; };
+    const last = {}; const send = (key, v, fn) => { if (v == null) return; const j = JSON.stringify(v); if (last[key] === j) return; last[key] = j; try { fn(v); } catch (e) {} };
+    const put = (a, b, k) => { const id = sid(), L = key => a[key] && b[key] ? mxfLerp(a[key], b[key], k, key) : (k >= .5 ? b[key] : a[key]);
+      send("sound", L("sound"), v => radio.setSound(v)); if (has("setEq")) send("eq", L("eq"), v => radio.setEq(v)); if (has("setFx")) send("fx", L("fx"), v => radio.setFx(v));
+      if (has("setStyleMix")) send("style", L("style"), v => radio.setStyleMix(v, id)); if (has("setGroove")) send("groove", L("groove"), v => radio.setGroove(v, id));
+      later("sound", "style", "groove", "fx"); };
+    // keepAll(): after a morph or glide ends, save every section as the engine has it (so a reload keeps it)
+    const keepAll = () => { for (const k of Object.keys(S)) if (k !== "perform" && S[k].keep) try { S[k].keep([sid()]); } catch (e) {} led(); };
+    const filled = () => SCN.filter(k => obj(scenes[k]));
+    const scnSave = $p("[data-scn-save]"), scnClear = $p("[data-scn-clear]"), morph = $p("[data-morph]"), morphV = $p("[data-morph-v]"), hint = $p("[data-scn-hint]");
+    let saving = false, clearArm = 0, glide = 0;
+    const paintScn = () => { const f = filled(); for (const b of $$p("[data-scn]")) { const has1 = !!obj(scenes[b.dataset.scn]); b.classList.toggle("full", has1);
+        b.title = has1 ? `Glide to scene ${b.dataset.scn}` : `Save the mix you hear now as scene ${b.dataset.scn}`; b.setAttribute("aria-label", `Scene ${b.dataset.scn}, ${has1 ? "saved" : "empty"}`); }
+      scnSave.setAttribute("aria-pressed", String(saving)); morph.disabled = f.length < 2;
+      hint.textContent = saving ? "Tap a letter to save the mix into it." : f.length < 2 ? "Tap an empty letter to save the mix you hear. Save two to morph between them." : `MORPH slides ${f.join(" → ")}.`; };
+    const scnStore = () => sc.set(scenes);
+    // glideTo(b): from the mix now to scene b over about two beats (an eased glide, like a MIX file's crossmix)
+    const glideTo = b => { clearInterval(glide); const a = snap(), t0 = performance.now(), dur = 1200; for (const k in last) delete last[k];
+      glide = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / dur); put(a, b, mxfEase(k)); if (k >= 1) { clearInterval(glide); glide = 0; keepAll(); } }, 50); };
+    for (const b of $$p("[data-scn]")) b.addEventListener("click", () => { const k = b.dataset.scn;
+      if (saving || !obj(scenes[k])) { scenes[k] = snap(); scnStore(); saving = false; b.classList.add("hit"); setTimeout(() => b.classList.remove("hit"), 220); paintScn(); return; }
+      for (const x of $$p("[data-scn]")) x.setAttribute("aria-pressed", String(x === b)); glideTo(scenes[k]); });
+    scnSave.addEventListener("click", () => { saving = !saving; paintScn(); });
+    scnClear.addEventListener("click", () => { if (Date.now() - clearArm > 2500) { clearArm = Date.now(); scnClear.textContent = "TAP AGAIN"; setTimeout(() => { scnClear.textContent = "CLEAR"; }, 2500); return; }
+      clearArm = 0; scnClear.textContent = "CLEAR"; scenes = {}; scnStore(); morph.value = "0"; morphV.textContent = ""; paintScn(); });
+    // MORPH: 0..1000 along the saved scenes in order; at each point the blend of the two scenes either side of it
+    morph.addEventListener("input", () => { const f = filled(); if (f.length < 2) return; clearInterval(glide);
+      const p = (+morph.value / 1000) * (f.length - 1), i = Math.min(f.length - 2, Math.floor(p)), k = p - i;
+      put(scenes[f[i]], scenes[f[i + 1]], k); morphV.textContent = k < .02 ? f[i] : k > .98 ? f[i + 1] : `${f[i]}${Math.round((1 - k) * 100)}·${f[i + 1]}${Math.round(k * 100)}`; });
+    morph.addEventListener("change", keepAll);
+    paintScn();
+    // S.perform: nothing to repaint from the engine; RESET lets go of ROLL and XY; it never counts as "moved"
+    S.perform = { paint() { paintScn(); }, reset() { xyOff(); if (rollB) rollOff(rollB); radio.perfRoll(0); }, moved: () => false };
+  }
   // ---------- moved dots, the MIX LED, scope badges ----------
   // tl: the MIX toggle's wrapper on the deck; it gets .tuned (its LED lights) while anything in MIX is moved.
   const tl = toggle ? toggle.closest("label,.rd-btn") : null;
@@ -1403,26 +1524,30 @@ html.mx-lite .mixdrawer canvas{filter:none!important}
 .mx-perf{pointer-events:none}.mx-perf button{pointer-events:auto}   /* touches pass through to the controls underneath */
 @media (max-width:600px){.mx-perf{font-size:10px;padding:5px 8px 6px;background:rgba(10,11,13,.82)}.mx-perf pre{margin-top:3px}}
 /* ===== 1.27 VOID: no skin, no textures, glass, glow, shadows, filters or decorations; flat dark blocks, crisp lit edges ===== */
-html.mx-void{--v-bg:#111215;--v-blk:#1b1c21;--v-blk2:#24252b;--v-blk3:#2e3038;--v-line:#33353e;--v-txt:#d8dae1;--v-mute:#8b8e9a;--v-glow:var(--lcd,#00e000);--v-scr:#0a0b0d;color-scheme:dark}
-html.mx-void body{background:var(--v-bg)!important}
+/* VOID skin: the VOID skin (MedDev Receiver 1.14.0, skin.json "flat") sets html[data-flat] all the time; the MIX drawer's own flat
+   rules below apply to it too (:is(html.mx-void,html[data-flat])). The receiver's stylesheet does the page-wide part for the
+   skin (stripping textures, glows and decorations while keeping the spray can and flies), so the two page-wide rules just
+   below stay VOID-button only. */
+:is(html.mx-void,html[data-flat]){--v-bg:#111215;--v-blk:#1b1c21;--v-blk2:#24252b;--v-blk3:#2e3038;--v-line:#33353e;--v-txt:#d8dae1;--v-mute:#8b8e9a;--v-glow:var(--lcd,#00e000);--v-scr:#0a0b0d;color-scheme:dark}
+:is(html.mx-void,html[data-flat]) body{background:var(--v-bg)!important}
 html.mx-void *,html.mx-void *::before,html.mx-void *::after{background-image:none!important;box-shadow:none!important;text-shadow:none!important;filter:none!important;mix-blend-mode:normal!important;animation:none!important;transition:none!important;border-image:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
 html.mx-void .skin-decor,html.mx-void [class^="sx-"],html.mx-void [class*=" sx-"],html.mx-void .spraycan,html.mx-void .ffly,html.mx-void .canlayer,html.mx-void .mistfx,html.mx-void .wtitle::before,html.mx-void .wtitle::after,html.mx-void .lcd::after,html.mx-void .list::after,html.mx-void .tabs::after,html.mx-void .hits::after,html.mx-void .msgs::after,html.mx-void .vu-glass::after,html.mx-void .glass::after{display:none!important}
-html.mx-void .deck,html.mx-void .panel,html.mx-void .wing,html.mx-void .mx-card,html.mx-void .mx-sec,html.mx-void .setsec{background-color:var(--v-blk)!important;border:1px solid var(--v-line)!important;border-radius:8px!important}
-html.mx-void .mixdrawer{background-color:transparent!important;border-top:1px solid var(--v-line)!important}
-html.mx-void .wtitle{background-color:transparent!important;border:0!important;color:var(--v-mute)!important;letter-spacing:.3em!important;justify-content:flex-start!important}
-html.mx-void header.top .wctl{position:static!important;transform:none!important;height:auto!important;padding:0!important;margin:0 18px 0 0!important;background:none!important}
-html.mx-void .lcd,html.mx-void .vu-glass,html.mx-void input,html.mx-void select,html.mx-void textarea,html.mx-void .mx-eqg{background-color:var(--v-scr)!important;border:1px solid var(--v-line)!important;border-radius:6px!important}
-html.mx-void .btn,html.mx-void .wbtn button,html.mx-void .stbtn,html.mx-void .seg button,html.mx-void .tabs button,html.mx-void .mixdrawer button:where(:not(.rd-knob,.mx-eqn,.mx-puck,.mx-acc,.mx-bt-c)){background-color:var(--v-blk2)!important;border:1px solid var(--v-line)!important;border-radius:6px!important;color:var(--v-txt)!important}
-html.mx-void .btn:hover,html.mx-void .mixdrawer button:where(:not(.rd-knob,.mx-eqn,.mx-puck,.mx-acc,.mx-bt-c)):hover{background-color:var(--v-blk3)!important}
-html.mx-void [aria-pressed=true],html.mx-void [aria-checked=true],html.mx-void [aria-selected=true],html.mx-void .btn.on,html.mx-void .mixdrawer button.on{border-color:var(--v-glow)!important;color:var(--v-glow)!important;outline:1px solid var(--v-glow)!important;outline-offset:-3px!important}
-html.mx-void .mixdrawer button.mx-acc{background-color:transparent!important;border:0!important;outline:0!important;color:var(--v-txt)!important;padding:0!important}
-html.mx-void .rd-btn button,html.mx-void .mixdrawer .rd-btn button,html.mx-void .vizsw input,html.mx-void .rd-knob,html.mx-void .vol-knob{background-color:var(--v-blk3)!important;border:1px solid #474a55!important;border-radius:50%!important}
-html.mx-void .rd-btn button[aria-pressed=true],html.mx-void .rd-btn button:active,html.mx-void .mixdrawer .rd-btn button.armed{border-color:var(--v-glow)!important;background-color:var(--v-blk2)!important}
-html.mx-void .rd-knob::after,html.mx-void .vol-knob::after{background-color:var(--v-glow)!important}
-html.mx-void .mx-track{background-color:var(--v-scr)!important}
-html.mx-void .mx-fill{background-color:var(--v-glow)!important;opacity:.55}
-html.mx-void .mx-cap{background-color:#3d404a!important;border:1px solid #5a5e6b!important;border-radius:3px!important}
-html.mx-void small,html.mx-void .mx-hint,html.mx-void .hint,html.mx-void h3,html.mx-void h4{color:var(--v-mute)!important}
+:is(html.mx-void,html[data-flat]) .deck,:is(html.mx-void,html[data-flat]) .panel,:is(html.mx-void,html[data-flat]) .wing,:is(html.mx-void,html[data-flat]) .mx-card,:is(html.mx-void,html[data-flat]) .mx-sec,:is(html.mx-void,html[data-flat]) .setsec{background-color:var(--v-blk)!important;border:1px solid var(--v-line)!important;border-radius:8px!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer{background-color:transparent!important;border-top:1px solid var(--v-line)!important}
+:is(html.mx-void,html[data-flat]) .wtitle{background-color:transparent!important;border:0!important;color:var(--v-mute)!important;letter-spacing:.3em!important;justify-content:flex-start!important}
+:is(html.mx-void,html[data-flat]) header.top .wctl{position:static!important;transform:none!important;height:auto!important;padding:0!important;margin:0 18px 0 0!important;background:none!important}
+:is(html.mx-void,html[data-flat]) .lcd,:is(html.mx-void,html[data-flat]) .vu-glass,:is(html.mx-void,html[data-flat]) input,:is(html.mx-void,html[data-flat]) select,:is(html.mx-void,html[data-flat]) textarea,:is(html.mx-void,html[data-flat]) .mx-eqg{background-color:var(--v-scr)!important;border:1px solid var(--v-line)!important;border-radius:6px!important}
+:is(html.mx-void,html[data-flat]) .btn,:is(html.mx-void,html[data-flat]) .wbtn button,:is(html.mx-void,html[data-flat]) .stbtn,:is(html.mx-void,html[data-flat]) .seg button,:is(html.mx-void,html[data-flat]) .tabs button,:is(html.mx-void,html[data-flat]) .mixdrawer button:where(:not(.rd-knob,.mx-eqn,.mx-puck,.mx-acc,.mx-bt-c)){background-color:var(--v-blk2)!important;border:1px solid var(--v-line)!important;border-radius:6px!important;color:var(--v-txt)!important}
+:is(html.mx-void,html[data-flat]) .btn:hover,:is(html.mx-void,html[data-flat]) .mixdrawer button:where(:not(.rd-knob,.mx-eqn,.mx-puck,.mx-acc,.mx-bt-c)):hover{background-color:var(--v-blk3)!important}
+:is(html.mx-void,html[data-flat]) [aria-pressed=true],:is(html.mx-void,html[data-flat]) [aria-checked=true],:is(html.mx-void,html[data-flat]) [aria-selected=true],:is(html.mx-void,html[data-flat]) .btn.on,:is(html.mx-void,html[data-flat]) .mixdrawer button.on{border-color:var(--v-glow)!important;color:var(--v-glow)!important;outline:1px solid var(--v-glow)!important;outline-offset:-3px!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer button.mx-acc{background-color:transparent!important;border:0!important;outline:0!important;color:var(--v-txt)!important;padding:0!important}
+:is(html.mx-void,html[data-flat]) .rd-btn button,:is(html.mx-void,html[data-flat]) .mixdrawer .rd-btn button,:is(html.mx-void,html[data-flat]) .vizsw input,:is(html.mx-void,html[data-flat]) .rd-knob,:is(html.mx-void,html[data-flat]) .vol-knob{background-color:var(--v-blk3)!important;border:1px solid #474a55!important;border-radius:50%!important}
+:is(html.mx-void,html[data-flat]) .rd-btn button[aria-pressed=true],:is(html.mx-void,html[data-flat]) .rd-btn button:active,:is(html.mx-void,html[data-flat]) .mixdrawer .rd-btn button.armed{border-color:var(--v-glow)!important;background-color:var(--v-blk2)!important}
+:is(html.mx-void,html[data-flat]) .rd-knob::after,:is(html.mx-void,html[data-flat]) .vol-knob::after{background-color:var(--v-glow)!important}
+:is(html.mx-void,html[data-flat]) .mx-track{background-color:var(--v-scr)!important}
+:is(html.mx-void,html[data-flat]) .mx-fill{background-color:var(--v-glow)!important;opacity:.55}
+:is(html.mx-void,html[data-flat]) .mx-cap{background-color:#3d404a!important;border:1px solid #5a5e6b!important;border-radius:3px!important}
+:is(html.mx-void,html[data-flat]) small,:is(html.mx-void,html[data-flat]) .mx-hint,:is(html.mx-void,html[data-flat]) .hint,:is(html.mx-void,html[data-flat]) h3,:is(html.mx-void,html[data-flat]) h4{color:var(--v-mute)!important}
 html.mx-lite .mx-padbox,html.mx-lite .mx-padtxt,html.mx-lite .mx-eqg,html.mx-lite .mx-f .mx-ft{will-change:transform;contain:layout paint}
 .mixdrawer{display:grid;grid-template-rows:1fr;transition:grid-template-rows .22s ease-out;margin-top:12px;padding-top:10px;border-top:1px solid rgba(0,0,0,.45);box-shadow:0 -1px 0 rgba(255,255,255,.08);position:relative;min-width:0}
 .mixdrawer[hidden],.mixdrawer [hidden]{display:none!important}
@@ -1584,22 +1709,22 @@ html.mx-lite .mx-padbox,html.mx-lite .mx-padtxt,html.mx-lite .mx-eqg,html.mx-lit
 @container (max-width:560px){.mx-bt-cells{row-gap:8px}.mx-bt-acts .btn{flex:1 1 auto}}
 @media (pointer:coarse){.mx-bt-c{min-height:44px}}
 /* VOID (flat dark) keeps the grid readable: its own fills, and outlines instead of glows */
-html.mx-void .mixdrawer .mx-bt-c{background-color:#15171c!important;border:1px solid #3a3d47!important;border-radius:4px!important}
-html.mx-void .mixdrawer .mx-bt-c:nth-child(4n+1){background-color:#22252c!important}
-html.mx-void .mixdrawer .mx-bt-c[data-v="1"]{background-color:#2c4a18!important;border-color:#6aa83a!important}
-html.mx-void .mixdrawer .mx-bt-c[data-v="2"]{background-color:#4f9a1c!important;border-color:#7fe22a!important}
-html.mx-void .mixdrawer .mx-bt-c[data-v="3"]{background-color:#8be83a!important;border-color:#d8ffb0!important}
-html.mx-void .mixdrawer .mx-bt-c[data-v="-1"]{background-color:#0c0d10!important;border-color:#b5553f!important}
-html.mx-void .mixdrawer .mx-bt-c.own::after{background-color:rgba(226,229,238,.45)!important}
-html.mx-void .mixdrawer .mx-bt-c.own[data-v="2"]::after,html.mx-void .mixdrawer .mx-bt-c.own[data-v="3"]::after{background-color:rgba(0,0,0,.45)!important}
-html.mx-void .mixdrawer .mx-bt-c.ph{outline:2px solid #e2e5ee!important;outline-offset:-2px!important}
-html.mx-void .mixdrawer .mx-bt-c.fire{outline:3px solid #ffd23f!important;outline-offset:-3px!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c{background-color:#15171c!important;border:1px solid #3a3d47!important;border-radius:4px!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c:nth-child(4n+1){background-color:#22252c!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c[data-v="1"]{background-color:#2c4a18!important;border-color:#6aa83a!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c[data-v="2"]{background-color:#4f9a1c!important;border-color:#7fe22a!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c[data-v="3"]{background-color:#8be83a!important;border-color:#d8ffb0!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c[data-v="-1"]{background-color:#0c0d10!important;border-color:#b5553f!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c.own::after{background-color:rgba(226,229,238,.45)!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c.own[data-v="2"]::after,:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c.own[data-v="3"]::after{background-color:rgba(0,0,0,.45)!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c.ph{outline:2px solid #e2e5ee!important;outline-offset:-2px!important}
+:is(html.mx-void,html[data-flat]) .mixdrawer .mx-bt-c.fire{outline:3px solid #ffd23f!important;outline-offset:-3px!important}
 .mx-stylegrid{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))}
 .mx-fxgrid{grid-template-columns:repeat(auto-fit,minmax(min(100%,176px),1fr))}
 .mixdrawer:is([data-layout=board],[data-layout=acc]) .mx-fxgrid>[data-card=move]{grid-column:span 2}
 .mixdrawer[data-layout=board] .mx-in{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
 .mixdrawer[data-layout=board] .mx-in>:not(.mx-sec){grid-column:1/-1}
-.mixdrawer[data-layout=board] .mx-sec[data-sec=sound],.mixdrawer[data-layout=board] .mx-sec[data-sec=fx]{grid-column:1/-1}
+.mixdrawer[data-layout=board] .mx-sec[data-sec=sound],.mixdrawer[data-layout=board] .mx-sec[data-sec=fx],.mixdrawer[data-layout=board] .mx-sec[data-sec=perform]{grid-column:1/-1}
 .mixdrawer[data-layout=board] .mx-sec[data-sec=style]{grid-column:1/6}
 .mixdrawer[data-layout=board] .mx-sec[data-sec=groove]{grid-column:6/-1}
 .mixdrawer[data-layout=board] .mx-sec[data-sec=style]:not(:has(~ .mx-sec[data-sec=groove])){grid-column:1/-1}
@@ -1705,4 +1830,30 @@ html.mx-void .mixdrawer .mx-bt-c.fire{outline:3px solid #ffd23f!important;outlin
 /* FX: GLITCH flashes when it fires */
 .mx-k.fired .rd-knob{filter:drop-shadow(0 0 8px #ff5f56)}
 .mx-k.fired .mx-v{color:#fff;background:#ff5f56}
+/* ===== 1.37 PERFORM ===== */
+/* two columns (PADS | XY, ROLL | DROP, SCENES across) once the section is 620 px wide, one column below */
+.mx-sec[data-sec=perform] .mx-body{container-type:inline-size}
+.mx-pfgrid{grid-template-columns:minmax(0,1fr)}
+@container (min-width:620px){.mx-pfgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.mx-pfgrid>[data-card=scenes]{grid-column:1/-1}}
+.mx-pfpads{display:flex;flex-direction:column}.mx-pfpadg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(64px,1fr);gap:8px;flex:1}
+.mixdrawer .mx-pfpad{min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 4px;touch-action:manipulation;user-select:none;-webkit-user-select:none;font-size:.78rem;letter-spacing:.06em}
+.mixdrawer .mx-pfpad small{opacity:.5;font-size:.68rem}
+.mixdrawer .mx-pfpad.hit,.mixdrawer .mx-scn.hit{box-shadow:0 0 0 2px #7fe22a,0 0 16px #7fe22a;color:#7fe22a}
+.mixdrawer [data-roll]{touch-action:none;user-select:none;-webkit-user-select:none}
+.mixdrawer [data-roll][aria-pressed=true]{box-shadow:0 0 0 2px #ff9f1a,0 0 14px #ff9f1a;color:#ffb347}
+.mx-pfnote{margin:6px 0 0;font-size:.74rem;opacity:.75;min-height:1.2em;display:block}
+.mx-xy{position:relative;width:100%;aspect-ratio:16/10;min-height:140px;max-height:240px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background-color:#05070a;background-image:linear-gradient(rgba(127,226,42,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(127,226,42,.09) 1px,transparent 1px),linear-gradient(90deg,transparent 49.6%,rgba(127,226,42,.25) 49.6%,rgba(127,226,42,.25) 50.4%,transparent 50.4%);background-size:12.5% 20%,12.5% 20%,100% 100%;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none;overflow:hidden}
+.mx-xy.held{border-color:#7fe22a}
+.mx-xy:focus-visible{outline:2px solid #7fe22a;outline-offset:2px}
+.mx-xyl{position:absolute;font-size:.66rem;letter-spacing:.12em;color:rgba(200,255,170,.6);pointer-events:none}
+.mx-xyx{left:50%;bottom:6px;transform:translateX(-50%);white-space:nowrap}.mx-xyy{left:8px;top:6px}
+.mx-xydot{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:2px solid #7fe22a;box-shadow:0 0 14px #7fe22a,inset 0 0 8px #7fe22a;pointer-events:none}
+.mx-pfchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.mx-pfchips .btn{flex:1 1 auto;min-height:36px;font-size:.72rem;padding:4px 8px}
+.mixdrawer .mx-pfdrop .mx-padbtn.busy{box-shadow:0 0 0 2px #ff4f4f,0 0 14px #ff4f4f;color:#ff8a7a}
+.mixdrawer .mx-scn{font-size:1.2rem;font-weight:700;opacity:.55}.mixdrawer .mx-scn.full{opacity:1}
+.mx-morph{display:flex;align-items:center;gap:10px;margin-top:10px}.mx-morph span{font-size:.72rem;letter-spacing:.12em}.mx-morph input{flex:1;min-height:36px}.mx-morph output{min-width:5.5em;font-size:.74rem;text-align:right}
+@media (pointer:coarse){.mixdrawer .mx-pfpad{min-height:72px}}
+:is(html.mx-void,html[data-flat]) .mixdrawer :is(.mx-pfpad.hit,.mx-scn.hit,[data-roll][aria-pressed=true],.mx-pfdrop .mx-padbtn.busy){outline:2px solid var(--v-glow)!important;outline-offset:-2px!important;color:var(--v-glow)!important}
+:is(html.mx-void,html[data-flat]) .mx-xydot{border:2px solid var(--v-glow)!important;background-color:transparent!important}
+:is(html.mx-void,html[data-flat]) .mx-xy{background-color:var(--v-scr,#0a0b0d)!important;border:1px solid var(--v-line,#33353e)!important}
 `;

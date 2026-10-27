@@ -2,6 +2,39 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.37.0 (2026-10-27, Rob)
+- **PERFORM, a new MIX section (every station with music): play the radio like an instrument.** Everything lands on the station's beat. Nothing here is saved except the scenes, and Save never records the tricks.
+  - **PADS:** eight pads, also keys 1-8 while PERFORM is on screen: KICK, CLAP, HAT, OPEN HAT and PERC play through the song's own kit, plus STAB (the chord playing now), HORN (the air horn) and CRASH. Each lands on the next 16th note. **RECORD** writes the drum pads into this station's BEAT grid at the step they land on (a second hit on the same step makes it loud; INFLUENCE goes up to 50 if it was lower).
+  - **ROLL:** hold 1/4, 1/8, 1/16 or 1/32 to catch the next note of that length and repeat it; let go and the music drops back in on the next 16th. It uses GLITCH's repeat loop, so GLITCH waits while it runs.
+  - **XY:** one finger plays two effects. Across is the DJ filter (left low-pass, middle off, right high-pass); up is ECHO, REVERB, GATE, CRUSH or FLANGE (chips under the pad). The FX knobs keep their own settings and come back when you let go. Arrow keys play it too; Escape lets go.
+  - **DROP · 4 / 8 BARS:** from the next bar line, a build (a resonant high-pass sweep, a noise riser, a snare roll speeding up, the gate chopping the last bar), one beat of silence, then the downbeat lands with a sub boom and a crash. A countdown shows the time left.
+  - **SCENES A-D:** tap an empty letter to save the mix you hear (SOUND, EQ, FX and this station's STYLE and GROOVE); tap a saved one to glide to it; SAVE then a letter overwrites; CLEAR (twice) empties them. **MORPH** slides through the saved scenes in order, blending every dial (the MIX file's crossmix blend). Kept in this browser (`mdfmScenes`).
+  - Engine API: `perfInfo()`, `perfPad(id, {rec})`, `perfRoll(div)`, `perfXY({x, y, fx})` / `perfXY(null)`, `perfDrop(bars)`, `perfState()`; events `pad`, `roll`, `xy`, `drop`. While the XY pad is held its values sit on top of the FX knobs (`fxo`); during a DROP the filter and gate belong to it. Pads and DROP draw from `R()` like BEAT's extra hits (harmless live; Save never runs them). `playStep` keeps the bar's chord on the song (`s.pfCh`, no `R()`) for STAB.
+  - Checked live in Chromium: a 1/16 ROLL repeats at exactly its length (0.24 dB apart a loop later, against about 6 dB without it); the DROP's gap is silent and the level comes back after it; scenes morph halfway (echo .3, reverb .2 between 0 and .6/.4). Layout: two columns from 620 px, one on phones; VOID keeps every highlight as outlines.
+  - Tests: `test/perform137.test.mjs`; the smoke test expects five MIX sections.
+- **PTRN: six new genres, each with its own switch in Settings (all on).**
+  - **Phonk** (in Hip-hop & R&B): drift phonk. A cowbell riff as the lead, a heavier, dirtier 808 with slides, busy hats with rolls, a clap on 2 and 4, vinyl and a choir underneath. It takes MDFM's trap rules (808 kits, the kick dips only the bass) and keeps its own sound (no high-end keys swapped in).
+  - **A new Pop & dance family:**
+    - **French house:** electric piano and string stabs through a filter that opens and closes over 8 bars, four on the floor with a pump, an octave bass, vocal chops on top.
+    - **'90s Eurodance:** rave piano stabs, a supersaw lead, octave bass, offbeat open hats, the classic minor progressions.
+    - **Tropical house:** 100–112 BPM, a softer kick, marimba arpeggios, a flute lead, shaker and snaps.
+    - **Nu-disco:** thumb-and-pop slap bass, disco strings, 16th hats with open offbeats. (Synth-pop was already a PTRN genre, so Nu-disco takes the slot that '80s synth-pop was going to have.)
+    - **Future house:** the future-house pluck as keys and lead, and a bouncy "yoink" bass.
+- **New instruments** (Settings › Instruments, tagged new; switched off, a genre plays another of its own):
+  - **Supersaw lead:** seven detuned saws spread left to right (three in LITE on phones).
+  - **Future-house plucks** (keys) and **Future-house pluck lead:** a bright pluck that drops an octave into the note.
+  - **Disco strings:** offbeat octave stabs, and every fourth bar a swell and a run up the scale into the next phrase.
+  - **Filtered disco loop (French house).**
+  - **Slap bass, thumb and pop (nu-disco):** thumb on the root, popped octaves and flat 7ths, dead ghost notes, a pickup into the next chord. (The older funk slap bass is unchanged.)
+  - **Bouncy bass (future house).**
+- **Levels:** each new genre measured against PTRN's others in 40 s renders (integrated loudness, 3–4 songs each): French house −14.0, Eurodance about −14.6, Tropical house −13.5, Nu-disco −14.4, Future house −13.8, Phonk −11.6 (with the trap genres, which also run loud). Peaks stay under 0.95. New instrument levels were matched solo to their neighbours (supersaw lead to the saw lead, the plucks to the pluck, disco strings to the supersaw stabs, the basses to the synth bass).
+- **Cost:** offline render time vs House (30 s): Eurodance 1.4×, French house and Tropical house 1.3×, Future house 1.2×, Nu-disco and Phonk about 1×.
+- MDFM 99.9's songs are unchanged (a seeded 10-minute run matches 1.36.0 node for node). PTRN's genre draws change, since there are more genres to draw from.
+- Engine: `st.heavy808` (the 808's heavy mode, phonk only); `KIT_W` / `BASS_W` / `KICK_DUCK` have a "Pop & dance" entry. Tests: `test/pack137.test.mjs`; the smoke test renders the six new genres too and expects 49+ PTRN switches.
+- **VOID is now a skin too** (Looks › Skin › VOID, from MedDev Receiver 1.14.0): flat dark blocks everywhere, all the time, and it resizes freely, with a SIZE row (AUTO, or 50-200 %) under the skin picker. AUTO keeps 100 % up to about 1500 px wide and scales up to fill bigger windows; the slider sets a fixed size. The MIX drawer's VOID button is unchanged.
+  - `src/tune.js`: the MIX drawer's own VOID rules also apply under the skin (`:is(html.mx-void,html[data-flat])`), so the drawer, knobs, BEAT grid, PERFORM and faders look the same either way. The two page-wide VOID-button rules (strip everything, hide the spray can and flies) stay VOID-button only; under the skin the receiver does that part and keeps the spray can and flies.
+  - `vendor/meddev-receiver` synced to 1.14.0. In the Mac apps the window keeps its current minimum size until an app release lifts it.
+
 ## 1.36.0 (2026-10-26, Rob)
 - **MIX file names carry the station, key and tempo:** EXPORT now saves `<name> - <CALL> - <key> - <bpm> BPM.mdfm.json`, e.g. `Late night - PTRN - F# minor - 128 BPM.mdfm.json`. The call sign is the first word of the station on air; key and BPM are what is heard (after GROOVE & KEY). On talk (PTLK, show breaks) only the call sign is added. A name that already ends that way is not doubled; sharps and flats are written # and b. The status line shows the full name.
 - New `mixTags(radio)` (bundle export) returns `{call, key, bpm}`; `mixFileName(name, tags)` takes the tags (without them it names files as 1.34 did). `exportMix` resolves with `filename` too. The file's contents are unchanged, and any name still imports.

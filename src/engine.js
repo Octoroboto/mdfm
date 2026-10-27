@@ -320,9 +320,11 @@ function fxBuild(){   // one effects stage per AudioContext
   FXW.set(ctx,F); fxLevels(F,true); fxBeat(ctx.currentTime,.5,true); return F; }
 // fxLevels(F, now): sets every effect's mix, depth and feedback from fxv (now: jump, else a 50 ms glide). The filter's
 // cutoff sweeps exponentially: low-pass 20 kHz -> 180 Hz below .5, high-pass 10 Hz -> 3 kHz above. Crush: 12 -> 3 bits.
-function fxLevels(F,now){ const t=ctx.currentTime, T=(p,v)=>now?p.setValueAtTime(v,t):p.setTargetAtTime(v,t,.05), a=fxv;
-  const f=a.filter-.5, fw=Math.min(1,Math.abs(f)*6); T(F.filter.wet.gain,fw); T(F.filter.dry.gain,1-fw);
-  T(F.lp.frequency,f<0?20000*Math.pow(180/20000,Math.min(1,-f*2)):20000); T(F.hp.frequency,f>0?10*Math.pow(300,Math.min(1,f*2)):10); T(F.lp.Q,1+Math.max(0,-f)*7); T(F.hp.Q,1+Math.max(0,f)*7);
+// 1.37 PERFORM: while the XY pad is held its values (fxo) sit on top of the knobs' (fxv); under ORIGINAL only the pad's count.
+// While a DROP builds (PF.drop) the filter and the gate belong to it, so their lines are skipped here.
+function fxLevels(F,now){ const t=ctx.currentTime, T=(p,v)=>now?p.setValueAtTime(v,t):p.setTargetAtTime(v,t,.05), a=fxo?{...(BYP?FX_DEF:fxv),...fxo}:fxv, dropping=!!(PF.drop&&t<PF.drop.until);
+  const f=a.filter-.5, fw=Math.min(1,Math.abs(f)*6); if(!dropping){ T(F.filter.wet.gain,fw); T(F.filter.dry.gain,1-fw);
+  T(F.lp.frequency,f<0?20000*Math.pow(180/20000,Math.min(1,-f*2)):20000); T(F.hp.frequency,f>0?10*Math.pow(300,Math.min(1,f*2)):10); T(F.lp.Q,1+Math.max(0,-f)*7); T(F.hp.Q,1+Math.max(0,f)*7); }
   T(F.drive.wet.gain,a.drive); T(F.drive.dry.gain,1-a.drive); T(F.dpre.gain,1+a.drive*14); T(F.dpost.gain,1/(1+a.drive*3.2));
   const bits=a.crush>0?Math.round(12-a.crush*9):0; if(bits&&bits!==F.bits){ F.bits=bits; const q=Math.pow(2,bits-1); F.crsh.curve=fxCurve(4096,x=>Math.round(x*q)/q); }
   const cw=Math.min(1,a.crush*3); T(F.crush.wet.gain,cw); T(F.crush.dry.gain,1-cw);
@@ -330,7 +332,7 @@ function fxLevels(F,now){ const t=ctx.currentTime, T=(p,v)=>now?p.setValueAtTime
   T(F.flange.wet.gain,a.flange*.85); T(F.flfb.gain,.62*a.flange); T(F.flDep.gain,.0028*a.flange);
   T(F.chorus.wet.gain,a.chorus*.75); T(F.chorus.dry.gain,1-a.chorus*.2); for(const g of F.chDep) T(g.gain,.0035*a.chorus);
   const ww=a.warble>0?1:0; T(F.warble.wet.gain,ww); T(F.warble.dry.gain,1-ww); [.0035,.0018,.00035].forEach((d,i)=>T(F.wbDep[i].gain,d*a.warble));
-  T(F.gDep.gain,-Math.min(1,a.gate*1.2)); T(F.pDep.gain,-.85*a.pump);
+  if(!dropping) T(F.gDep.gain,-Math.min(1,a.gate*1.2)); T(F.pDep.gain,-.85*a.pump);
   T(F.echo.wet.gain,a.echo*.8); T(F.efb.gain,.22+.5*a.echo);
   T(F.reverb.wet.gain,a.reverb*.85); T(F.reverb.dry.gain,1-a.reverb*.3); gate(F.rvHp,F.rvCv,a.reverb>0,4.5); }   // 1.27: the hall rests while REVERB is at zero
 // the beat: gate and pump oscillators start on a beat and run at its rate; the echo is a dotted eighth. Re-locked when the tempo or the downbeat moves.
@@ -354,8 +356,8 @@ function fxInPath(F,v){ if(!ST) return; if(v&&!F.inPath){ try{ ST.out.disconnect
 // fxApply(now): after any effects change: builds and splices the stage in while something is up (and not ORIGINAL) or a tape
 // trick runs; otherwise sets levels to zero and takes it out 2.5 s later (at once when now or bypassed). Also arms GLITCH.
 function fxApply(now){ glOn=fxv.glitch>.004&&!BYP; if(!ctx||!ST) return; clearTimeout(fxOffT); fxOffT=0;
-  if((fxIsOn()&&!BYP)||fxTape){ const F=fxBuild(); fxInPath(F,true); fxLevels(F,now); const b=curBeat(); if(b) fxBeat(b.t0,b.beat); return; }
-  const F=FXW.get(ctx); if(!F) return; fxLevels(F,now); if(now||BYP){ fxInPath(F,false); return; } const c=ctx; fxOffT=setTimeout(()=>{ fxOffT=0; if(ctx===c&&!fxIsOn()&&!fxTape){ const G2=FXW.get(c); if(G2) fxInPath(G2,false); } },2500); }
+  if((fxIsOn()&&!BYP)||fxTape||pfBusy()){ const F=fxBuild(); fxInPath(F,true); fxLevels(F,now); const b=curBeat(); if(b) fxBeat(b.t0,b.beat); return; }
+  const F=FXW.get(ctx); if(!F) return; fxLevels(F,now); if(now||BYP){ fxInPath(F,false); return; } const c=ctx; fxOffT=setTimeout(()=>{ fxOffT=0; if(ctx===c&&!fxIsOn()&&!fxTape&&!pfBusy()){ const G2=FXW.get(c); if(G2) fxInPath(G2,false); } },2500); }
 // TAPE STOP: the music slows to a stop over about two beats. SPIN BACK: it spins backwards like a record pulled back.
 // Either way it comes back in on the next downbeat after a beat of quiet.
 // fxTapeTrick(kind): "stop" (TAPE STOP) or "spin" (SPIN BACK). The music switches to the tape delay, whose delay time
@@ -374,7 +376,7 @@ function fxTapeTrick(kind){ if(!on||!ctx||!ST||fxTape) return false; const b=cur
    back on the next downbeat. Never swaps instruments, changes key or wobbles the tempo. Its own random stream. Live and Save. */
 // glitchBar(t, bs, beat): called at each bar line (t: its time, bs: bar length in s, beat: s per beat). Picks a trick with
 // F.glR() and schedules it on the gl* nodes for this bar; sets F.glo for the octave jump. Emits "glitch".
-function glitchBar(t,bs,beat){ const F=ctx&&FXW.get(ctx), v=fxv.glitch; if(!F||!glOn||!(v>.004)||!(bs>.3&&bs<12)) return;
+function glitchBar(t,bs,beat){ const F=ctx&&FXW.get(ctx), v=fxv.glitch; if(!F||!glOn||!(v>.004)||!(bs>.3&&bs<12)||PF.roll||PF.drop) return;   // 1.37: never over a ROLL or a DROP (they share these nodes)
   if(F.glLast!=null&&Math.abs(t-F.glLast)<bs*.5) return; F.glLast=t;   // once a bar (two songs crossfading share it)
   F.glo=null; if(F.glR()>=.6*v) return;
   beat=beat>0?beat:bs/4; const end=t+bs, e=F.glR(), T=end-beat*(F.glR()<.5?1:2), now=ctx.currentTime;
@@ -388,6 +390,102 @@ function glitchBar(t,bs,beat){ const F=ctx&&FXW.get(ctx), v=fxv.glitch; if(!F||!
     d.setValueAtTime(1,a+D0*.6); d.linearRampToValueAtTime(0,end-.004); tp.setValueAtTime(0,end); d.setValueAtTime(0,end); d.linearRampToValueAtTime(1,end+.01); }
   else F.glo={from:t-.002,until:end-.002};   // the octave jump: the pitched parts of this bar, up an octave (in the instrument wrapper)
   emit("glitch",{t,until:end,kind:e<.3?"stutter":e<.55?"gate":e<.8?"tape":"octave"}); }
+/* ===== 1.37 PERFORM (MIX › PERFORM): pads, ROLL, the XY pad and DROP =====
+   Live tricks for playing the radio like an instrument. Nothing here runs until a PERFORM control is touched, nothing is
+   saved, and Save (renderSong) never hears them. They all work on the station on air and land on its beat (curBeat):
+   - PADS: eight hits (KICK, CLAP, HAT, OPEN HAT, PERC, STAB, HORN, CRASH), each on the next 16th note. The drum pads play
+     through the song's own kit and buses, so they sound like part of the song; with RECORD on (perfPad(id, {rec: true}))
+     a drum pad also writes its hit into this station's BEAT grid at that step.
+   - ROLL: a beat repeat. It catches the next 1/4, 1/8, 1/16 or 1/32 note and loops it until let go, then the
+     music drops back in on the next 16th. It borrows GLITCH's repeat loop (GLITCH waits while it runs).
+   - XY: one finger plays two effects. X is the DJ filter (left low-pass, middle off, right high-pass); Y is one of ECHO,
+     REVERB, GATE, CRUSH or FLANGE (bottom off). Its values sit on top of the FX knobs while held (fxo); let go and the
+     knobs' own settings come back.
+   - DROP: from the next bar line, a 4- or 8-bar build (a high-pass sweep opening upward, a noise riser, a snare roll
+     speeding up, the gate chopping the last bar), one beat of silence, then the downbeat lands with a sub boom and a crash.
+   Pads and DROP's sounds draw from R() (nz, the voices), like BEAT's extra hits: harmless live, and Save never runs them. */
+// PF: what's running: roll {div, T} (the loop's start) or null; drop {from, at, until} or null. fxo: the XY pad's values or null.
+const PF={roll:null,drop:null}; let fxo=null;
+// pfBusy(): a PERFORM trick needs the effects stage in the path
+const pfBusy=()=>!!(PF.roll||PF.drop||fxo);
+// PF_PADS: [id, label, BEAT lane (drum pads), tooltip]
+const PF_PADS=[["kick","KICK","k","The song's kick"],["clap","CLAP","s","A clap"],["hat","HAT","h","A closed hat"],["ohat","OPEN HAT","o","An open hat"],["perc","PERC","p","A rimshot"],
+  ["stab","STAB",null,"A synth stab of the chord playing now"],["horn","HORN",null,"The air horn"],["crash","CRASH",null,"A crash cymbal"]];
+// PF_XY: the effects the XY pad's Y axis can play [fx key, label]
+const PF_XY=[["echo","ECHO"],["reverb","REVERB"],["gate","GATE"],["crush","CRUSH"],["flange","FLANGE"]];
+// pfSong(): the song on air on this station (not one handing off), or null (talk, between songs)
+function pfSong(){ const L=station==="mdfm"?songs:station==="ptrn"?ptrn&&ptrn.songs:station==="cluk"?cluk&&[cluk.rave&&cluk.rave.s,cluk.song].filter(Boolean):null;
+  if(!L||!L.length) return null; return L.find(x=>!x.handed&&!x.stopped)||null; }
+// pfBus(): where pads play when no song is on (talk stations): a one-shot bus into pre, made once per context
+let pfB=null; const pfBus=()=>{ if(!pfB||pfB.bus.context!==ctx) pfB=fxBus(false); return pfB; };
+// pfGrid(q, lead): the next grid time at least lead seconds from now: {T, k} where T = t0 + k*q (q: the grid in seconds)
+function pfGrid(q,lead=.012){ const b=curBeat()||{beat:.5,t0:ctx.currentTime}, now=ctx.currentTime+lead, k=Math.ceil((now-b.t0)/q-1e-6); return {T:b.t0+k*q,k,b}; }
+// pfHorn(s, t): the air horn: three square-and-saw voices a fifth and an octave apart, wobbling fast and sagging a little at the
+// end, through a honky band-pass; into the song's music bus with a reverb send. No R().
+function pfHorn(s,t){ const f=mtof(s&&s.root!=null?s.root%12+72:72), end=t+.62, bp=filt("bandpass",1500,.9), hp=filt("highpass",280,.7), g=ctx.createGain(), vib=osc("sine",23), vg=G(f*.012);
+  g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.16,t+.02); g.gain.setValueAtTime(.16,end-.18); g.gain.exponentialRampToValueAtTime(.0001,end);
+  vib.connect(vg); bp.connect(hp); hp.connect(g); g.connect(s.mu); to(g,s,.35);
+  for(const [r,type,lv] of [[1,"square",.5],[1.5,"sawtooth",.35],[2,"sawtooth",.3],[1.003,"sawtooth",.35]]){ const o=osc(type,f*r), og=G(lv); vg.connect(o.frequency);
+    o.frequency.setValueAtTime(f*r,end-.2); o.frequency.exponentialRampToValueAtTime(f*r*.93,end); o.connect(og); og.connect(bp); o.start(t); o.stop(end+.02); }
+  vib.start(t); vib.stop(end+.02); }
+// perfPad(id, o): plays pad id on the next 16th. o.rec: a drum pad also writes its step into this station's BEAT grid (a
+// hit, or loud if it was a hit; INFLUENCE goes up to .5 if it was lower). Returns {id, t, step} or null (SOUND off, unknown pad).
+function perfPad(id,o={}){ const P=PF_PADS.find(x=>x[0]===id); if(!P||!on||!ctx) return null;
+  const s=pfSong(), b0=curBeat()||{beat:.5}, {T,k}=pfGrid(b0.beat/4), step=((k%16)+16)%16, d=s||pfBus();
+  if(id==="kick") D.kick(d,T,1); else if(id==="clap") D.clap(d,T,1.15); else if(id==="hat") D.hat(d,T,.95,false); else if(id==="ohat") D.hat(d,T,.9,true);
+  else if(id==="perc") D.rim(d,T,1.2); else if(id==="crash") D.crash(d,T,1);
+  else if(id==="stab"){ const n=s&&s.pfCh&&s.pfCh.length?s.pfCh:[60,64,67].map(m=>m+((s&&s.root)||0)%12); M.saw(d,T,n.map(m=>m+12),b0.beat*.45,.85); }
+  else if(id==="horn") pfHorn(d,T);
+  if(o.rec&&P[2]&&(GSUP[station]||{}).melody===1){ const g=getBeat(station), lane=g.grid[P[2]]; lane[step]=lane[step]===2?3:Math.max(2,lane[step]); setBeat(station,{grid:g.grid,inf:Math.max(g.inf,.5)}); }
+  emit("pad",{id,t:T,step}); return {id,t:T,step}; }
+// perfRoll(div): ROLL. div: the loop's length in beats (1, .5, .25 or .125); 0 or null lets go (back on the next 16th).
+// Catches from the next 16th: for one loop length the music plays on and fills the loop, then the loop repeats and the dry
+// music is muted until let go. A new div while rolling catches afresh. Emits "roll" {div, t}. Returns false with SOUND off.
+function perfRoll(div){ if(!on||!ctx||!ST) return false; const was=FXW.get(ctx), F=fxBuild(); if(!was||!F.inPath){ fxInPath(F,true); fxLevels(F,true); }
+  const c=curBeat()||{beat:.5}, {T,b}=pfGrid(c.beat/4), d=F.glDry.gain, rin=F.glRepIn.gain, fb=F.glFb.gain, out=F.glRepOut.gain;   // T: the next 16th
+  for(const p of [d,rin,fb,out,F.glRep.delayTime]){ p.cancelScheduledValues(T); }
+  if(!(div>0)){ if(!PF.roll) return true; fb.setValueAtTime(0,T); out.setValueAtTime(1,T); out.linearRampToValueAtTime(0,T+.006); d.setValueAtTime(0,T); d.linearRampToValueAtTime(1,T+.006); rin.setValueAtTime(0,T);
+    PF.roll=null; emit("roll",{div:0,t:T}); const c=ctx; setTimeout(()=>{ if(ctx===c) fxApply(); },Math.max(0,(T-ctx.currentTime)*1000)+60); return true; }
+  const L=Math.max(.03,Math.min(1.9,b.beat*div));   // the loop, in seconds (the delay line holds 2 s)
+  F.glRep.delayTime.setValueAtTime(L,T); rin.setValueAtTime(1,T); rin.setValueAtTime(0,T+L); fb.setValueAtTime(0,T); fb.setValueAtTime(1,T+L);
+  out.setValueAtTime(0,T); out.setValueAtTime(0,T+L-.004); out.linearRampToValueAtTime(1,T+L); d.setValueAtTime(1,T+L-.004); d.linearRampToValueAtTime(0,T+L);
+  PF.roll={div,T}; emit("roll",{div,t:T}); return true; }
+// perfXY(v): the XY pad. v {x, y, fx}: x 0..1 (the DJ filter: .5 off), y 0..1 (the amount of fx, one of PF_XY's keys); null
+// lets go (the knobs' own settings come back). Emits "xy" with v.
+function perfXY(v){ if(!v){ if(fxo){ fxo=null; fxApply(); emit("xy",null); } return null; }
+  const k=PF_XY.some(x=>x[0]===v.fx)?v.fx:"echo"; fxo={filter:clamp01(v.x),[k]:clamp01(v.y)}; if(!ctx||!ST) return {...fxo};
+  const F=fxBuild(); if(!F.inPath){ fxInPath(F,true); fxLevels(F,true); } fxLevels(F); const b=curBeat(); if(b) fxBeat(b.t0,b.beat); emit("xy",{...fxo}); return {...fxo}; }
+// perfDrop(bars): DROP, a build of bars (4 or 8) from the next bar line, a beat of silence, then the drop. Returns
+// {from, at} (audio-clock seconds) or false (SOUND off, or one already running). Emits "drop" {from, at}.
+function perfDrop(bars=4){ if(!on||!ctx||!ST||PF.drop) return false; bars=bars>=8?8:4;
+  const b=curBeat()||{beat:.5,t0:ctx.currentTime}, bar=b.beat*4, now=ctx.currentTime+.06; let T0=b.t0+Math.ceil((now-b.t0)/bar-1e-6)*bar;   // the next bar line
+  const Td=T0+bars*bar, gap=Td-b.beat, F=fxBuild(); fxInPath(F,true); fxLevels(F,true);
+  PF.drop={from:T0,at:Td,until:Td+.08}; fxBeat(b.t0,b.beat);   // the gate's square locked to this beat
+  // the filter: a high-pass opening from 10 Hz to 750 Hz (resonant) over the build, all the way out at the drop
+  const fw=F.filter.wet.gain, fd=F.filter.dry.gain, hp=F.hp.frequency, hq=F.hp.Q, lp=F.lp.frequency, gd=F.gDep.gain, now0=ctx.currentTime;
+  for(const p of [fw,fd,hp,hq,lp,gd]){ p.cancelScheduledValues(now0); p.setValueAtTime(p.value,now0); }
+  fw.setValueAtTime(fw.value,T0); fw.linearRampToValueAtTime(1,T0+.05); fd.setValueAtTime(fd.value,T0); fd.linearRampToValueAtTime(0,T0+.05);
+  lp.setValueAtTime(20000,T0); hp.setValueAtTime(10,T0); hp.exponentialRampToValueAtTime(750,gap); hq.setValueAtTime(1,T0); hq.linearRampToValueAtTime(5,gap);
+  // the gate chops the last bar (eighths, as the GATE knob does)
+  gd.setValueAtTime(gd.value,Td-bar); gd.linearRampToValueAtTime(-.85,gap);
+  // the beat of silence, and everything back at the drop (the filter and gate as the knobs have them, from fxLevels just after)
+  const dry=F.glDry.gain; dry.cancelScheduledValues(gap-.01); dry.setValueAtTime(1,gap-.006); dry.linearRampToValueAtTime(0,gap); dry.setValueAtTime(0,Td-.004); dry.linearRampToValueAtTime(1,Td);
+  hp.setValueAtTime(10,Td); hq.setValueAtTime(1,Td); gd.setValueAtTime(0,Td); fw.setValueAtTime(0,Td); fd.setValueAtTime(1,Td);
+  pfRiser(T0,gap,bar); pfImpact(Td);
+  emit("drop",{from:T0,at:Td}); const c=ctx; setTimeout(()=>{ if(ctx!==c) return; PF.drop=null; fxApply(); },Math.max(0,(Td-ctx.currentTime)*1000)+150);
+  return {from:T0,at:Td}; }
+// pfRiser(t0, t1, bar): the build's sounds into pre (so they ride the filter and fall silent in the gap): white noise through
+// a band-pass climbing 400 Hz -> 7 kHz and swelling, plus a snare roll in the last two bars (eighths, then sixteenths, then
+// thirty-seconds in the last beat before the gap), getting louder
+function pfRiser(t0,t1,bar){ const len=t1-t0, n=nz(t0,len+.05), bp=filt("bandpass",400,2.2), g=ctx.createGain();
+  bp.frequency.setValueAtTime(400,t0); bp.frequency.exponentialRampToValueAtTime(7000,t1); g.gain.setValueAtTime(.0001,t0); g.gain.exponentialRampToValueAtTime(.16,t1);
+  n.connect(bp); bp.connect(g); g.connect(pre); g.connect(fxRev);
+  const r0=Math.max(t0,t1-bar*1.75), beat=bar/4;
+  for(let t=r0;t<t1-.005;){ const left=t1-t, q=left>beat*1.01?beat/2:left>beat*.51?beat/4:beat/8, v=.25+.75*(t-r0)/Math.max(.01,t1-r0);
+    const h=nz(t,.09), f=filt("bandpass",1900,1.1), e=ctx.createGain(); env(e,t,.001,.32*v,.07); h.connect(f); f.connect(e); e.connect(pre); t+=q; } }
+// pfImpact(t): the drop's downbeat: a sub boom (a sine falling 62 -> 31 Hz over 1.4 s) and a long bright noise crash with reverb
+function pfImpact(t){ const o=osc("sine",62), g=ctx.createGain(); o.frequency.setValueAtTime(62,t); o.frequency.exponentialRampToValueAtTime(31,t+1.4); env(g,t,.004,.55,1.4); o.connect(g); g.connect(pre); o.start(t); o.stop(t+1.5);
+  const n=nz(t,1.9), hp=filt("highpass",3800,.7), e=ctx.createGain(); env(e,t,.002,.16,1.8); n.connect(hp); hp.connect(e); e.connect(pre); e.connect(fxRev); }
 // curBeat(): {t0, beat} from the station's own beat(), else a free-running beat from nowPlaying's bpm (120 default)
 // fxFree: the free-running beat's start time
 // where the beat is on the station on air (for the effects and PTRN's tags)
@@ -568,7 +666,7 @@ const subM=m=>m-12<28?m:m-12, subF=f=>f/2<41.2?f:f/2;   // a sub an octave down,
 // music bus to s.kd; songs without a bass bus get the old .5 music duck
 // KICK_DUCK: family -> [music bus duck, bass duck] (1 = none). HATF: the six square-wave frequencies (Hz) of the metal cores.
 function kickDuck(s,t){ if(!s.bsd){ duck(s,t,.5); return; } if(t>=(s.lastBsd||0)){ s.lastBsd=t; const g=s.bsd.gain; g.setValueAtTime(s.bd||.55,t); g.linearRampToValueAtTime(1,t+.07); } if(s.kd<1) duck(s,t,s.kd); }
-const KICK_DUCK={dance:[.6,.5],set:[.55,.5],cluk:[.6,.5],Electronic:[.6,.5],"Big beat & electro":[.6,.5],trap:[1,.6],soul:[1,.65],ballad:[1,.7]};   // family: [music bus, bass]
+const KICK_DUCK={dance:[.6,.5],set:[.55,.5],cluk:[.6,.5],Electronic:[.6,.5],"Big beat & electro":[.6,.5],"Pop & dance":[.58,.5],trap:[1,.6],soul:[1,.65],ballad:[1,.7]};   // family: [music bus, bass]
 const HATF=[205.3,304.4,369.6,522.7,540,800];
 // ===== Cymbal cores (pre-rendered hats, ride, crash) =====
 /* 1.25: the six-square metal cores of the hats, ride and crash (and their fixed filters) are the same on every hit, for a kit
@@ -1034,7 +1132,7 @@ function makeSong(force,from=MDFM_STY,recent=recentStyles){
   // the side stream: an FNV-1a hash of what the song already rolled (root, mode, name, kick, bass line) seeds nr(), so these
   // picks never touch R(). upB (var, so it's visible below the block): a soul / chill / jazz song gets the upright bass
   { let h=2166136261^root*7919^(major?1:0); for(const c of name+K+bassOff.join(",")+bassPat.join("")) h=Math.imul(h^c.charCodeAt(0),16777619);   // 1.30: higher-end instruments, from a side stream so the song's own random choices stay as they were
-    const nr=()=>{ h=Math.imul(h^(h>>>15),2246822519)+0x9E3779B9|0; return ((h^(h>>>13))>>>0)/4294967296; }, nf=["METAL","PUNK","CHIPTUNE","GOTHIC ROCK"].includes(name)?"":familyOf(name)   /* 1.32: gothic rock keeps its chorus guitar */, NK=NEWI.keys[nf], NL=NEWI.lead[nf], np=a=>a[Math.floor(nr()*a.length)];
+    const nr=()=>{ h=Math.imul(h^(h>>>15),2246822519)+0x9E3779B9|0; return ((h^(h>>>13))>>>0)/4294967296; }, nf=["METAL","PUNK","CHIPTUNE","GOTHIC ROCK","PHONK"].includes(name)?"":familyOf(name)   /* 1.32: gothic rock keeps its chorus guitar; 1.37: phonk its cowbell and 808 */, NK=NEWI.keys[nf], NL=NEWI.lead[nf], np=a=>a[Math.floor(nr()*a.length)];
     if(NK&&nr()<.22) chordsI=np(NK); if(NL&&nr()<.2&&!["vox","chop","chip","cowbell"].includes(leadI)) leadI=np(NL); if(NL&&nr()<.15) leadB=np(NL); var upB=["soul","Chill","Jazz, funk & soul"].includes(nf)&&nr()<(nf==="soul"?.2:.25); }
   // Settings' instrument pool: poolFix keeps the pick if it's switched on, else swaps it for an on candidate from the lists
   chordsI=poolFix("keys",chordsI,[st.chords,...fam.chords,"wurli",...(NEWI.keys[familyOf(name)]||[])],st.chords); leadI=poolFix("lead",leadI,[st.lead,...fam.lead,...XTRA.lead,...(NEWI.lead[familyOf(name)]||[])],st.lead); leadB=poolFix("lead",leadB,[...fam.lead,...XTRA.lead],st.lead); padI=poolFix("pad",padI,[st.pad,...fam.pad,"warm","none"],st.pad);
@@ -1148,6 +1246,7 @@ function playStep(s,step,t){
   const tr=bar>=s.keyFrom?s.keyUp:0, prog=sec.kind==="hook"||sec.kind==="pre"?s.prog:s.progB;
   // d: this bar's chord degree (each chord lasts cpb bars); notes: the chord as MIDI notes (GROOVE's HARMONY can revoice it)
   const d=prog[Math.floor(bar/s.cpb)%prog.length], notes=(harmOn(sid)?harmChord(s,d,K.up,GRV[sid].harm):s.chord(d,K.up)).map(n=>n+tr);
+  if(i===0) s.pfCh=notes;   // 1.37: the bar's chord, for PERFORM's STAB pad (a plain copy: no R())
   // filter sweeps: open up across the intro and out of breaks; close down into a break
   // the intro opens the song filter (s.mlp) from 450 Hz to 18 kHz; a break or bridge closes it to 900 Hz over half a bar,
   // holds, and opens it again over its last bar
@@ -1254,7 +1353,7 @@ function playStep(s,step,t){
     // with the genre's st.slide chance; 808soft plays at .75
     else { let m=s.root-12+s.deg(d)+tr+(s.bassOff[i]===12?0:s.bassOff[i]||0); if(m>40) m-=12; if(m<28) m+=12;   // 1.25 (E2): 808 notes from 41 Hz (was 37)
       let nxt=null; if(R()<st.slide) nxt=m+pick([-5,-2,3,5,7,12]);
-      D.b808(s,tt,m,Math.min(len,8)*sp,bL==="808soft"?.75:1,nxt,false); }
+      D.b808(s,tt,m,Math.min(len,8)*sp,bL==="808soft"?.75:1,nxt,!!st.heavy808); }   // 1.37: heavy808 (phonk) drives it harder
   }
   /* chords + pad */
   // ck: the keys instrument; cmode: the section's chord mode. CHX: the newer keys (they play every mode but sustain and
@@ -3316,18 +3415,21 @@ const PERCX={ clave:(s,t)=>D.clave(s,t,.9), tamb:(s,t,di)=>FI.tamb(s,t,di%4===0?
 const SNX={ brush:(s,t)=>D.brush(s,t,.9), chip:(s,t)=>D.chipn(s,t,1,"snare"), xstick:(s,t)=>D.rim(s,t,1.2), dembow:(s,t)=>{ D.snare(s,t,.65,.12,1.15); D.clap(s,t,.35); },
   gated:(s,t)=>{ D.snare(s,t,1.1,.9,.8); D.clap(s,t,.25,.4); }, acoustic:(s,t)=>D.snare(s,t,1.05,.38,1.12), none:()=>{} };
 // ===== PTRN: the genres =====
-// the genres: [id, label, family, MDFM style]. 1.32 adds a Goth & dark family (darkwave, gothic rock, witch house, ethereal wave, dark synth-pop). Some are MDFM's own (boom bap, trap, drill, G-funk, R&B, lo-fi, afrobeats).
+// the genres: [id, label, family, MDFM style]. 1.32 adds a Goth & dark family (darkwave, gothic rock, witch house, ethereal wave, dark synth-pop);
+// 1.37 adds phonk (in Hip-hop & R&B) and a Pop & dance family (French house, '90s Eurodance, tropical house, nu-disco, future house). Some are MDFM's own (boom bap, trap, drill, G-funk, R&B, lo-fi, afrobeats).
 // id: the Settings key (ptrnTypes); label: shown in Settings and the tags; family: the Settings group, and the family
 // for kits, basses and instrument pools (KIT_W, BASS_W, NEWI, familyOf); MDFM style: its STY name
 const PTRN_GENRES=[["house","House","Electronic","HOUSE"],["techno","Techno","Electronic","TECHNO"],["trance","Trance","Electronic","TRANCE"],["dnb","Drum & bass","Electronic","DRUM & BASS"],
   ["dubstep","Dubstep","Electronic","DUBSTEP"],["garage","UK garage","Electronic","UK GARAGE"],["synthwave","Synthwave","Electronic","SYNTHWAVE"],["chiptune","Chiptune","Electronic","CHIPTUNE"],
-  ["boombap","Boom bap","Hip-hop & R&B","BOOM BAP"],["trap","Trap","Hip-hop & R&B","TRAP"],["drill","Drill","Hip-hop & R&B","DRILL"],["gfunk","G-funk","Hip-hop & R&B","G-FUNK"],["rnb","R&B","Hip-hop & R&B","R&B"],
+  ["boombap","Boom bap","Hip-hop & R&B","BOOM BAP"],["trap","Trap","Hip-hop & R&B","TRAP"],["drill","Drill","Hip-hop & R&B","DRILL"],["gfunk","G-funk","Hip-hop & R&B","G-FUNK"],["rnb","R&B","Hip-hop & R&B","R&B"],["phonk","Phonk","Hip-hop & R&B","PHONK"],
   ["rock","Rock","Rock & pop","ROCK"],["punk","Punk","Rock & pop","PUNK"],["metal","Metal","Rock & pop","METAL"],["indie","Indie pop","Rock & pop","INDIE POP"],["synthpop","Synth-pop","Rock & pop","SYNTH-POP"],
   ["jazz","Swing jazz","Jazz, funk & soul","SWING JAZZ"],["bossa","Bossa nova","Jazz, funk & soul","BOSSA NOVA"],["funk","Funk","Jazz, funk & soul","FUNK"],["disco","Disco","Jazz, funk & soul","DISCO"],
   ["blues","Blues","Jazz, funk & soul","BLUES"],["gospel","Gospel","Jazz, funk & soul","GOSPEL"],
   ["reggaeton","Reggaeton","Latin & Caribbean","REGGAETON"],["salsa","Salsa","Latin & Caribbean","SALSA"],["reggae","Reggae","Latin & Caribbean","REGGAE"],["dancehall","Dancehall","Latin & Caribbean","DANCEHALL"],["afrobeats","Afrobeats","Latin & Caribbean","AFROBEATS"],
   ["lofi","Lo-fi","Chill","LO-FI"],["triphop","Trip-hop","Chill","TRIP-HOP"],["ambient","Ambient","Chill","AMBIENT"],["country","Country","Country & folk","COUNTRY"],["folk","Folk","Country & folk","FOLK"],
-  ["darkwave","Darkwave","Goth & dark","DARKWAVE"],["gothrock","Gothic rock","Goth & dark","GOTHIC ROCK"],["witchhouse","Witch house","Goth & dark","WITCH HOUSE"],["ethereal","Ethereal wave","Goth & dark","ETHEREAL WAVE"],["darksynth","Dark synth-pop","Goth & dark","DARK SYNTH-POP"]];   // 1.32: goth
+  ["darkwave","Darkwave","Goth & dark","DARKWAVE"],["gothrock","Gothic rock","Goth & dark","GOTHIC ROCK"],["witchhouse","Witch house","Goth & dark","WITCH HOUSE"],["ethereal","Ethereal wave","Goth & dark","ETHEREAL WAVE"],["darksynth","Dark synth-pop","Goth & dark","DARK SYNTH-POP"],
+  ["frenchhouse","French house","Pop & dance","FRENCH HOUSE"],["eurodance","'90s Eurodance","Pop & dance","EURODANCE"],["tropical","Tropical house","Pop & dance","TROPICAL HOUSE"],
+  ["nudisco","Nu-disco","Pop & dance","NU-DISCO"],["futurehouse","Future house","Pop & dance","FUTURE HOUSE"]];   // 1.37: phonk (with the hip-hop) and a Pop & dance family   // 1.32: goth
 const X16="................", F4="x...x...x...x...";   // an empty bar; four on the floor
 // PTRN's genres in STY (fields as in STY's header), plus ones only they use:
 // sw8: swing the 8ths (not the 16ths); nohats / nodrums: no hats / no drums; perc2: a PERCX part on every step;
@@ -3412,10 +3514,35 @@ Object.assign(STY,{
   "DARK SYNTH-POP":{lvl:.86,bpm:[114,124],sw:[.5,.5],scales:[HM,AE,PH],mode:"min",voicing:"triad",K:[F4,"x...x...x...x..x"],S:[["....x.......x..."]],H:["x.x.x.x.x.x.x.x.","..x...x...x...x."],O:["..o...o...o...o.",""],P:[""],perc:"",
     snare:"big",clap:1,bass:"octave",chords:"saw",pad:"choir",lead:"vox",leadFrom:2,octLead:72,crashBar:1,feel:"four",fam:{chords:["saw","organ","pluckarp","bellarp"],lead:["vox","saw","bell","sqlead"],pad:["choir","pad","strings"]},
     meters:["6/8","7/8"],meterP:.08},
+  /* 1.37: phonk and the Pop & dance family. Each leans on the new pop & dance sounds (defined after the goth sounds, below):
+     - PHONK (drift phonk): a cowbell riff as the lead, a heavier, dirtier 808 (heavy808) with slides, busy hats with rolls,
+       a clap on 2 and 4 (not half time), vinyl and a choir underneath. Like MDFM's CHILL PHONK, faster and harder.
+     - FRENCH HOUSE: a disco loop of electric piano and string stabs through a filter that opens and closes over 8 bars
+       (CHX.filterloop), four on the floor, the family's pump on the music, an octave bass, chopped vocals on top.
+     - EURODANCE ('90s): rave piano stabs, a supersaw lead (M.ssaw), octave bass, offbeat open hats, i-VI-III-VII.
+     - TROPICAL HOUSE: unhurried (100-112), a softer kick, marimba arpeggios, a pan-flute-like lead, a shaker and snaps.
+     - NU-DISCO: thumb-and-pop slap bass (BASSX.thumbpop), disco strings (CHX.discostr), 16th hats with open offbeats.
+     - FUTURE HOUSE: the future-house pluck as keys and lead (M.fhpluck), the bouncy "yoink" bass (BASSX.bounce).
+     None take odd meters (meters: []); feel picks BEAT's fill-in family. lvl: measured, see the CHANGELOG. */
+  "PHONK":{lvl:.59,bpm:[124,136],sw:[.5,.52],scales:[PH,AE,HM],mode:"min",voicing:"triad",K:["x..x..x...x.....","x.....x.x..x....","x..x......x..x.."],S:[["....x.......x..."]],
+    H:["x.x.x.x.x.x.x.x.","x.xrx.x.x.xrx.x3","x.x.xrx.x.x.x3xr"],O:["......o.......o.",""],P:["..x...x...x...x.",""],perc:"rim",snare:"clap",clap:0,bass:"808",slide:.3,heavy808:1,
+    chords:"none",pad:"choir",lead:"cowbell",leadFrom:0,octLead:72,vinyl:1,feel:"back",fam:{chords:["none","none","padonly","organ"],lead:["cowbell","cowbell","chop","bell"],pad:["choir","none","pad"]},meters:[]},
+  "FRENCH HOUSE":{lvl:.93,bpm:[118,126],sw:[.5,.54],scales:[DO,AE,MA],mode:"any",voicing:"ext",K:[F4],S:[["....x.......x..."]],H:["..x...x...x...x.","x.x.x.x.x.x.x.x."],O:["..o...o...o...o."],P:["...x.......x....",""],perc:"rim",
+    snare:"clap",clap:0,bass:"octave",chords:"filterloop",pad:"none",lead:"chop",leadFrom:2,octLead:72,feel:"four",fam:{chords:["filterloop","filterloop","rhodesoff","discostr"],lead:["chop","pluck","fhpluck","vox"],pad:["none","strings"]},meters:[]},
+  "EURODANCE":{lvl:1,bpm:[132,140],sw:[.5,.5],scales:[AE,HM],mode:"min",voicing:"triad",K:[F4,"x...x...x...x.x."],S:[["....x.......x..."]],H:["..x...x...x...x.","x.x.x.x.x.x.x.x."],O:["..o...o...o...o."],P:[""],perc:"",
+    snare:"snare",clap:1,bass:"octave",chords:"ravepiano",pad:"strings",lead:"ssaw",leadFrom:2,octLead:76,crashBar:1,feel:"four",fam:{chords:["ravepiano","pianostab","supersaw"],lead:["ssaw","ssaw","vox","saw"],pad:["strings","pad","choir"]},
+    progs:{min:[[0,5,2,6],[0,5,3,4],[0,3,5,4],[5,3,0,4]]},meters:[]},
+  "TROPICAL HOUSE":{lvl:1.07,bpm:[100,112],sw:[.52,.56],scales:[MA,DO],mode:"maj",voicing:"ext",kv:.75,K:["x...x...x...x...","x.......x.x....."],S:[["....x.......x..."]],H:["..x...x...x...x.",".xx..xx..xx..xx."],O:[""],P:["..x..x....x..x..",""],perc:"snap",shaker:1,
+    snare:"clap",clap:0,bass:"offbeat",chords:"marimbaarp",pad:"warm",lead:"flute",leadFrom:2,octLead:76,feel:"four",fam:{chords:["marimbaarp","kalimbaarp","rhodesoff","fhpluck"],lead:["flute","marimba","fhpluck","whistle"],pad:["warm","pad","none"]},meters:[]},
+  "NU-DISCO":{lvl:.93,bpm:[112,122],sw:[.52,.56],scales:[DO,AE,MA],mode:"any",voicing:"ext",K:[F4],S:[["....x.......x..."]],H:["xxxxxxxxxxxxxxxx","x.x.x.x.x.x.x.x."],O:["..o...o...o...o."],P:["..x...x...x.x...",""],perc:"conga",hv:.85,
+    snare:"snare",clap:1,bass:"thumbpop",chords:"discostr",pad:"none",lead:"ssaw",leadFrom:2,octLead:74,feel:"four",fam:{chords:["discostr","discostr","rhodesoff","clav"],lead:["ssaw","brass1","rhodesline","fhpluck"],pad:["none","strings","warm"]},meters:[]},
+  "FUTURE HOUSE":{lvl:.67,bpm:[124,128],sw:[.5,.52],scales:[AE,DO,PH],mode:"min",voicing:"triad",K:[F4,"x...x...x...x..x"],S:[["....x.......x..."]],H:["..x...x...x...x.","x.x.x.x.x.x.x.x."],O:[""],P:["...x..x....x..x.",""],perc:"snap",
+    snare:"clap",clap:0,bass:"bounce",chords:"fhpluck",pad:"none",lead:"fhpluck",leadFrom:2,octLead:74,feel:"four",fam:{chords:["fhpluck","fhpluck","stab1"],lead:["fhpluck","chop","ssaw"],pad:["none","pad"]},meters:[]},
 });
 // the copied MDFM genres keep their MDFM family (meter, key-change and kick-duck rules)
 Object.assign(STYLE_FAM,{"BOOM BAP":"soul","TRAP":"trap","DRILL":"trap","G-FUNK":"dance","R&B":"soul","AFROBEATS":"dance","LO-FI":"soul",
-  "DARKWAVE":"goth","GOTHIC ROCK":"goth","WITCH HOUSE":"goth","ETHEREAL WAVE":"goth","DARK SYNTH-POP":"goth"});   // 1.32: the goth genres take MDFM's goth rules (key change, odd meters, the goth instrument pools)
+  "DARKWAVE":"goth","GOTHIC ROCK":"goth","WITCH HOUSE":"goth","ETHEREAL WAVE":"goth","DARK SYNTH-POP":"goth",
+  "PHONK":"trap"});   // 1.37: phonk takes MDFM's trap rules (the 808 kits, the kick dips only the bass); the Pop & dance genres keep their PTRN family   // 1.32: the goth genres take MDFM's goth rules (key change, odd meters, the goth instrument pools)
 // PTRN_KEY: STY name -> its PTRN_GENRES row; PTRN_LEVEL: the station's trim into pre
 const PTRN_KEY=Object.fromEntries(PTRN_GENRES.map(g=>[g[3],g])), PTRN_LEVEL=1;
 // ptrnTypes: PTRN's Settings switches (each genre id, and tags); all on
@@ -3638,8 +3765,8 @@ function wpick(w){ let t=0; for(const k in w) t+=w[k]; if(t<=0) return null; let
 function familyOf(name){ const g=typeof PTRN_KEY!=="undefined"&&PTRN_KEY[name]; return STYLE_FAM[name]||(g?g[2]:"other"); }
 // KIT_W: family -> kit weights; BASS_W: family -> bass sound weights (other families get a default mix)
 const KIT_W={trap:{boom:.45,classic:.3,dusty:.15,punch:.1},soul:{dusty:.4,classic:.4,punch:.1,boom:.1},ballad:{classic:.7,dusty:.3},Electronic:{punch:.45,classic:.3,boom:.15,dusty:.1},
-  Chill:{dusty:.6,classic:.4},"Rock & pop":{punch:.4,classic:.6},"Jazz, funk & soul":{classic:.6,dusty:.25,punch:.15},"Latin & Caribbean":{classic:.5,punch:.3,boom:.2},"Country & folk":{classic:.8,dusty:.2}};
-const BASS_W={trap:{synth:.5,sub:.35,fm:.15},soul:{synth:.55,sub:.3,fm:.15},Electronic:{synth:.35,acid:.3,fm:.2,sub:.15},Chill:{synth:.6,sub:.4}};
+  Chill:{dusty:.6,classic:.4},"Rock & pop":{punch:.4,classic:.6},"Jazz, funk & soul":{classic:.6,dusty:.25,punch:.15},"Latin & Caribbean":{classic:.5,punch:.3,boom:.2},"Country & folk":{classic:.8,dusty:.2},"Pop & dance":{punch:.5,classic:.35,boom:.15}};   // 1.37: Pop & dance
+const BASS_W={trap:{synth:.5,sub:.35,fm:.15},soul:{synth:.55,sub:.3,fm:.15},Electronic:{synth:.35,acid:.3,fm:.2,sub:.15},Chill:{synth:.6,sub:.4},"Pop & dance":{synth:.5,fm:.25,sub:.25}};   // 1.37: Pop & dance
 // kitFor(name) / bassFor(name): the song's kit and bass sound, by its family's weights, among those switched on (R())
 function kitFor(name){ const w={...(KIT_W[familyOf(name)]||{classic:.45,punch:.3,boom:.1,dusty:.15})}; for(const k in w) if(!poolOn("kit",k)) delete w[k]; return wpick(w)||"classic"; }
 function bassFor(name){ const b=STY[name]&&STY[name].bass; if(BASSX[b]&&b!=="offbeat"&&b!=="roll") return "synth";   // walking, reggae and country lines keep their own tone
@@ -3896,6 +4023,115 @@ SNX.cavern=(s,t)=>{ D.snare(s,t,1,1.05,.84); const n=nz(t,1.2),bp=filt("bandpass
 // and the keys another of the genre's
 Object.assign(INST_NAMES,{chime:"chorus guitar"}); BASS_NAMES.postpunk="chorus bass";
 POOL.push(["bass_postpunk","Chorus bass (post-punk)","bass","1.32",["postpunk"]],["keys_chime","Chorus guitar (post-punk)","keys","1.32",["chime"]]);
+/* ---------- 1.37: the pop & dance sounds ----------
+   Four new instruments for PTRN's Pop & dance family (and phonk), each with a Settings switch (since "1.37", tagged new):
+   - SSAW: a supersaw LEAD: seven sawtooth oscillators a few cents apart (the "unison" of a trance synth), spread left to
+     right, a low-pass that starts bright and settles, gliding from the previous note. In LITE (MIX open on a phone) three
+     saws instead of seven, live only.
+   - FHPLUCK: the future-house pluck: two detuned saws and a square an octave down, the pitch dropping an octave into the
+     note in 18 ms (the "blip"), a resonant low-pass snapping shut. Plays chords (CHX.fhpluck) and leads (LEADX.fhpluck); its
+     bass cousin M.fhbass is the bouncy "yoink" bass (BASSX.bounce).
+   - DISCO STRINGS (CHX.discostr): octave string stabs on the offbeats, and every fourth bar a swell plus a run up the scale
+     into the next bar, the way disco string sections push into a new phrase. Played on FI.strings (the faire's string section).
+   - THUMB-AND-POP SLAP BASS (M.thumb, BASSX.thumbpop): the thumb slapping the low string (a bright, compressed attack),
+     popped octaves and flat 7ths (brighter, shorter), dead "ghost" notes (a muted click) and a pickup into the next chord.
+   Plus CHX.filterloop for French house: electric piano and string stabs through one filter per song that opens and closes
+   over 8 bars. These only play in the genres that use them (or where Settings swaps them in), so MDFM 99.9's songs and every
+   older genre sound exactly as before. Levels: PDLV, measured solo against their neighbours (see PACK-NOTES / CHANGELOG). */
+// PDLV: each new voice's output level (solo loudness matched to the saw lead, the pluck, the strings and the synth bass)
+const PDLV={ssaw:.26,fhpluck:.5,fhbass:.23,thumb:.5,dstr:4.9,floop:.6};
+Object.assign(M,{
+  // ssaw(s, t s, m MIDI, dur s, v 0..1, prev MIDI or null): one supersaw lead note on s.mu (the lead bus while playLead
+  // routes it). DT: the oscillators' detune in cents; three of them in LEAN (LITE live). Left, centre and right share three
+  // panners (one per side) rather than one each, to keep the node count down. The loudness is kept the same for 3 or 7 saws
+  // (divided by the square root of the count: random-phase saws add up by power, not amplitude). No R().
+  ssaw(s,t,m,dur,v=1,prev=null){ const f=mtof(m), end=t+Math.max(.08,dur)+.14, DT=LEAN()?[-14,0,14]:[-21,-14,-7,0,7,14,21];
+    const out=G(v*PDLV.ssaw/Math.sqrt(DT.length)), hp=filt("highpass",160,.5), lp=filt("lowpass",2600,.8), g=ctx.createGain();
+    lp.frequency.setValueAtTime(5200,t); lp.frequency.exponentialRampToValueAtTime(2300,t+.35);   // bright on the attack, settling
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.22,t+.01); g.gain.setValueAtTime(.22,Math.max(t+.02,end-.14)); g.gain.exponentialRampToValueAtTime(.0001,end);
+    hp.connect(lp); lp.connect(g); g.connect(out); out.connect(s.mu); to(out,s,.3);
+    const PN=[pan(-.55),G(1),pan(.55)]; for(const p of PN) p.connect(hp);   // left, centre, right
+    DT.forEach((dt,k)=>{ const o=osc("sawtooth",f); o.detune.value=dt;
+      if(prev!=null&&prev!==m){ o.frequency.setValueAtTime(mtof(prev),t); o.frequency.exponentialRampToValueAtTime(f,t+.05); }   // a quick glide from the last note
+      o.connect(PN[dt<0?0:dt>0?2:1]); o.start(t); o.stop(end+.02); }); },
+  // fhpluck(s, t, m, dur, v, dst): one future-house pluck into dst (default s.mu). The pitch starts an octave up and drops
+  // into the note in 18 ms; the filter starts at 14x the note and closes to just above it in .16 s. Short by nature (dur
+  // only sets how long it may ring, up to .45 s). No R().
+  fhpluck(s,t,m,dur,v=1,dst=null){ const f=mtof(m), end=t+Math.min(.45,Math.max(.2,dur))+.05, out=G(v*PDLV.fhpluck), lp=filt("lowpass",800,4.5), g=ctx.createGain();
+    const a=osc("sawtooth",f), b=osc("sawtooth",f), c=osc("square",f/2), cg=G(.35); a.detune.value=-9; b.detune.value=9;
+    for(const [o,k] of [[a,1],[b,1],[c,.5]]){ o.frequency.setValueAtTime(f*k*2,t); o.frequency.exponentialRampToValueAtTime(f*k,t+.018); }   // the blip
+    lp.frequency.setValueAtTime(Math.min(9000,f*14),t); lp.frequency.exponentialRampToValueAtTime(Math.max(300,f*1.3),t+.16);
+    env(g,t,.002,.2,end-t-.03); a.connect(lp); b.connect(lp); c.connect(cg); cg.connect(lp); lp.connect(g); g.connect(out); out.connect(dst||s.mu); if(!dst) to(out,s,.32);
+    for(const o of [a,b,c]){ o.start(t); o.stop(end+.02); } },
+  // fhbass(s, t, m, dur, v): the bouncy future-house bass: a square and a saw with the same octave blip ("yoink"), a resonant
+  // low-pass closing fast, and a clean sine underneath for weight; into the bass bus, ducking like the other basses. No R().
+  fhbass(s,t,m,dur,v=1){ const f=mtof(m), end=t+Math.max(.1,dur)+.06, out=G(v*PDLV.fhbass), lp=filt("lowpass",400,5), g=ctx.createGain(), a=osc("square",f), b=osc("sawtooth",f), sub=osc("sine",subF(f)), sg=G(.9);
+    for(const o of [a,b]){ o.frequency.setValueAtTime(f*2,t); o.frequency.exponentialRampToValueAtTime(f,t+.03); }
+    lp.frequency.setValueAtTime(3000,t); lp.frequency.exponentialRampToValueAtTime(260,t+.18);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.3,t+.004); g.gain.setValueAtTime(.24,Math.max(t+.01,end-.06)); g.gain.exponentialRampToValueAtTime(.0001,end);
+    a.connect(lp); b.connect(lp); lp.connect(g); sub.connect(sg); sg.connect(g); g.connect(out); out.connect(bOut(s));
+    for(const o of [a,b,sub]){ o.start(t); o.stop(end+.02); } bDuck(s,t,.7); },
+  // thumb(s, t, m, dur, v, mode): one slap-bass note into the bass bus. mode "T": the thumb (low, a 2.2 kHz slap on the
+  // attack, a filter closing to a warm tone), "P": a pop (brighter, a 3.4 kHz snap, shorter), "g": a ghost (dead) note: a
+  // muted click with no pitch. A waveshaper (SAT) squashes the attack the way a bassist's compressor would. strike() and
+  // nz() draw R() (sound detail only; only slap-bass songs call this).
+  thumb(s,t,m,dur,v=1,mode="T"){ const bus=bOut(s);
+    if(mode==="g"){ const n=nz(t,.04), bp=filt("bandpass",700,1.2), g=ctx.createGain(); env(g,t,.001,.28*v*PDLV.thumb,.03); n.connect(bp); bp.connect(g); g.connect(bus); return; }
+    const pop=mode==="P", f=mtof(m), end=t+Math.max(.1,dur)+.06, o=osc("sawtooth",f), sub=osc("sine",f), sg=G(pop?.25:.9), lp=filt("lowpass",900,pop?2:1.2), sh=ctx.createWaveShaper(), g=ctx.createGain(), out=G(v*PDLV.thumb);
+    sh.curve=SAT; lp.frequency.setValueAtTime(pop?6500:4200,t); lp.frequency.exponentialRampToValueAtTime(pop?1400:650,t+(pop?.09:.16));
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.32,t+.002); g.gain.exponentialRampToValueAtTime(.16,t+.08); g.gain.setValueAtTime(.16,Math.max(t+.09,end-.06)); g.gain.exponentialRampToValueAtTime(.0001,end);
+    o.connect(lp); sub.connect(sg); sg.connect(lp); lp.connect(sh); sh.connect(g); g.connect(out); out.connect(bus);
+    strike(out,t,pop?.012:.018,pop?3400:2200,1.1,(pop?.22:.16)*v);   // the thumb hitting the string, or the string snapping back against the frets
+    o.start(t); sub.start(t); o.stop(end+.02); sub.stop(end+.02); bDuck(s,t,.7); },
+  // strhold(s, t, notes, dur, v): a held string chord (disco strings' sustained and sparse sections; SUSK points here)
+  strhold(s,t,notes,dur,v=1){ FI.strings(s,t,notes.map(x=>x+12),dur,v*PDLV.dstr,{att:.35,bright:2800,rel:.5}); }
+});
+// TP_PAT: the slap bass's one-bar figures (one per song, picked with R()): "T" thumb on the root, "P" pop an octave up,
+// "7" pop on the flat 7th, "5" thumb on the 5th, "g" a ghost note, "n" a half step under the next chord's root (a pickup)
+const TP_PAT=["T.gPT.gPT.g5..Pn","T..PgTP.T.gP.7Pn","T.gTP.gPTg.P5.Pn","T..gP.T.T.gP.gPn"];
+// BASSX.thumbpop (playStep, each 16th i): plays the song's figure over chord d (root kept in G1..A2)
+BASSX.thumbpop=function(s,t,i,d,tr,nd){ const P=s.tpp||(s.tpp=pick(TP_PAT)), c=P[i]; if(c===".") return; const r=bRoot(s,d,tr,31,45);
+  if(c==="T") M.thumb(s,t,r,s.sp*1.6,i%4===0?1:.85,"T"); else if(c==="P") M.thumb(s,t,r+12,s.sp*.8,.9,"P"); else if(c==="7") M.thumb(s,t,r+10,s.sp*.8,.8,"P");
+  else if(c==="5") M.thumb(s,t,r+7,s.sp*1.2,.8,"T"); else if(c==="g") M.thumb(s,t,r,0,.9,"g"); else if(c==="n") M.thumb(s,t,bRoot(s,nd,tr,31,45)-1,s.sp*.9,.8,"T"); };
+// BASSX.bounce: future house's bass on one of three bouncy patterns (per song, R()); every other hit an octave up, each held
+// until the next hit (three steps at most) so the line bounces rather than drones
+const BOUNCE_PAT=["x..x..x...x..x..","..x.x.x...x.x.xx","x.xx..x.x.xx..x."];
+BASSX.bounce=function(s,t,i,d,tr){ const P=s.bnc||(s.bnc=pick(BOUNCE_PAT)); if(P[i]!=="x") return; let n=1; while(i+n<16&&P[i+n]!=="x") n++;
+  const k=[...P.slice(0,i)].filter(c=>c==="x").length; M.fhbass(s,t,bRoot(s,d,tr,33,45)+(k%2?12:0),s.sp*Math.min(3,n)*.9,k%2?.85:1); };
+// FHP_PAT: the future-house pluck chords' rhythm (one per song)
+const FHP_PAT=["x..x..x...x..x..","..x..x..x..x.x..","x..x...x..x.x..."];
+// CHX.fhpluck (keys): the chord's top three notes an octave up, plucked on the song's pattern; "stab" sections on the stab rhythm
+CHX.fhpluck=(s,t,i,n,c)=>{ const P=c==="stab"?"x..x..x.x.....x.":s.fhp||(s.fhp=pick(FHP_PAT)); if(P[i]!=="x") return; for(const m of n.slice(-3)) M.fhpluck(s,t,m+12,s.sp*1.5,1.1); };
+// CHX.discostr (keys): disco strings. Offbeat octave stabs (the chord's root and second note an octave up, the root two up),
+// short enough for FI.strings' light spiccato path; every fourth bar a swell under the stabs from beat 1 and, on the last four
+// 16ths, a run up the scale (spiccato) into the next bar. "stab" sections play the stabs on the stab rhythm.
+CHX.discostr=(s,t,i,n,c,d,tr,bar)=>{ const st=[n[0]+12,(n[1]??n[0]+7)+12,n[0]+24], sp=s.sp, v=PDLV.dstr;
+  if(c==="stab"){ if("x..x..x.x.....x."[i]==="x") FI.strings(s,t,st,Math.min(.35,sp*1.1),.8*v,{att:.01,bright:3200,rel:.09}); return; }
+  if(i%4===2) FI.strings(s,t,st,Math.min(.35,sp*.9),.75*v,{att:.01,bright:3200,rel:.08});
+  if(bar%4===3){ if(i===0) FI.strings(s,t,n.map(x=>x+12),sp*12,.55*v,{att:sp*10,bright:3400,rel:.25});   // the swell
+    if(i>=12) FI.strings(s,t,[n[0]+24+ivl(s,d,i-12)],Math.min(.35,sp*.9),.7*v,{att:.01,bright:3600,rel:.06}); } };   // the run up
+// flBus(s): French house's filter for this song (one per song and audio context): an input, a resonant low-pass and a level,
+// into the music bus; CHX.filterloop sweeps its cutoff
+function flBus(s){ let F=s._fl; if(!F||F.ctx!==ctx){ const inp=G(1), lp=filt("lowpass",800,3.2), out=G(PDLV.floop); inp.connect(lp); lp.connect(out); out.connect(s.mu); to(out,s,.2); F=s._fl={ctx,inp,lp}; } return F; }
+// FL_PAT: the loop's rhythm (one per song)
+const FL_PAT=["x.x..x.x..x.x.x.","x..x.x..x.x..x..","..x.x..x.x..x.x."];
+// CHX.filterloop (keys): each bar the filter moves along a slow wave (8 bars from closed, 500 Hz, to open, 7 kHz, and back:
+// a raised cosine on a log scale), and the loop plays electric piano chords an octave up on the song's rhythm, with a string
+// stab on the beats, all through that filter (s.mu is pointed at it for the calls, as playLead does for the lead bus)
+CHX.filterloop=(s,t,i,n,c,d,tr,bar)=>{ const F=flBus(s);
+  if(i===0){ const at=ph=>500*Math.pow(14,.5-.5*Math.cos(2*Math.PI*ph)), ph=(bar%8)/8; F.lp.frequency.setValueAtTime(at(ph),t); F.lp.frequency.exponentialRampToValueAtTime(at(ph+1/8),t+s.sp*16); }
+  const P=c==="stab"?"x..x..x.x.....x.":s.flp||(s.flp=pick(FL_PAT)); if(P[i]!=="x") return; const mu=s.mu; s.mu=F.inp;
+  try{ M.rhodes(s,t,n.map(x=>x+12),s.sp*1.4,.8); if(i%4===0) FI.strings(s,t,[n[0]+24,(n[1]??n[0]+7)+24],Math.min(.35,s.sp*.9),.15*PDLV.dstr,{att:.01,bright:3000,rel:.08}); } finally{ s.mu=mu; } };
+// LEADX: the supersaw and the pluck as leads (the pluck kept short)
+Object.assign(LEADX,{ ssaw:(s,t,m,dur,v,p)=>M.ssaw(s,t,m,dur,v,p), fhpluck:(s,t,m,dur,v)=>M.fhpluck(s,t,m,Math.min(dur,.4),v) });
+// held and sparse chords: disco strings hold a string chord; the pluck and the loop fall back to the electric piano (SUSK default)
+Object.assign(SUSK,{discostr:"strhold"});
+// names for "Playing now", and the Settings switches (since "1.37", tagged new). Switched off, a genre plays another of its
+// family's keys or leads, and the slap and bouncy basses play plain synth eighths (like the other genre bass lines).
+Object.assign(INST_NAMES,{ssaw:"supersaw lead",fhpluck:"future-house plucks",discostr:"disco strings",filterloop:"filtered disco loop"}); Object.assign(BASS_NAMES,{thumbpop:"slap bass",bounce:"bouncy bass"});
+POOL.push(["lead_ssaw","Supersaw lead","lead","1.37",["ssaw"]],["keys_fhpluck","Future-house plucks","keys","1.37",["fhpluck"]],["lead_fhpluck","Future-house pluck lead","lead","1.37",["fhpluck"]],
+  ["keys_discostr","Disco strings","keys","1.37",["discostr"]],["keys_filterloop","Filtered disco loop (French house)","keys","1.37",["filterloop"]],
+  ["bass_thumbpop","Slap bass, thumb and pop (nu-disco)","bass","1.37",["thumbpop"]],["bass_bounce","Bouncy bass (future house)","bass","1.37",["bounce"]]);
 /* ---------- CLUK 92.3: Everything in the Chicken ----------
    Music that rips: big beat, breakbeat and its cousins, electro and hard house, on MDFM's song writer with basses,
    stabs and a drum-bus drive of their own; between songs, scripted shows (src/cluk/*.js), ads, call-ins and IDs
@@ -4632,7 +4868,7 @@ function mxFxLevels(id,now,inst){ const F=MXF.get(ctx); if(!F) return; const P=M
 // Keyed by voice object (D drums, M melodic, FI HEARYE's, PI the talk shows') and name. a[0] is always the time, so
 // ["chord", 3] means the loudness is a[3] of (t, notes, dur, v).
 const MX_ROLE={D:{kick:["kick",1],snare:["snare",1],clap:["clap",1],snap:["snare",1],rim:["perc",1],hat:["hat",1],conga:["perc",1],tom:["tom",1],crash:["crash",1],shaker:["shaker",1],cowbell:["perc",3],b808:["bass",3],logdrum:["bass",2],ride:["hat",1],brush:["snare",1],clave:["perc",1],timbale:["perc",1],chipk:["kick",1],chipn:["hat",1]},
-  M:{piano:["chord",3],rhodes:["chord",3],organ:["chord",3],pad:["pad",3],choir:["pad",3],saw:["chord",3],accordion:["chord",3],brass:["chord",3],guitar:["gchord",3],bell:["lead",3],pluck:["lead",3],whistle:["lead",3],bass:["bass",3],vox:["lead",3],chop:["lead",3],sax:["lead",3],clav:["chord",3],nylon:["chord",3],wurli:["chord",3],warmpad:["pad",3],fmlead:["lead",3],sqlead:["lead",3],vibes:["lead",3],reese:["bass",3],wobble:["bass",3],slap:["bass",3],upright:["bass",3],harm:["lead",3],gtrlead:["lead",3],ppbass:["bass",3],chime:["lead",3],marimba:["lead",3],kalimba:["lead",3],celesta:["lead",3],plharp:["lead",3],koto:["lead",3],suitcase:["chord",3],felt:["chord",3],upiano:["chord",3]},
+  M:{piano:["chord",3],rhodes:["chord",3],organ:["chord",3],pad:["pad",3],choir:["pad",3],saw:["chord",3],accordion:["chord",3],brass:["chord",3],guitar:["gchord",3],bell:["lead",3],pluck:["lead",3],whistle:["lead",3],bass:["bass",3],vox:["lead",3],chop:["lead",3],sax:["lead",3],clav:["chord",3],nylon:["chord",3],wurli:["chord",3],warmpad:["pad",3],fmlead:["lead",3],sqlead:["lead",3],vibes:["lead",3],reese:["bass",3],wobble:["bass",3],slap:["bass",3],upright:["bass",3],harm:["lead",3],gtrlead:["lead",3],ppbass:["bass",3],chime:["lead",3],marimba:["lead",3],kalimba:["lead",3],celesta:["lead",3],plharp:["lead",3],koto:["lead",3],suitcase:["chord",3],felt:["chord",3],upiano:["chord",3],ssaw:["lead",3],fhpluck:["lead",3],fhbass:["bass",3],thumb:["bass",3]},
   FI:{harp:["lead",2],strings:["pad",3],fiddle:["lead",3],chant:["lead",3],horn:["chord",3],shawm:["lead",3],drone:["pad",3],drum:["kick",1],frame:["perc",1],tamb:["shaker",1],hat:["hat",1],synbass:["bass",3],strum:["chord",2],organ:["chord",3],pipe:["lead",3],lute:["lead",2],flute:["lead",3]},
   PI:{lute:["lead",2],flute:["lead",3],timp:["tom",2],pulse:["bass",3],chip:["lead",3]}};
 // noteInfo(role, a): a call's arguments (after the bus) as note info {t, notes, m, dur, open}: chords and pads take
@@ -5771,6 +6007,12 @@ return {
   setFx(v){ Object.assign(fxv,cleanFx(v)); fxApply(); emit("fx",{...fxv}); return {...fxv}; },
   resetFx(){ Object.assign(fxv,FX_DEF); fxApply(); emit("fx",{...fxv}); return {...fxv}; },
   tapeStop(){ return fxTapeTrick("stop"); },
+  /* PERFORM (1.37): perfInfo() lists the pads [id, label, BEAT lane|null, tip] and the XY pad's Y effects [key, label];
+     perfPad(id, {rec}) plays a pad on the next 16th; perfRoll(div) beat repeat (0 lets go); perfXY({x, y, fx}) / perfXY(null);
+     perfDrop(bars) the build and drop; perfState() what's running. Events: pad, roll, xy, drop. Live only, never saved. */
+  perfInfo(){ return {pads:PF_PADS.map(x=>[...x]),xy:PF_XY.map(x=>[...x]),rolls:[[1,"1/4"],[.5,"1/8"],[.25,"1/16"],[.125,"1/32"]],drops:[4,8]}; },
+  perfPad(id,o){ return perfPad(id,o||{}); }, perfRoll(div){ return perfRoll(div); }, perfXY(v){ return perfXY(v); }, perfDrop(bars){ return perfDrop(bars); },
+  perfState(){ return {roll:PF.roll?PF.roll.div:0,xy:fxo?{...fxo}:null,drop:PF.drop?{from:PF.drop.from,at:PF.drop.at}:null}; },
   spinBack(){ return fxTapeTrick("spin"); },
   // _fxState(): tests; ("MDFM's own list is window.MDFM_TYPES" at the end of its line is about setTypes / getStationTypes)
   _fxState(){ const F=ctx&&FXW.get(ctx); return {on:fxIsOn(),inPath:!!(F&&F.inPath),tape:!!fxTape}; },   // for tests   // MDFM's own list is window.MDFM_TYPES / setTypes
