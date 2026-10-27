@@ -2,6 +2,11 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.36.0 (2026-10-26, Rob)
+- **MIX file names carry the station, key and tempo:** EXPORT now saves `<name> - <CALL> - <key> - <bpm> BPM.mdfm.json`, e.g. `Late night - PTRN - F# minor - 128 BPM.mdfm.json`. The call sign is the first word of the station on air; key and BPM are what is heard (after GROOVE & KEY). On talk (PTLK, show breaks) only the call sign is added. A name that already ends that way is not doubled; sharps and flats are written # and b. The status line shows the full name.
+- New `mixTags(radio)` (bundle export) returns `{call, key, bpm}`; `mixFileName(name, tags)` takes the tags (without them it names files as 1.34 did). `exportMix` resolves with `filename` too. The file's contents are unchanged, and any name still imports.
+- Test: `test/mixname136.test.mjs`.
+
 ## 1.35.0 (2026-10-26, Rob)
 - **More BEAT starting patterns:** MIX › Groove & Key › BEAT › START FROM… goes from 9 to 33 patterns, filed under headings:
   - **Hip-hop:** Boom bap, Trap, Half-time, plus UK drill, Lo-fi lazy, Jersey club and G-funk bounce.

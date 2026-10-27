@@ -1207,7 +1207,7 @@ function mountMix(radio, opts = {}) {
     const busy = (b, v) => { if (v) b.setAttribute("aria-busy", "true"); else b.removeAttribute("aria-busy"); };
     fq("export").addEventListener("click", async () => { const b = fq("export"); if (b.getAttribute("aria-busy") === "true") return;
       const name = nm.value.trim() || "My mix"; ui.fileName = nm.value.trim(); saveUI(); busy(b, true);
-      try { const r = await exportMix(radio, { name, app, types: pageTypes() }); fst(r.via === "claude" ? `Saved “${name}” (inside ${r.name}).` : `Saved “${name}”.`); }
+      try { const r = await exportMix(radio, { name, app, types: pageTypes() }); fst(r.via === "claude" ? `Saved “${r.filename || name}” (inside ${r.name}).` : `Saved “${r.filename || name}”.`); }   // 1.36: the full name, with call sign, key and BPM
       catch (e) { fst(e && e.code === "declined" ? "Not saved." : `Couldn't save it: ${(e && e.message) || e}`); }
       finally { busy(b, false); } });
     fq("import").addEventListener("click", () => { pick.value = ""; pick.click(); });

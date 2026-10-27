@@ -6,7 +6,7 @@
 // it uses) and before src/tune.js (whose MIX drawer has the EXPORT / IMPORT buttons and the CROSSMIX slider). The engine's
 // public API (src/engine.js) reaches it through radio.getSettings() and radio.applySettings(), and the bundles export
 // exportMix, readMixFile and mixFileName for pages that want their own buttons.
-// The file is JSON, named <name>.mdfm.json (a plain .mdfm loads too). Its shape, version 1:
+// The file is JSON, named <name> - <CALL> - <key> - <bpm> BPM.mdfm.json since 1.36 (any name loads, a plain .mdfm too). Its shape, version 1:
 //   kind        "mdfm-mix" (anything else is refused)
 //   v           1 (newer files load as far as this version understands them)
 //   name        the name it was saved under; saved: an ISO time; engine: the MDFM version that wrote it
@@ -46,15 +46,38 @@ function mixSnapshot(radio, { name = "", types = null } = {}) {
     o.stations[id] = s; }
   return o;
 }
-// mixFileName(name): the file name for a mix called name ("My mix" -> "My mix.mdfm.json"); an empty name gives
-// "MDFM mix.mdfm.json". It ends in .json because the apps' Save dialog (the kit's save-file) only writes known types.
-function mixFileName(name) { return (safeName(name) || "MDFM mix") + ".mdfm.json"; }
-// exportMix(radio, opts): saves the snapshot as <name>.mdfm.json through saveBytes (the app's Save dialog, claude.ai's downloads
-// as a .zip, or a browser download). opts: { name, app, types }. Resolves like saveBytes plus { file: the snapshot }; throws
+// mixTags(radio): what's on air as the mix is saved, for the file name (1.36): { call, key, bpm }, each null when unknown.
+//   call  the station's call sign: the first word of its name ("PTRN 101.1" -> "PTRN"), or its id in capitals
+//   key   the key as heard, after GROOVE & KEY ("F# minor"); sharps and flats written # and b so any file system takes them
+//   bpm   the tempo as heard, rounded
+// Key and BPM come from radio.nowPlaying() (which already applies the groove), and only when it is a song on the station
+// that's on: talk (PTLK, show breaks) has neither, so the name then carries the call sign alone.
+function mixTags(radio) {
+  const has = k => typeof radio[k] === "function", st = has("getStation") ? radio.getStation() : null, id = (st && st.id) || "mdfm";
+  const info = has("stations") ? radio.stations().find(x => x.id === id) : null;
+  const call = String((info && info.name) || (st && st.name) || id).trim().split(/\s+/)[0].toUpperCase() || null;
+  const np = has("nowPlaying") ? radio.nowPlaying() : null, onAir = np && (np.station || "mdfm") === id && !np.talk;   // MDFM 99.9's own songs carry no station field
+  const key = onAir && typeof np.key === "string" && np.key.trim() ? np.key.trim().replace(/♯/g, "#").replace(/♭/g, "b") : null;
+  const bpm = onAir && Number.isFinite(+np.bpm) && +np.bpm > 0 ? Math.round(+np.bpm) : null;
+  return { call, key, bpm };
+}
+// mixFileName(name, tags): the file name for a mix called name. With tags (from mixTags) the call sign, key and tempo
+// go on the end: ("Late night", {call:"PTRN", key:"F# minor", bpm:128}) -> "Late night - PTRN - F# minor - 128 BPM.mdfm.json".
+// Missing tags are left out; a name that already ends with that tail (typed by hand) doesn't get it twice. An empty name
+// gives "MDFM mix". It ends in .json because the apps' Save dialog (the kit's save-file) only writes known types.
+function mixFileName(name, tags = null) {
+  const base = safeName(name) || "MDFM mix", t = tags || {};
+  const tail = safeName([t.call, t.key, t.bpm ? t.bpm + " BPM" : null].filter(Boolean).join(" - "));
+  const full = tail && !base.toLowerCase().endsWith(tail.toLowerCase()) ? base + " - " + tail : base;
+  return safeName(full) + ".mdfm.json";   // safeName again keeps the whole name at 120 characters or less
+}
+// exportMix(radio, opts): saves the snapshot as <name> - <call> - <key> - <bpm> BPM.mdfm.json (see mixFileName) through saveBytes (the app's Save dialog, claude.ai's downloads
+// as a .zip, or a browser download). opts: { name, app, types }. Resolves like saveBytes plus { file: the snapshot, filename: the .mdfm.json name used }; throws
 // with code "declined" when the Save dialog is cancelled.
 async function exportMix(radio, { name = "", app = null, types = null } = {}) {
   const file = mixSnapshot(radio, { name, types }), bytes = new TextEncoder().encode(JSON.stringify(file, null, 1) + "\n");
-  return { ...(await saveBytes(bytes, mixFileName(name), { app, type: "application/json" })), file };
+  const filename = mixFileName(name, mixTags(radio));   // 1.36: "<name> - <CALL> - <key> - <bpm> BPM.mdfm.json"
+  return { ...(await saveBytes(bytes, filename, { app, type: "application/json" })), file, filename };
 }
 
 // ===== Reading a file =====
