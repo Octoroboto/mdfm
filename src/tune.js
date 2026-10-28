@@ -128,6 +128,11 @@ function mountMix(radio, opts = {}) {
   function gesture(el, h) {
     let pid = null, x0 = 0, y0 = 0, lx = 0, ly = 0, moved = false, longed = false, longT = 0, type = "mouse", last = { t: 0, x: 0, y: 0 };
     el.addEventListener("pointerdown", e => {
+      // 1.39: a press that never got its release (phones can drop the pointerup or pointercancel, e.g. when the screen turns
+      // or the browser takes over mid-drag) used to leave pid set, and then every later press on this control was ignored:
+      // a fader stuck until the page was reloaded (Rob's SPACE fader). A new press while the old pointer is no longer held
+      // here ends the old gesture and starts fresh.
+      if (pid !== null && pid !== e.pointerId) { let held = false; try { held = el.hasPointerCapture(pid); } catch (err) {} if (!held) up({ pointerId: pid, type: "pointercancel" }); }
       if (pid !== null || (e.pointerType === "mouse" && e.button !== 0) || (h.skip && h.skip(e))) return;
       pid = e.pointerId; type = e.pointerType || "mouse"; x0 = lx = e.clientX; y0 = ly = e.clientY; moved = false; longed = false; dragOn();
       // capture: the moves keep coming when the finger slides off the element (throws if the pointer is already gone)
@@ -149,6 +154,10 @@ function mountMix(radio, opts = {}) {
       else last.t = 0;
       h.end && h.end(e, moved); };
     el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("lostpointercapture", up);
+    // 1.39 backstops: a release anywhere on the page, the page going to the background, or the phone turning ends the gesture too
+    win.addEventListener("pointerup", up, true); win.addEventListener("pointercancel", up, true);
+    const reset = () => { if (pid !== null) up({ pointerId: pid, type: "pointercancel" }); };
+    doc.addEventListener("visibilitychange", reset); win.addEventListener("orientationchange", reset); win.addEventListener("blur", reset);
   }
   // fine control: Shift/Alt/Ctrl x0.2 with a mouse; on touch, the further the finger slides sideways, the finer (x0.25 at 160 px)
   // returns the multiplier for a drag's delta; g is gesture()'s move info {dx, dy, type}
@@ -462,11 +471,14 @@ function mountMix(radio, opts = {}) {
   // ---------- 1.37 PERFORM: PADS (+ RECORD), ROLL, XY, DROP, SCENES ----------
   // PFI: the engine's lists (radio.perfInfo): pads [id, label, BEAT lane, tip], xy [fx, label], rolls [beats, label], drops [bars]
   const PFI = SEC.perform ? radio.perfInfo() : null, SCN = ["A", "B", "C", "D"];
-  if (SEC.perform) html += secHTML("perform", "PERFORM", "LIVE", "Play the station like an instrument. Everything lands on the beat. Nothing here is saved except your scenes. Keys 1-8 play the pads while this is open.",
+  if (SEC.perform) html += secHTML("perform", "PERFORM", "LIVE", "Play the station like an instrument. Everything lands on the beat. Nothing here is saved except your scenes. Keys 1-8 play the pads and Q W E R the PLAY row while this is open.",
     `<div class="mx-grid mx-pfgrid">` +
     // PADS: eight pads in a 4 x 2 grid (keys 1-8), RECORD writes the drum pads into BEAT
     `<div class="mx-card mx-pfpads" data-card="pads"><div class="mx-ch"><h4>PADS</h4><button type="button" class="btn mx-tg" data-pf-rec aria-pressed="false" title="RECORD: the drum pads (KICK to PERC) also write their hit into this station's BEAT grid, at the step they land on">● RECORD</button></div>` +
-    `<div class="mx-pfpadg">${PFI.pads.map(([id, l, , tip], i) => `<button type="button" class="btn mx-pfpad" data-pad="${esc(id)}" title="${esc(tip)}. Lands on the next 16th (key ${i + 1})"><b>${esc(l)}</b><small>${i + 1}</small></button>`).join("")}</div></div>` +
+    `<div class="mx-pfpadg">${PFI.pads.map(([id, l, , tip], i) => `<button type="button" class="btn mx-pfpad" data-pad="${esc(id)}" title="${esc(tip)}. Lands on the next 16th (key ${i + 1})"><b>${esc(l)}</b><small>${i + 1}</small></button>`).join("")}</div>` +
+    // 1.39 PLAY: one pad per part of the band (keys Q W E R): a note on the song's own instrument, in its key, on the next 16th
+    (PFI.play && PFI.play.length ? `<div class="mx-ch mx-pfplayh"><h4>PLAY</h4><span class="mx-pfnote">In key, on the song's own instruments. MELODY's knobs in GROOVE shape the notes.</span></div>` +
+      `<div class="mx-pfpadg mx-pfplay">${PFI.play.map(([id, l, tip], i) => `<button type="button" class="btn mx-pfpad" data-pad="${esc(id)}" title="${esc(tip)}. Lands on the next 16th (key ${"QWER"[i] || ""})"><b>${esc(l)}</b><small>${"QWER"[i] || ""}</small></button>`).join("")}</div>` : "") + `</div>` +
     // XY: across is the DJ filter, up is the chosen effect
     `<div class="mx-card mx-pfxy" data-card="xy"><h4>XY</h4><div class="mx-xy" data-xy tabindex="0" role="slider" aria-label="XY pad: across is the filter (left low-pass, right high-pass), up is the effect picked below. Hold a finger on it; let go and your FX come back. Arrow keys play it from the keyboard, Escape lets go" aria-valuetext="off"><span class="mx-xyl mx-xyx">LP ◂ FILTER ▸ HP</span><span class="mx-xyl mx-xyy" data-xyy></span><i class="mx-xydot" data-xydot hidden></i></div>` +
     `<div class="mx-pfchips" data-xyfx role="group" aria-label="The XY pad's up-down effect">${PFI.xy.map(([k, l]) => `<button type="button" class="btn" data-xyk="${esc(k)}" aria-pressed="false">${esc(l)}</button>`).join("")}</div></div>` +
@@ -1181,9 +1193,10 @@ function mountMix(radio, opts = {}) {
       b.addEventListener("click", e => { if (e.detail === 0) pad(b.dataset.pad); }); }
     if (radio.on) radio.on("pad", e => { const b = e && $p(`[data-pad="${e.id}"]`); if (b) atAudio(e.t, () => { b.classList.add("hit"); setTimeout(() => b.classList.remove("hit"), 110); }); });
     // keys 1-8 play the pads while PERFORM is on screen (never while typing in a field)
-    doc.addEventListener("keydown", e => { if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || !/^[1-8]$/.test(e.key)) return;
+    // 1.39: and Q W E R the PLAY pads
+    doc.addEventListener("keydown", e => { const qk = "qwer".indexOf((e.key || "").toLowerCase()); if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || (!/^[1-8]$/.test(e.key) && qk < 0)) return;
       const tg = e.target, tag = tg && tg.tagName; if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (tg && tg.isContentEditable)) return;
-      if (!visible($p('[data-card="pads"]'))) return; const P = PFI.pads[+e.key - 1]; if (P) { e.preventDefault(); pad(P[0]); } });
+      if (!visible($p('[data-card="pads"]'))) return; const P = qk >= 0 ? (PFI.play || [])[qk] : PFI.pads[+e.key - 1]; if (P) { e.preventDefault(); pad(P[0]); } });
     // ROLL: press and hold (pointer, or Space / Enter held); one at a time, a different length takes over
     let rollB = null;
     const rollOn = b => { if (rollB && rollB !== b) rollB.setAttribute("aria-pressed", "false"); rollB = b; b.setAttribute("aria-pressed", "true"); radio.perfRoll(+b.dataset.roll); };
@@ -1846,6 +1859,7 @@ html.mx-lite .mx-padbox,html.mx-lite .mx-padtxt,html.mx-lite .mx-eqg,html.mx-lit
 .mx-pfpads{display:flex;flex-direction:column}.mx-pfpadg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(64px,1fr);gap:8px;flex:1}
 .mixdrawer .mx-pfpad{min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 4px;touch-action:manipulation;user-select:none;-webkit-user-select:none;font-size:.78rem;letter-spacing:.06em}
 .mixdrawer .mx-pfpad small{opacity:.5;font-size:.68rem}
+.mx-pfplayh{margin-top:12px;align-items:baseline;gap:10px;flex-wrap:wrap}.mx-pfplayh .mx-pfnote{margin:0;font-size:.72rem;opacity:.7}.mx-pfpadg.mx-pfplay{flex:0 0 auto}   /* 1.39 PLAY row */
 .mixdrawer .mx-pfpad.hit,.mixdrawer .mx-scn.hit{box-shadow:0 0 0 2px #7fe22a,0 0 16px #7fe22a;color:#7fe22a}
 .mixdrawer [data-roll]{touch-action:none;user-select:none;-webkit-user-select:none}
 .mixdrawer [data-roll][aria-pressed=true]{box-shadow:0 0 0 2px #ff9f1a,0 0 14px #ff9f1a;color:#ffb347}

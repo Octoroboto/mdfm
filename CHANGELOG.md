@@ -2,6 +2,32 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.39.0 (2026-10-28, Rob)
+- **More clicks fixed** (Rob heard them on "Basement Drift": punchy kit, sub bass, organ, celesta, bells, choir).
+  - **The kick's bass duck** dropped the bass bus to half in one sample on every kick (a click on any sustained bass, the sub bass worst). The bus duck did the same. Both now dip over 5 ms, and a duck that would land inside the last one's recovery is skipped.
+  - **The organ's tremolo** (and the accordion's) was added straight onto the note's envelope, so every chord jumped in and cut off at about a fifth of its level. It's now its own stage after the envelope.
+  - **Every hit and note** that rose from silence with an exponential ramp (67 of them) now rises in a straight line over the same time, and 19 that jumped from their peak to a held level now glide there. The sub bass did both.
+  - **The punchy kit's click layer** is a little softer.
+  - The click scan now also covers pads, at a lower threshold. What it still flags is ordinary saw and square waves, and the corner at the top of an attack.
+- **PERFORM:**
+  - **The drum pads, STAB and the new BRASS hit harder.** They were easy to lose in the mix.
+  - **BRASS replaces the air horn.** It's a brass hit of the chord playing now, so it's always in key.
+  - **New PLAY row (keys Q W E R): BASS, KEYS, LEAD and PAD.** Each tap plays the song's own instrument for that part, on the next 16th, in the song's key and on its chord. BASS plays the chord's root low down. KEYS plays the chord (as HARMONY voices it). PAD holds the chord for two bars. LEAD walks a tune from tap to tap.
+  - **GROOVE's MELODY knobs shape the notes:**
+    - BUSY lets in passing notes, fifths and octaves and makes notes shorter.
+    - REPEAT brings back the note from four taps ago, so motifs return.
+    - RANGE sets how far the lead may leap.
+    - The tune uses its own random numbers, never the station's.
+  - Engine: `perfInfo().play`, `perfPad("bass"|"keys"|"lead"|"pad")`. `"horn"` still works and plays BRASS.
+- **REAL pack (new Settings box): rendered, played-sounding instruments for rock, pop and hip-hop.** Each note is rendered sample by sample (physical models), cached, then played back.
+  - **Grand piano** (keys and lead): stretched partials on two or three strings tuned a hair apart, each fading at its own rate, plus the hammer. Three velocity layers.
+  - **Rock guitar** (keys): Karplus-Strong power chords, strummed, double-tracked left and right through two amps. Palm-muted 8ths in quiet sections, open 8ths with accents elsewhere.
+  - **Lead guitar:** one string with more drive, slides and vibrato.
+  - **Fingerstyle bass.**
+  - **Studio drum kit:** kick, snare and toms, three takes each that rotate.
+  - **Who gets them:** rock, punk and metal (guitar and kit), indie pop, ballads and pop (piano), and hip-hop and soul (piano and fingerstyle bass). Picked from the songs' side stream after every older pick. Levels are matched to the piano, guitar, synth bass and classic kit.
+- **A fader (or knob) stuck on a phone now frees itself.** If the browser dropped a release, every later press on that control was ignored until a reload (Rob's SPACE fader at zero). A new press now ends the lost one. So do a release anywhere on the page, the page going to the background, or the phone turning.
+
 ## 1.38.0 (2026-10-27, Rob)
 - **CAR mode (new CAR button beside LET IT RIDE).** For CarPlay, Bluetooth in the car or a locked phone. Live, the radio writes its music a quarter second ahead; when iOS throttles a page that isn't in front (CarPlay with Maps up, a locked screen) that falls behind and the sound crackles, stutters or drops out. In CAR, MDFM, PTRN and CLUK make each song whole, a song ahead (the same way Save does, so TUNE, the style matrix, effects and EQ are all in it) and queue the finished songs back to back on the audio hardware, so nothing on the page has to keep up for the music to play.
   - The live station keeps playing until the first song is ready (about 10-30 seconds; the light blinks), then hands over.
