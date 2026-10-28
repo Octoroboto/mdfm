@@ -58,6 +58,18 @@
   const np=$("#np"), cap=$("#cap"); let capT=0;
   const npText=s=>s.station==="cluk"?(s.talk?`${s.style} · “${s.title}” · ${s.artist}`:`“${s.title}” · ${s.artist} · ${String(s.style).toLowerCase()} · ${s.bpm} BPM`):s.station==="ptrn"?`“${s.title}” · ${s.artist} · ${String(s.style).toLowerCase()} · ${s.bpm} BPM${s.time&&s.time!=="4/4"?" · "+s.time:""}`:s.station==="ptlk"||(s.station==="hearye"&&s.talk)?`${s.style} · “${s.title}” · ${s.artist}`:s.station==="hearye"?`“${s.title}” · ${s.artist} · ${s.style.toLowerCase()}`:s.station==="wybc"?`“${s.title}” · ${s.artist} · ambient piano`:`“${s.title}” · ${s.style.toLowerCase()} · ${s.bpm} BPM`;
   radio.on("nowplaying",s=>{ np.textContent=`Now playing: ${npText(s)}`; });
+  // ===== CAR (1.38) =====
+  // The CAR button (beside LET IT RIDE): plays ready-made songs, a song ahead, so a phone on CarPlay or with the screen locked
+  // can't starve the music (see CAR in src/engine.js). Remembered on this device ("mdfmCar"). The light is on while CAR is
+  // playing its own songs and blinks while the first one is being made; the caption line says what's going on.
+  { const cb=$("#carBtn"), cl=$("#carLed"), CARMSG="CAR: making the next song ready…";
+    if(cb&&radio.setCar){ const show=i=>{ i=i||radio.carInfo(); cb.setAttribute("aria-pressed",String(i.on)); if(cl){ cl.classList.toggle("on",i.on); cl.classList.toggle("wait",i.on&&i.preparing); }
+        cb.title=!i.on?"CAR: for CarPlay, Bluetooth in the car or a locked phone. Plays songs made a song ahead, so a busy or sleeping phone can't make the music crackle or drop out (songs only, no DJ; MIX changes land on the next song)":
+          !i.ok?"CAR is on, but this station plays live (CAR works on MDFM, PTRN and CLUK)":i.preparing?"CAR: making the first song (the live station plays until it's ready)":"CAR is on: songs are made a song ahead. Tap to go back to live";
+        if(i.on&&i.preparing){ cap.textContent=CARMSG; } else if(cap.textContent===CARMSG) cap.textContent=""; };
+      radio.on("car",show);
+      let v=false; try{ v=localStorage.getItem("mdfmCar")==="1"; }catch(e){} if(v) radio.setCar(true); show();
+      cb.addEventListener("click",e=>{ if(e.detail>0) cb.blur(); const nv=!radio.isCar(); radio.setCar(nv); try{ localStorage.setItem("mdfmCar",nv?"1":"0"); }catch(err){} show(); }); } }
   // Stations: WYBC 88.1 (Collin's ambient piano), HEARYE 95.5 (Renn Faire Radio), MDFM 99.9 HD and PTLK 108.0 (talk). The arrows switch; the choice is remembered on this device.
   const stLS="mdfmStation", showStation=st=>{ if(!st) return; $("#stName").textContent=st.name; document.documentElement.dataset.station=st.id;   // showStation(st): puts the station name on the display and words the Next and Station ID buttons for it; data-station lets the CSS and skins react
     const w=st.id==="wybc"||st.id==="hearye", t=st.id==="ptlk", pt=st.id==="ptrn"; $("#skipBtn").textContent=t?"Next show":w?"Next piece":pt?"Next track":"Next song"; $("#spotBtn").textContent=pt?"Drop a tag":w||t?"Station ID":"Station break";

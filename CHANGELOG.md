@@ -2,6 +2,23 @@
 
 Bump `version` in package.json and add an entry here with every change that gets merged to `main`.
 
+## 1.38.0 (2026-10-27, Rob)
+- **CAR mode (new CAR button beside LET IT RIDE).** For CarPlay, Bluetooth in the car or a locked phone. Live, the radio writes its music a quarter second ahead; when iOS throttles a page that isn't in front (CarPlay with Maps up, a locked screen) that falls behind and the sound crackles, stutters or drops out. In CAR, MDFM, PTRN and CLUK make each song whole, a song ahead (the same way Save does, so TUNE, the style matrix, effects and EQ are all in it) and queue the finished songs back to back on the audio hardware, so nothing on the page has to keep up for the music to play.
+  - The live station keeps playing until the first song is ready (about 10-30 seconds; the light blinks), then hands over.
+  - Songs only (no DJ, breaks or tags). MIX changes land on the next song. SKIP moves the queued song up. Save saves the ready-made song playing (MP3, no MIDI).
+  - A little more headroom at the top of the volume range (about -1.5 dB) for car systems.
+  - Other stations play live while CAR is on. Remembered on this device (`mdfmCar`).
+  - Engine: `setCar(v)`, `isCar()`, `carInfo()`, event `car`. CAR's songs join after the soft clip at a new unity gain, `TONE.post`.
+- **Clicks fixed (from a scan of every drum, kit, bass, keys, lead and tag).** Every one was rendered alone and checked for sudden jumps in the waveform.
+  - Hits and notes: the shared envelope's rise was exponential, which does almost all of its rising in the last few samples of a 1-4 ms attack, a click on every conga, tom, log drum, bass note and kick body. It's now a straight ramp over the same time (the attack length is unchanged; the kick's deliberate click layer stays).
+  - PTRN tags: GATE switched the voice on and off instantly every 16th (a click each time), STUTTER cut its slices dead, and REVERSE started part-way into the clip. They now use 2-15 ms ramps.
+  - Every voice clip (tags, DJ lines, word samples) fades in and out over 4 ms, since rendered speech can start or stop mid-wave.
+  - What's left in the scan is ordinary waveform shape (saw and square waves), not clicks.
+  - Engine (tests only): `_ids()` lists every voice, and the renders `inst` (roles `kit`, `drum`) and `tagtest` render them alone.
+- **The MIX EQ works on a zoomed receiver** (VOID's SIZE / AUTO): the dots sat below and to the right of the curve and grabbed the wrong place. The graph now measures the zoom.
+- **VOID: the XY pad's grid shows** (VOID's "no backgrounds" rule had wiped it). The lines use the station's LCD colour, faded.
+- **VOID in the Mac app resizes like a normal app window** (with MedDev Receiver 1.14.1): no zooming with the window's width and no empty side margins, so the window's edges are the receiver's edges; the window is one solid VOID panel whatever size you drag it to. The app's own minimum window size still applies.
+
 ## 1.37.0 (2026-10-27, Rob)
 - **PERFORM, a new MIX section (every station with music): play the radio like an instrument.** Everything lands on the station's beat. Nothing here is saved except the scenes, and Save never records the tricks.
   - **PADS:** eight pads, also keys 1-8 while PERFORM is on screen: KICK, CLAP, HAT, OPEN HAT and PERC play through the song's own kit, plus STAB (the chord playing now), HORN (the air horn) and CRASH. Each lands on the next 16th note. **RECORD** writes the drum pads into this station's BEAT grid at the step they land on (a second hit on the same step makes it loud; INFLUENCE goes up to 50 if it was lower).

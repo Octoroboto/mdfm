@@ -40,6 +40,16 @@ html.appwin .wrap :is(button,input,select,textarea,label,a,summary,[role=slider]
 html.appwin header.top .wtitle,html.appwin .lcd{-webkit-app-region:no-drag}
 /* The can layer spans the window (it is where the can flies) but sets no region, so it never blocks dragging; only the can and swatter do. */
 html.appwin :is(#nozzle,.swatter){-webkit-app-region:no-drag}
+/* VOID (a fluid skin, html[data-fluid]) in the app: the window behaves like a normal Mac app window. The whole window is
+   one solid VOID panel (a rounded backdrop painted by body::before, fixed to the window so it always fills it whatever
+   size you drag it to), the receiver sits flush inside it with no metal frame and no empty side margin, so the window's
+   resize edges are right at the receiver's edges. The backdrop is a pseudo-element, not a child, so the window-fit
+   measuring in skin/radio-wire.js (which reads body's children) still sees only the receiver's real height. Pressing
+   on the backdrop drags the window like the bare metal does in other skins. */
+html.appwin[data-fluid] body{padding:0}
+html.appwin[data-fluid] body::before{content:"";position:fixed;inset:0;z-index:-1;border-radius:12px;background-color:var(--v-bg,#111215)!important;border:1px solid var(--v-line,#33353e)!important;pointer-events:none}
+html.appwin[data-fluid] .wrap{border:0!important;border-radius:0!important;box-shadow:none!important;padding:12px!important}
+html.appwin.fullscreen[data-fluid] body::before{border-radius:0}
 html.appwin.fullscreen,html.appwin.fullscreen body{background:var(--bg)!important}
 html.appwin.fullscreen body{padding:16px 74px 16px 16px}
 /* Window controls (POWER, MIN, FULL) drawn into the deck's title strip, apps only. */
@@ -162,3 +172,8 @@ html[data-skin="analyze-pics"] .setsec>summary .setcount{color:#555}   /* 1.32: 
 #instSet{min-width:0;max-width:100%}.instnow,.instnowlist,.instrow{min-width:0;max-width:100%}
 .instnow .ptrnfamhd .btn{white-space:nowrap;flex:none}
 .instnow,.instnowlist{grid-template-columns:minmax(0,1fr)}
+
+/* 1.38 CAR: its light blinks while the first ready-made song is being made (steady once CAR is playing) */
+#carLed.wait{animation:carblink 1s steps(2,jump-none) infinite}
+@keyframes carblink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){#carLed.wait{animation:none;opacity:.6}}

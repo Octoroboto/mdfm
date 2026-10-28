@@ -574,6 +574,10 @@ function mountMix(radio, opts = {}) {
       // W / H: the graph's size in CSS px; dpr: canvas pixels per CSS px; drawT: the pending frame; specT: the spectrum timer;
       // eq: the engine's EQ as last read
       let W = 0, H = 0, dpr = 1, drawT = 0, specT = 0, eq = radio.getEq();
+      // Z: how much the receiver is zoomed (VOID's SIZE / AUTO use CSS zoom on the receiver). W / H and the dots stay in the graph's own
+      // (unzoomed) CSS px, the canvas gets Z times more pixels so it stays sharp, and pointer positions (screen px) are divided by Z.
+      // Before 1.38 the graph mixed the two, so on a zoomed receiver the dots sat down and to the right of the curve.
+      let Z = 1;
       // xOf / fOf: frequency <-> x (log); yOf / dOf: dB <-> y, with 8 px kept free at the top and bottom
       const xOf = f => Math.log(f / FMIN) / Math.log(FMAX / FMIN) * W, fOf = x => FMIN * Math.pow(FMAX / FMIN, clamp(x / W, 0, 1));
       const yOf = d => H / 2 - d / DB * (H / 2 - 8), dOf = y => (H / 2 - y) / (H / 2 - 8) * DB;
@@ -587,7 +591,7 @@ function mountMix(radio, opts = {}) {
       const nodeY = b => { const o = eq[b]; if (hasGain(b)) return yOf(eq.on === false ? 0 : o.gain); const r = radio.eqResponse([o.freq], b); return yOf(o.on && eq.on !== false ? clamp(r[0] || 0, -DB, DB) : 0); };
       // draw(): the backing, the faint live spectrum, the grid and labels, each active band's curve (the selected one filled),
       // the total curve (dashed grey with the EQ off), then places and labels the dots. Colours follow the skin's --lcd.
-      function draw() { drawT = 0; if (!cx || !W) return; const css = win.getComputedStyle(panel), lcd = (css.getPropertyValue("--lcd") || "").trim() || "#00e000";
+      function draw() { drawT = 0; if (!cx || !measure()) return; const css = win.getComputedStyle(panel), lcd = (css.getPropertyValue("--lcd") || "").trim() || "#00e000";
         cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, W, H);
         cx.fillStyle = "rgba(0,0,0,.42)"; cx.fillRect(0, 0, W, H);
         const sp = radio.isOn && radio.isOn() && has("getSpectrum") ? radio.getSpectrum() : null;   // the live spectrum, faint, behind everything
@@ -619,8 +623,12 @@ function mountMix(radio, opts = {}) {
       const redraw = () => { if (!drawT) drawT = (win.requestAnimationFrame || (f => setTimeout(f, 16)))(draw); };
       // size(): match the canvas to its box at device pixels (at most 3x, 2x in LITE) and draw; a hidden drawer measures 0,
       // so it also runs when the drawer opens (eqWake)
-      const size = () => { const r = g.getBoundingClientRect(); if (!r.width) return; dpr = Math.min(win.MDFM_lite ? 2 : 3, win.devicePixelRatio || 1); W = r.width; H = r.height;
-        const bw = Math.round(W * dpr), bh = Math.round(H * dpr); if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; } draw(); };
+      // measure(): W / H / Z / dpr and the canvas's pixel size; true if it has a size. draw() calls it too, because a zoom change
+      // alone doesn't change the graph's own size, so the ResizeObserver never hears about it.
+      const measure = () => { const r = g.getBoundingClientRect(), lw = g.offsetWidth || r.width; if (!r.width || !lw) return false; Z = r.width / lw; W = lw; H = g.offsetHeight || r.height / Z;
+        dpr = Math.min(win.MDFM_lite ? 2 : 3, win.devicePixelRatio || 1) * Z;
+        const bw = Math.round(W * dpr), bh = Math.round(H * dpr); if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; } return true; };
+      const size = () => { if (measure()) draw(); };
       if (typeof ResizeObserver === "function") new ResizeObserver(size).observe(g);
       // 15 fps spectrum, only while the drawer is open, the graph on screen and the radio on
       const spec = () => { specT = 0; if (!panel.hidden && !doc.hidden && visible(g) && radio.isOn && radio.isOn()) { if (win.MDFM_lite) { specT = setTimeout(spec, 500); return; } draw(); specT = setTimeout(spec, 66); } };   // 1.26: LITE leaves the live spectrum out
@@ -667,7 +675,7 @@ function mountMix(radio, opts = {}) {
       // lastTap: for a double tap, which resets the band
       const pts = new Map(); let drag = null, pinch = null, lastTap = { t: 0, b: "", x: 0, y: 0 };
       // gRect: the graph's box, measured at the first finger and reused until all have lifted
-      let gRect = null; const local = e => { const r = gRect || g.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      let gRect = null; const local = e => { const r = gRect || g.getBoundingClientRect(); return [(e.clientX - r.left) / Z, (e.clientY - r.top) / Z]; };   // screen px -> the graph's own px (Z: zoom)
       // hit(x, y): the nearest dot within 23 px; the selected one gets 4 px extra so it wins a tie
       const hit = (x, y) => { let best = null, bd = 23; for (const b of EQB) { const n = nodes[b.id]; if (!n) continue; const d = Math.hypot(x - parseFloat(n.style.left), y - parseFloat(n.style.top)) - (b.id === ui.eqBand ? 4 : 0);
         if (d < bd) { bd = d; best = b.id; } } return best; };
@@ -1856,4 +1864,9 @@ html.mx-lite .mx-padbox,html.mx-lite .mx-padtxt,html.mx-lite .mx-eqg,html.mx-lit
 :is(html.mx-void,html[data-flat]) .mixdrawer :is(.mx-pfpad.hit,.mx-scn.hit,[data-roll][aria-pressed=true],.mx-pfdrop .mx-padbtn.busy){outline:2px solid var(--v-glow)!important;outline-offset:-2px!important;color:var(--v-glow)!important}
 :is(html.mx-void,html[data-flat]) .mx-xydot{border:2px solid var(--v-glow)!important;background-color:transparent!important}
 :is(html.mx-void,html[data-flat]) .mx-xy{background-color:var(--v-scr,#0a0b0d)!important;border:1px solid var(--v-line,#33353e)!important}
+/* VOID wipes every background-image (that is how it removes textures), which also wiped the XY pad's grid lines. The pad
+   needs its grid to be readable, so it is painted back here. ".mx-xy.mx-xy" just repeats the class to make this rule
+   more specific than VOID's "remove all backgrounds" rule, and the lines use the station's LCD colour (--v-glow) faded
+   way down with color-mix so they look like part of the VOID look. */
+:is(html.mx-void,html[data-flat]) .mx-xy.mx-xy{background-image:linear-gradient(color-mix(in srgb,var(--v-glow,#00e000) 12%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--v-glow,#00e000) 12%,transparent) 1px,transparent 1px),linear-gradient(90deg,transparent 49.6%,color-mix(in srgb,var(--v-glow,#00e000) 32%,transparent) 49.6%,color-mix(in srgb,var(--v-glow,#00e000) 32%,transparent) 50.4%,transparent 50.4%)!important;background-size:12.5% 20%,12.5% 20%,100% 100%!important}
 `;
